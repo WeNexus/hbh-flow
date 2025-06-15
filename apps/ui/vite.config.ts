@@ -5,7 +5,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [react()],
   build: {
-    outDir: '../../dist/apps/ui',
+    outDir: '../../dist',
     sourcemap: true,
   },
 });
