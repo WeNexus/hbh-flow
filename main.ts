@@ -80,11 +80,15 @@ async function dev() {
   // start ui
   const uiDir = path.join(projectRoot, 'apps/ui');
 
-  execa(path.join(uiDir, 'node_modules/.bin/vite'), {
-    ...execaOptions,
-    cwd: uiDir,
-    ...getStdIoOptions('ui', chalk.yellowBright),
-  }).catch((error) => console.error('Error starting the ui:', error));
+  execa(
+    path.join(uiDir, 'node_modules/.bin/vite'),
+    ['--port', process.env.UI_PORT || '3002'],
+    {
+      ...execaOptions,
+      cwd: uiDir,
+      ...getStdIoOptions('ui', chalk.yellowBright),
+    },
+  ).catch((error) => console.error('Error starting the ui:', error));
 }
 
 async function prod() {
@@ -99,9 +103,9 @@ async function prod() {
       cluster.fork();
     }
 
-    await import('./apps/api/src/main.ts');
+    await import('./apps/api/src/main.js');
   } else {
-    await import('./apps/worker/src/main.ts');
+    await import('./apps/worker/src/main.js');
   }
 }
 
