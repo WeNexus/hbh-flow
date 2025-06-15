@@ -12,7 +12,11 @@ Sentry.init({
   sendDefaultPii: true,
   integrations: [
     Sentry.browserTracingIntegration(),
-    Sentry.replayIntegration(),
+    Sentry.replayIntegration({
+      maskAllText: false,
+      blockAllMedia: false,
+      maskAllInputs: false,
+    }),
   ],
   // Tracing
   tracesSampleRate: 1.0, //  Capture 100% of the transactions
