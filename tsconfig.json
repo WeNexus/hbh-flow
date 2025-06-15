@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "nodenext",
+    "isolatedModules": true,
+    "declaration": true,
+    "removeComments": true,
+    "allowJs": true,
+    "checkJs": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2024",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "#lib/core": [
+        "libs/core/src"
+      ],
+      "#lib/core/*": [
+        "libs/core/src/*"
+      ]
+    }
+  }
+}
