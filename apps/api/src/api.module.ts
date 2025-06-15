@@ -6,7 +6,7 @@ import { APP_FILTER } from '@nestjs/core';
 import { Module } from '@nestjs/common';
 
 @Module({
-  imports: [SentryModule.forRoot(), UIModule.register(), CoreModule],
+  imports: [SentryModule.forRoot(), UIModule, CoreModule],
   controllers: [],
   providers: [
     {
