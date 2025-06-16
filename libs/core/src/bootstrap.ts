@@ -21,7 +21,11 @@ export async function bootstrap(
     appType: AppType;
   },
 ): Promise<NestExpressApplication | INestApplicationContext> {
-  initSentry(metadata.appType);
+  const { appType } = metadata;
+
+  initSentry(appType);
+  // @ts-expect-error appType is not a valid property of ModuleMetadata
+  delete metadata.appType;
 
   // We're creating two modules to avoid everything being global.
 
@@ -43,7 +47,7 @@ export async function bootstrap(
   class WrapperModule {}
 
   const app =
-    metadata.appType === AppType.Worker
+    appType === AppType.Worker
       ? await NestFactory.createApplicationContext(WrapperModule)
       : await NestFactory.create<NestExpressApplication>(WrapperModule, {
           forceCloseConnections: true,
@@ -51,7 +55,7 @@ export async function bootstrap(
 
   const envService = app.get(EnvService);
 
-  if (metadata.appType === AppType.API) {
+  if (appType === AppType.API) {
     await (app as NestExpressApplication).listen(
       envService.getNumber('API_PORT', 3001),
     );
