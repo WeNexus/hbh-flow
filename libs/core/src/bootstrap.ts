@@ -1,9 +1,11 @@
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { RedisModule } from '#lib/core/redis/redis.module.js';
+import { PrismaService } from '#lib/core/prisma.service.js';
 import { EnvService } from '#lib/core/env/env.service.js';
 import { APP_FILTER, NestFactory } from '@nestjs/core';
 import { initSentry } from '#lib/core/sentry.js';
+import helmet from 'helmet';
 
 import {
   INestApplicationContext,
@@ -11,7 +13,6 @@ import {
   Module,
   Global,
 } from '@nestjs/common';
-import { PrismaService } from '#lib/core/prisma.service.js';
 
 export enum AppType {
   Worker = 'Worker',
@@ -59,9 +60,10 @@ export async function bootstrap(
   const envService = app.get(EnvService);
 
   if (appType === AppType.API) {
-    await (app as NestExpressApplication).listen(
-      envService.getNumber('API_PORT', 3001),
-    );
+    const _app = app as NestExpressApplication;
+
+    _app.use(helmet()).enableCors();
+    await _app.listen(envService.getNumber('API_PORT', 3001));
   }
 
   return app;
