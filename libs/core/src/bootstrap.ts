@@ -1,5 +1,6 @@
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { RedisModule } from '#lib/core/redis/redis.module.js';
 import { EnvService } from '#lib/core/env/env.service.js';
 import { APP_FILTER, NestFactory } from '@nestjs/core';
 import { initSentry } from '#lib/core/sentry.js';
@@ -34,7 +35,7 @@ export async function bootstrap(
 
   @Global()
   @Module({
-    imports: [SentryModule.forRoot(), CoreModule],
+    imports: [SentryModule.forRoot(), CoreModule, RedisModule],
     providers: [
       EnvService,
       {
