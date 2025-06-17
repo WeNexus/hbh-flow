@@ -11,6 +11,7 @@ import {
   Module,
   Global,
 } from '@nestjs/common';
+import { PrismaService } from '#lib/core/prisma.service.js';
 
 export enum AppType {
   Worker = 'Worker',
@@ -38,6 +39,7 @@ export async function bootstrap(
     imports: [SentryModule.forRoot(), CoreModule, RedisModule],
     providers: [
       EnvService,
+      PrismaService,
       {
         provide: APP_FILTER,
         useClass: SentryGlobalFilter,
