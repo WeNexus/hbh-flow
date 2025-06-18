@@ -1,15 +1,16 @@
+import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { RedisModule } from '#lib/core/redis/redis.module.js';
 import { PrismaService } from '#lib/core/prisma.service.js';
 import { EnvService } from '#lib/core/env/env.service.js';
-import { APP_FILTER, NestFactory } from '@nestjs/core';
 import { initSentry } from '#lib/core/sentry.js';
 import helmet from 'helmet';
 
 import {
   INestApplicationContext,
   ModuleMetadata,
+  Provider,
   Module,
   Global,
 } from '@nestjs/common';
@@ -41,11 +42,16 @@ export async function bootstrap(
     providers: [
       EnvService,
       PrismaService,
-      {
-        provide: APP_FILTER,
-        useClass: SentryGlobalFilter,
-      },
-    ],
+      (appType === AppType.API
+        ? {
+            provide: APP_FILTER,
+            inject: [HttpAdapterHost],
+            useFactory(httpAdapterHost: HttpAdapterHost) {
+              return new SentryGlobalFilter(httpAdapterHost.httpAdapter);
+            },
+          }
+        : undefined) as Provider,
+    ].filter(Boolean),
     exports: [EnvService],
   })
   class WrapperModule {}
