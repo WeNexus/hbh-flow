@@ -82,11 +82,12 @@ async function dev() {
 
   execa(
     path.join(uiDir, 'node_modules/.bin/vite'),
-    ['--port', process.env.UI_PORT || '3002'],
+    ['--port', process.env.UI_PORT || '3002', '--strictPort'],
     {
       ...execaOptions,
       cwd: uiDir,
       ...getStdIoOptions('ui', chalk.yellowBright),
+      env: env.parsed,
     },
   ).catch((error) => console.error('Error starting the ui:', error));
 }

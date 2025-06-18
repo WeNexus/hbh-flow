@@ -24,6 +24,7 @@ export class UIMiddleware implements NestMiddleware {
         .then(({ createProxyMiddleware }) => {
           this.proxyMiddleware = createProxyMiddleware({
             target: `http://localhost:${env.getNumber('UI_PORT', 3002)}`,
+            ws: true,
           });
         })
         .catch((e) => {
@@ -38,10 +39,6 @@ export class UIMiddleware implements NestMiddleware {
   }
 
   async use(req: Request, res: Response, next: NextFunction) {
-    if (req.path.startsWith('/api')) {
-      return next();
-    }
-
     if (!this.env.isProd) {
       if (this.proxyMiddleware) {
         return this.proxyMiddleware(req, res, next);

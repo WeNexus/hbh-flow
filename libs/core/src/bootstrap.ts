@@ -62,7 +62,22 @@ export async function bootstrap(
   if (appType === AppType.API) {
     const _app = app as NestExpressApplication;
 
-    _app.use(helmet()).enableCors();
+    _app.use(
+      helmet({
+        contentSecurityPolicy: {
+          directives: {
+            imgSrc: [`'self'`, 'data:', 'blob:'],
+            scriptSrc: [`'self'`, `https: 'unsafe-inline'`],
+            manifestSrc: [`'self'`],
+            frameSrc: [`'self'`],
+            connectSrc: [`'self'`, 'https:', 'wss:'],
+            workerSrc: [`'self'`, 'blob:'],
+          },
+        },
+      }),
+    );
+    _app.enableCors();
+
     await _app.listen(envService.getNumber('API_PORT', 3001));
   }
 
