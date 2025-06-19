@@ -79,19 +79,24 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @Auth() auth: AuthContext,
   ) {
-    const tokens = await this.authService.login(Number(auth.payload.uid));
+    try {
+      const tokens = await this.authService.login(Number(auth.payload.uid));
 
-    res.cookie('access_token', tokens.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    });
+      res.cookie('access_token', tokens.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      });
 
-    return {
-      csrfToken: tokens.csrfToken,
-      expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    };
+      return {
+        csrfToken: tokens.csrfToken,
+        expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      };
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (e) {
+      throw new BadRequestException('Failed to refresh token');
+    }
   }
 
   @Protected()

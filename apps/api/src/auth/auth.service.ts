@@ -21,7 +21,7 @@ export class AuthService {
 
     // Check if user exists and password matches
     if (!user) {
-      throw new BadRequestException('User not found');
+      throw new BadRequestException('Incorrect email or password');
     }
 
     // Generate Access Token and CSRF Token here
