@@ -67,6 +67,7 @@ export async function bootstrap(
   const envService = app.get(EnvService);
 
   if (appType === AppType.API) {
+    const { SwaggerModule, DocumentBuilder } = await import('@nestjs/swagger');
     const helmet = (await import('helmet')).default;
     const _app = app as NestExpressApplication;
 
@@ -99,6 +100,35 @@ export async function bootstrap(
     );
 
     _app.use(cookieParser());
+
+    const config = new DocumentBuilder()
+      .setTitle('API Documentation')
+      .setVersion('latest')
+      .addCookieAuth('access_token', {
+        type: 'apiKey',
+      })
+      .addGlobalParameters({
+        in: 'header',
+        name: 'X-CSRF-Token',
+        required: true,
+      })
+      .build();
+
+    SwaggerModule.setup(
+      'api',
+      _app,
+      SwaggerModule.createDocument(_app, config, {
+        operationIdFactory(_, methodKey: string) {
+          return methodKey;
+        },
+      }),
+      {
+        raw: false,
+        swaggerOptions: {
+          persistAuthorization: true,
+        },
+      },
+    );
 
     await _app.listen(envService.getNumber('API_PORT', 3001));
   }
