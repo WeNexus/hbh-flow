@@ -5,7 +5,7 @@ import { RedisModule } from '#lib/core/redis/redis.module.js';
 import { PrismaService } from '#lib/core/prisma.service.js';
 import { EnvService } from '#lib/core/env/env.service.js';
 import { initSentry } from '#lib/core/sentry.js';
-import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 
 import {
   INestApplicationContext,
@@ -13,6 +13,7 @@ import {
   Provider,
   Module,
   Global,
+  ValidationPipe,
 } from '@nestjs/common';
 
 export enum AppType {
@@ -52,7 +53,7 @@ export async function bootstrap(
           }
         : undefined) as Provider,
     ].filter(Boolean),
-    exports: [EnvService],
+    exports: [EnvService, RedisModule, PrismaService],
   })
   class WrapperModule {}
 
@@ -66,6 +67,7 @@ export async function bootstrap(
   const envService = app.get(EnvService);
 
   if (appType === AppType.API) {
+    const helmet = (await import('helmet')).default;
     const _app = app as NestExpressApplication;
 
     _app.use(
@@ -83,6 +85,20 @@ export async function bootstrap(
       }),
     );
     _app.enableCors();
+
+    _app.useGlobalPipes(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        stopAtFirstError: true,
+        transformOptions: {
+          enableImplicitConversion: true,
+        },
+      }),
+    );
+
+    _app.use(cookieParser());
 
     await _app.listen(envService.getNumber('API_PORT', 3001));
   }

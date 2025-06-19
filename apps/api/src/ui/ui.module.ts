@@ -6,6 +6,6 @@ import { UIMiddleware } from './ui.middleware.js';
 })
 export class UIModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(UIMiddleware).exclude('api/*path').forRoutes('/');
+    consumer.apply(UIMiddleware).exclude('/api', '/api/*path').forRoutes('/');
   }
 }
