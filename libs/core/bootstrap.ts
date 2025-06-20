@@ -5,15 +5,14 @@ import { RedisModule } from './redis/redis.module.js';
 import { PrismaService } from './prisma.service.js';
 import { EnvService } from './env/env.service.js';
 import { initSentry } from './sentry.js';
-import cookieParser from 'cookie-parser';
 
 import {
   INestApplicationContext,
+  ValidationPipe,
   ModuleMetadata,
   Provider,
   Module,
   Global,
-  ValidationPipe,
 } from '@nestjs/common';
 
 export enum AppType {
@@ -68,9 +67,12 @@ export async function bootstrap(
 
   if (appType === AppType.API) {
     const { SwaggerModule, DocumentBuilder } = await import('@nestjs/swagger');
+    const { RedisIoAdapter } = await import('./redis-io.adapter.js');
+    const { default: cookieParser } = await import('cookie-parser');
     const helmet = (await import('helmet')).default;
     const _app = app as NestExpressApplication;
 
+    // Security middlewares
     _app.use(
       helmet({
         contentSecurityPolicy: {
@@ -87,6 +89,7 @@ export async function bootstrap(
     );
     _app.enableCors();
 
+    // Validation and parsing
     _app.useGlobalPipes(
       new ValidationPipe({
         transform: true,
@@ -101,6 +104,7 @@ export async function bootstrap(
 
     _app.use(cookieParser());
 
+    // OpenAPI/Swagger setup
     const config = new DocumentBuilder()
       .setTitle('API Documentation')
       .setVersion('latest')
@@ -130,6 +134,11 @@ export async function bootstrap(
       },
     );
 
+    // Socket.IO setup
+    const redisIoAdapter = new RedisIoAdapter(_app);
+    await redisIoAdapter.connectToRedis();
+
+    // Start the server
     await _app.listen(envService.getNumber('API_PORT', 3001));
   }
 
