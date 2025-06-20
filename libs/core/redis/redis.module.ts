@@ -5,31 +5,23 @@ import { Redis } from 'ioredis';
 
 @Module({
   providers: [
+    RedisConfigService,
     {
       provide: REDIS_SUB,
-      useFactory() {
-        return {
-          provide: Redis,
-          inject: [RedisConfigService],
-          useFactory(configService: RedisConfigService) {
-            return new Redis(configService.get());
-          },
-        };
+      inject: [RedisConfigService],
+      useFactory(configService: RedisConfigService) {
+        return new Redis(configService.get());
       },
     },
     {
       provide: REDIS_PUB,
-      useFactory() {
-        return {
-          provide: Redis,
-          inject: [RedisConfigService],
-          useFactory(configService: RedisConfigService) {
-            return new Redis(configService.get());
-          },
-        };
+      inject: [RedisConfigService],
+      useFactory(configService: RedisConfigService) {
+        return new Redis(configService.get());
       },
     },
   ],
+  exports: [REDIS_PUB, REDIS_SUB],
 })
 export class RedisModule implements OnModuleDestroy {
   constructor(
