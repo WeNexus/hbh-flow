@@ -1,10 +1,10 @@
 import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { RedisModule } from '#lib/core/redis/redis.module.js';
-import { PrismaService } from '#lib/core/prisma.service.js';
-import { EnvService } from '#lib/core/env/env.service.js';
-import { initSentry } from '#lib/core/sentry.js';
+import { RedisModule } from './redis/redis.module.js';
+import { PrismaService } from './prisma.service.js';
+import { EnvService } from './env/env.service.js';
+import { initSentry } from './sentry.js';
 import cookieParser from 'cookie-parser';
 
 import {

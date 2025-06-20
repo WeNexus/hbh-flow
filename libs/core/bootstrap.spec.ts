@@ -1,6 +1,6 @@
 import type { NestFactoryStatic } from '@nestjs/core/nest-factory.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { EnvService } from '#lib/core/env/env.service.js';
+import { EnvService } from './env/env.service.js';
 
 const initSentryMock = vi.fn();
 const listenMock = vi.fn();

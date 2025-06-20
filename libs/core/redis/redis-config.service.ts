@@ -1,4 +1,4 @@
-import { EnvService } from '#lib/core/env/env.service.js';
+import { EnvService } from '../env/env.service.js';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()

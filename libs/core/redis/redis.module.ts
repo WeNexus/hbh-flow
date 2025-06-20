@@ -1,6 +1,6 @@
-import { RedisConfigService } from '#lib/core/redis/redis-config.service.js';
-import { REDIS_PUB, REDIS_SUB } from '#lib/core/redis/redis.symbol.js';
 import { Inject, Module, OnModuleDestroy } from '@nestjs/common';
+import { RedisConfigService } from './redis-config.service.js';
+import { REDIS_PUB, REDIS_SUB } from './redis.symbol.js';
 import { Redis } from 'ioredis';
 
 @Module({

@@ -1,4 +1,4 @@
-import { AppType } from '#lib/core/bootstrap.js';
+import { AppType } from './bootstrap.js';
 import * as Sentry from '@sentry/nestjs';
 import process from 'node:process';
 

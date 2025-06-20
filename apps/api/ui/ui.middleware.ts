@@ -11,7 +11,7 @@ import express, {
 
 @Injectable()
 export class UIMiddleware implements NestMiddleware {
-  private readonly appPath = path.join(import.meta.dirname, '../../../../dist');
+  private readonly appPath = path.join(import.meta.dirname, '../../../dist');
   private readonly logger = new Logger(UIMiddleware.name);
 
   private readonly staticMiddleware?: RequestHandler;

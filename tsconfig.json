@@ -25,11 +25,20 @@
     "noFallthroughCasesInSwitch": false,
     "paths": {
       "#lib/core": [
-        "libs/core/src"
+        "libs/core"
       ],
       "#lib/core/*": [
-        "libs/core/src/*"
+        "libs/core/*"
       ]
     }
-  }
+  },
+  "include": [
+    "./libs/**/*",
+    "./apps/**/*",
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "./apps/ui"
+  ]
 }

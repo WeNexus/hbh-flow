@@ -61,7 +61,7 @@ async function dev() {
         '--watch',
         '--watch-preserve-output',
         '--import @swc-node/register/esm-register',
-        `./apps/${app}/src/main.ts`,
+        `./apps/${app}/main.ts`,
         '--enable-source-maps',
         '--no-experimental-strip-types',
       ],
@@ -104,9 +104,9 @@ async function prod() {
       cluster.fork();
     }
 
-    await import('./apps/api/src/main.js');
+    await import('./apps/api/main.js');
   } else {
-    await import('./apps/worker/src/main.js');
+    await import('./apps/worker/main.js');
   }
 }
 
