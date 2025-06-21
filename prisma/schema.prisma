@@ -7,11 +7,21 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  ADMIN
+  DEVELOPER
+  DATA_ENTRY
+  OBSERVER
+}
+
 model User {
-  id       Int    @id @default(autoincrement())
+  id Int @id @default(autoincrement())
+
+  role     Role   @default(OBSERVER)
   name     String
   email    String @unique
   password String
 
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now()) @db.Timestamptz()
+  updatedAt DateTime? @updatedAt @db.Timestamptz()
 }

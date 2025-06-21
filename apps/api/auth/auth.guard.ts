@@ -1,12 +1,14 @@
 import { PrismaService } from '#lib/core/prisma.service.js';
-import { AuthContext } from './types/auth.context.js';
 import { JwtPayload } from './types/jwt-payload.js';
 import { JwtService } from '@nestjs/jwt';
+import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
+import { Role } from '@prisma/client';
 import argon2 from 'argon2';
 
 import {
   UnauthorizedException,
+  ForbiddenException,
   ExecutionContext,
   CanActivate,
   Injectable,
@@ -17,10 +19,42 @@ export class AuthGuard implements CanActivate {
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    private readonly reflector: Reflector,
   ) {}
+
+  private readonly rolesSorted: Role[] = [
+    'OBSERVER',
+    'DATA_ENTRY',
+    'DEVELOPER',
+    'ADMIN',
+  ];
+
+  private hasPermission(
+    userRole: Role,
+    requiredRole: Role | undefined,
+  ): boolean {
+    if (!requiredRole) {
+      return true; // No specific role required, allow access
+    }
+
+    const userRoleIndex = this.rolesSorted.indexOf(userRole);
+    const requiredRoleIndex = this.rolesSorted.indexOf(requiredRole);
+
+    if (userRoleIndex === -1 || requiredRoleIndex === -1) {
+      // Either role is not found in the sorted list, deny access
+      return false;
+    }
+
+    // Allow if the user's role is equal to or higher than the required role
+    return userRoleIndex >= requiredRoleIndex;
+  }
 
   async canActivate(context: ExecutionContext) {
     const req = context.switchToHttp().getRequest<Request>();
+    const role = this.reflector.get<Role>(
+      'HBH_USER_ROLE',
+      context.getHandler(),
+    );
 
     if (typeof req.cookies?.access_token !== 'string') {
       // Access token is missing
@@ -42,6 +76,25 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid access token');
     }
 
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: Number(jwtPayload.uid),
+      },
+      omit: {
+        password: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!this.hasPermission(user.role, role)) {
+      throw new ForbiddenException(
+        'You do not have permission to access this resource',
+      );
+    }
+
     if (req.method !== 'GET') {
       if (typeof req.headers['x-csrf-token'] !== 'string') {
         // CSRF token is required for non-GET requests
@@ -57,7 +110,10 @@ export class AuthGuard implements CanActivate {
 
     // If we reach here, the token is valid
 
-    req.auth = new AuthContext(jwtPayload, this.prisma);
+    req.auth = {
+      user,
+      payload: jwtPayload,
+    };
 
     return true;
   }

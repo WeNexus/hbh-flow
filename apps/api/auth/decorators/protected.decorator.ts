@@ -1,6 +1,22 @@
-import { applyDecorators, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../auth.guard.js';
+import { Role } from '@prisma/client';
 
-export function Protected() {
-  return applyDecorators(UseGuards(AuthGuard));
+import {
+  applyDecorators,
+  CustomDecorator,
+  SetMetadata,
+  UseGuards,
+} from '@nestjs/common';
+
+export function Protected(role?: Role) {
+  const decorators: (CustomDecorator | MethodDecorator | ClassDecorator)[] = [];
+
+  // Do not apply the decorator if the role is not provided
+  if (role) {
+    decorators.push(SetMetadata('HBH_USER_ROLE', role));
+  }
+
+  decorators.push(UseGuards(AuthGuard));
+
+  return applyDecorators(...decorators);
 }

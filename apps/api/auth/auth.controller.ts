@@ -1,14 +1,13 @@
 import { Protected } from './decorators/protected.decorator.js';
 import { Auth } from './decorators/auth-context.decorator.js';
 import { PrismaService } from '#lib/core/prisma.service.js';
+import type { AuthContext } from './types/auth.context.js';
 import { WhoamiOutput } from './output/whoami.output.js';
 import { LoginOutput } from './output/login.output.js';
-import { AuthContext } from './types/auth.context.js';
 import { LoginInput } from './input/login.input.js';
 import type { Response, Request } from 'express';
 import { AuthService } from './auth.service.js';
 import { ApiResponse } from '@nestjs/swagger';
-import { JwtService } from '@nestjs/jwt';
 import argon2 from 'argon2';
 
 import {
@@ -25,7 +24,6 @@ import {
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -58,6 +56,7 @@ export class AuthController {
       },
       select: {
         id: true,
+        role: true,
         password: true,
       },
     });
@@ -67,19 +66,24 @@ export class AuthController {
       throw new BadRequestException('Incorrect email or password');
     }
 
-    const tokens = await this.authService.login(user);
+    try {
+      const tokens = await this.authService.login(user);
 
-    res.cookie('access_token', tokens.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    });
+      res.cookie('access_token', tokens.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      });
 
-    return {
-      csrfToken: tokens.csrfToken,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    };
+      return {
+        csrfToken: tokens.csrfToken,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      };
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (e) {
+      throw new BadRequestException('Incorrect email or password');
+    }
   }
 
   @Post('logout')
@@ -149,7 +153,7 @@ export class AuthController {
     description: 'Returns the authenticated user',
     type: WhoamiOutput,
   })
-  whoami(@Req() req: Request): Promise<WhoamiOutput> {
-    return req.auth!.user();
+  whoami(@Req() req: Request): WhoamiOutput {
+    return req.auth!.user;
   }
 }

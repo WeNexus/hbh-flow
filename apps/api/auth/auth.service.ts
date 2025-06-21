@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '#lib/core/prisma.service.js';
+import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '@prisma/client';
 import argon2 from 'argon2';
@@ -11,17 +11,24 @@ export class AuthService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async login(userOrId: number | Pick<User, 'id'>, expiresIn: string = '24h') {
+  async login(
+    userOrId: number | Pick<User, 'id' | 'role'>,
+    expiresIn: string = '24h',
+  ) {
     const user =
       typeof userOrId === 'number'
         ? await this.prisma.user.findUnique({
             where: { id: userOrId },
+            select: {
+              id: true,
+              role: true,
+            },
           })
         : userOrId;
 
     // Check if user exists and password matches
     if (!user) {
-      throw new BadRequestException('Incorrect email or password');
+      throw new Error('User not found');
     }
 
     // Generate Access Token and CSRF Token here
@@ -29,7 +36,7 @@ export class AuthService {
     const csrfToken = crypto.randomUUID();
     const csrfTokenHash = await argon2.hash(csrfToken);
     const accessToken = this.jwtService.sign(
-      { uid: user.id, cst: csrfTokenHash },
+      { uid: user.id, cst: csrfTokenHash, rol: user.role },
       { expiresIn, subject: 'access' },
     );
 

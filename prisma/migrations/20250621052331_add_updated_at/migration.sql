@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "updatedAt" TIMESTAMPTZ,
+ALTER COLUMN "createdAt" SET DATA TYPE TIMESTAMPTZ;
