@@ -2,6 +2,7 @@ import { PrismaService } from '#lib/core/prisma.service.js';
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '@prisma/client';
+import crypto from 'crypto';
 import argon2 from 'argon2';
 
 @Injectable()
