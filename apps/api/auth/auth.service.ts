@@ -38,7 +38,7 @@ export class AuthService {
     const csrfTokenHash = await argon2.hash(csrfToken);
     const accessToken = this.jwtService.sign(
       { uid: user.id, cst: csrfTokenHash, rol: user.role },
-      { expiresIn, subject: 'access' },
+      { expiresIn, subject: 'access', audience: 'user', issuer: 'auth' },
     );
 
     return {

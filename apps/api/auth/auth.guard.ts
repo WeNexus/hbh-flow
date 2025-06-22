@@ -68,6 +68,8 @@ export class AuthGuard implements CanActivate {
         req.cookies.access_token,
         {
           subject: 'access',
+          audience: 'user',
+          issuer: 'auth',
         },
       );
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
