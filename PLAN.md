@@ -22,6 +22,7 @@ So our primary objective is to build a solution that addresses these limitations
 
 ## Frontend Roadmap
 - [x] **Codebase Setup**: Set up the initial codebase.
-- [ ] **UI Library**: Choose a React UI library (e.g., Material-UI, Ant Design, Redux UI).
+- [ ] **UI Library**: Choose a React UI library (e.g., Material-UI, Ant Design, Radix UI).
 - [ ] **Authentication**: Integrate the authentication system with the frontend to manage user session.
-- [ ] **Dashboard**: Create a dashboard to display the status of workflows, tasks, and API connections.
+- [ ] **Dashboard**: Create a dashboard to display the status of workflows, and API connections.
+- [ ] **User Management**: Implement user management features to allow admins to manage users.
