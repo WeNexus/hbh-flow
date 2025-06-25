@@ -1,6 +1,7 @@
 import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RedisModule } from './redis/redis.module.js';
 import { PrismaService } from './prisma.service.js';
 import { EnvService } from './env/env.service.js';
@@ -35,7 +36,17 @@ export async function bootstrap(
 
   @Global()
   @Module({
-    imports: [SentryModule.forRoot(), CoreModule, RedisModule],
+    imports: [
+      EventEmitterModule.forRoot({
+        wildcard: true,
+        delimiter: '.',
+        verboseMemoryLeak: false,
+        ignoreErrors: false,
+      }),
+      SentryModule.forRoot(),
+      CoreModule,
+      RedisModule,
+    ],
     providers: [
       {
         provide: APP_TYPE,
