@@ -4,6 +4,8 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { RedisModule } from './redis/redis.module.js';
 import { PrismaService } from './prisma.service.js';
 import { EnvService } from './env/env.service.js';
+import { APP_TYPE } from './app-type.symbol.js';
+import { AppType } from './types/app-type.js';
 import { initSentry } from './sentry.js';
 
 import {
@@ -14,11 +16,6 @@ import {
   Module,
   Global,
 } from '@nestjs/common';
-
-export enum AppType {
-  Worker = 'Worker',
-  API = 'API',
-}
 
 export async function bootstrap(
   metadata: ModuleMetadata & {
@@ -40,6 +37,10 @@ export async function bootstrap(
   @Module({
     imports: [SentryModule.forRoot(), CoreModule, RedisModule],
     providers: [
+      {
+        provide: APP_TYPE,
+        useValue: appType,
+      },
       EnvService,
       PrismaService,
       (appType === AppType.API
@@ -52,7 +53,7 @@ export async function bootstrap(
           }
         : undefined) as Provider,
     ].filter(Boolean),
-    exports: [EnvService, RedisModule, PrismaService],
+    exports: [EnvService, RedisModule, PrismaService, APP_TYPE],
   })
   class WrapperModule {}
 
