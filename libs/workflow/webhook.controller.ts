@@ -1,9 +1,12 @@
 import { Protected } from '#app/api/auth/decorators/protected.decorator.js';
 import { WorkflowTokenOutput } from './misc/workflow-token.output.js';
+import { WorkflowOptions } from './decorators/workflow.decorator.js';
 import { WorkflowTokenInput } from './misc/workflow-token.input.js';
 import { JsonWebTokenError, JwtService } from '@nestjs/jwt';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { WorkflowService } from './workflow.service.js';
+import { TriggerType } from './types/trigger-meta.js';
+import { Reflector } from '@nestjs/core';
 import express from 'express';
 
 import {
@@ -20,6 +23,7 @@ export class WebhookController {
   constructor(
     private readonly workflowService: WorkflowService,
     private readonly jwtService: JwtService,
+    private readonly reflector: Reflector,
   ) {}
 
   @Post('api/webhook/token')
@@ -41,10 +45,25 @@ export class WebhookController {
   async generateWebhookToken(
     @Body() payload: WorkflowTokenInput,
   ): Promise<WorkflowTokenOutput> {
-    const wflow = this.workflowService.workflowsByName.get(payload.workflow);
+    const workflow = this.workflowService.workflowsByName.get(payload.workflow);
 
-    if (!wflow) {
+    if (!workflow) {
       throw new BadRequestException('Workflow not found');
+    }
+
+    const options = this.reflector.get<WorkflowOptions | undefined>(
+      'HBH_FLOW',
+      workflow,
+    );
+
+    if (
+      !options?.triggers?.find(
+        (trigger) => trigger.type === TriggerType.Webhook,
+      )
+    ) {
+      throw new BadRequestException(
+        'The specified workflow does not have a webhook trigger',
+      );
     }
 
     const token = await this.jwtService.signAsync(
