@@ -14,6 +14,26 @@ enum Role {
   OBSERVER
 }
 
+enum JobStatus {
+  SCHEDULED
+  CANCELLED
+  SUCCEEDED
+  WAITING_RERUN
+  WAITING
+  DELAYED
+  RUNNING
+  STALLED
+  FAILED
+  PAUSED
+}
+
+enum JobStepStatus {
+  SUCCEEDED
+  RUNNING
+  WAITING_RERUN
+  FAILED
+}
+
 model User {
   id Int @id @default(autoincrement())
 
@@ -24,4 +44,60 @@ model User {
 
   createdAt DateTime  @default(now()) @db.Timestamptz()
   updatedAt DateTime? @updatedAt @db.Timestamptz()
+}
+
+model Schedule {
+  id Int @id @default(autoincrement())
+
+  name           String
+  cronExpression String
+  active         Boolean @default(true)
+
+  createdAt DateTime  @default(now()) @db.Timestamptz()
+  updatedAt DateTime? @updatedAt @db.Timestamptz()
+
+  Jobs Job[]
+
+  @@unique([name, cronExpression])
+}
+
+model Job {
+  id         Int     @id @default(autoincrement())
+  bullId     String? @unique
+  scheduleId Int?
+
+  name        String
+  status      JobStatus @default(WAITING)
+  scheduledAt DateTime? @db.Timestamptz()
+  payload     Json?
+
+  sentryTrace   String?
+  sentryBaggage String?
+
+  createdAt DateTime  @default(now()) @db.Timestamptz()
+  updatedAt DateTime? @updatedAt @db.Timestamptz()
+
+  Schedule Schedule? @relation(fields: [scheduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  Steps    JobStep[]
+
+  @@index([scheduleId])
+  @@index([status])
+  @@index([name])
+}
+
+model JobStep {
+  jobId Int
+  name  String
+
+  status  JobStepStatus @default(RUNNING)
+  result  Json?
+  retries Int           @default(0) // Number of retries for this step
+  runs    Int           @default(1) // Number of runs for this step, both retries and reruns combined
+
+  createdAt DateTime  @default(now()) @db.Timestamptz()
+  updatedAt DateTime? @updatedAt @db.Timestamptz()
+
+  Job Job @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([jobId, name])
 }

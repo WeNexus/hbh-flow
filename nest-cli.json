@@ -36,6 +36,15 @@
       "compilerOptions": {
         "tsConfigPath": "libs/core/tsconfig.lib.json"
       }
+    },
+    "workflow": {
+      "type": "library",
+      "root": "libs/workflow",
+      "entryFile": "index",
+      "sourceRoot": "libs/workflow",
+      "compilerOptions": {
+        "tsConfigPath": "libs/workflow/tsconfig.lib.json"
+      }
     }
   }
 }

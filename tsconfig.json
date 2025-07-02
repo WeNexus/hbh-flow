@@ -29,12 +29,30 @@
       ],
       "#lib/core/*": [
         "libs/core/*"
+      ],
+      "#lib/workflow": [
+        "libs/workflow"
+      ],
+      "#lib/workflow/*": [
+        "libs/workflow/*"
+      ],
+      "#app/api": [
+        "apps/api"
+      ],
+      "#app/api/*": [
+        "apps/api/*"
+      ],
+      "#app/worker": [
+        "apps/worker"
+      ],
+      "#app/worker/*": [
+        "apps/worker/*"
       ]
     }
   },
   "include": [
     "./libs/**/*",
-    "./apps/**/*",
+    "./apps/**/*"
   ],
   "exclude": [
     "node_modules",

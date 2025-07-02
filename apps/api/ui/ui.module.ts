@@ -8,7 +8,7 @@ export class UIModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(UIMiddleware)
-      .exclude('/api', '/api/*path', '/socket.io')
+      .exclude('/api', '/api/*path', '/webhook', '/webhook/*path', '/socket.io')
       .forRoutes('/');
   }
 }
