@@ -7,7 +7,7 @@ import { LoginOutput } from './output/login.output.js';
 import { LoginInput } from './input/login.input.js';
 import type { Response, Request } from 'express';
 import { AuthService } from './auth.service.js';
-import { ApiResponse } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import argon2 from 'argon2';
 
 import {
@@ -28,6 +28,11 @@ export class AuthController {
   ) {}
 
   @Post('login')
+  @ApiOperation({
+    summary: 'User login',
+    description:
+      'Authenticates a user and sets an access token cookie and returns CSRF token.',
+  })
   @ApiResponse({
     status: 400,
     description: 'Bad Request - Incorrect email or password',
@@ -87,6 +92,10 @@ export class AuthController {
   }
 
   @Post('logout')
+  @ApiOperation({
+    summary: 'User logout',
+    description: 'Logs out the user by clearing the access token cookie.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Logout successful',
@@ -103,6 +112,11 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @ApiOperation({
+    summary: 'Refresh access token',
+    description:
+      'Refreshes the access token using the current user context. Requires a valid access token.',
+  })
   @Protected()
   @ApiResponse({
     status: 400,
@@ -146,8 +160,12 @@ export class AuthController {
     }
   }
 
-  @Protected()
   @Get('whoami')
+  @Protected()
+  @ApiOperation({
+    summary: 'Get authenticated user information',
+    description: 'Returns the details of the currently authenticated user.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Returns the authenticated user',
