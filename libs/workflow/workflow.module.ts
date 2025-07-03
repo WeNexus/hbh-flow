@@ -1,5 +1,6 @@
 import { INTERNAL_WORKFLOWS, WORKFLOWS } from './misc/workflows.symbol.js';
 import { SetupCronWorkflow } from './workflows/setup-cron.workflow.js';
+import { WorkflowController } from './workflow.controller.js';
 import { WebhookController } from './webhook.controller.js';
 import { EnvService } from '#lib/core/env/env.service.js';
 import { WorkflowService } from './workflow.service.js';
@@ -13,7 +14,7 @@ export class WorkflowModule {
 
     return {
       module: WorkflowModule,
-      controllers: [WebhookController],
+      controllers: [WorkflowController, WebhookController],
       imports: [
         JwtModule.registerAsync({
           inject: [EnvService],

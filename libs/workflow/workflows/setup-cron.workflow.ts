@@ -1,10 +1,11 @@
-import { Workflow, WorkflowOptions } from '../decorators/workflow.decorator.js';
+import { Workflow } from '../decorators/workflow.decorator.js';
 import { PrismaService } from '#lib/core/prisma.service.js';
 import { WorkflowService } from '../workflow.service.js';
 import { Step } from '../decorators/step.decorator.js';
 import { TriggerType } from '../types/trigger-meta.js';
 import { Reflector } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
+import { WorkflowOptions } from '#lib/workflow/types/workflow-options.js';
 
 /**
  * This is an internal workflow, which should run every time the app starts up.

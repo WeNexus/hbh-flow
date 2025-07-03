@@ -1,7 +1,6 @@
 import { Protected } from '#app/api/auth/decorators/protected.decorator.js';
-import { WorkflowTokenOutput } from './misc/workflow-token.output.js';
-import { WorkflowOptions } from './decorators/workflow.decorator.js';
-import { WorkflowTokenInput } from './misc/workflow-token.input.js';
+import { WorkflowTokenOutput } from './output/workflow-token.output.js';
+import { WorkflowTokenInput } from './input/workflow-token.input.js';
 import { JsonWebTokenError, JwtService } from '@nestjs/jwt';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { WorkflowService } from './workflow.service.js';
@@ -17,6 +16,7 @@ import {
   Body,
   Req,
 } from '@nestjs/common';
+import { WorkflowOptions } from '#lib/workflow/types/workflow-options.js';
 
 @Controller()
 export class WebhookController {

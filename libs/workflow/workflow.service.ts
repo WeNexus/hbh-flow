@@ -1,6 +1,5 @@
 import { Prisma, Job as DBJob, JobStatus, JobStepStatus } from '@prisma/client';
 import { INTERNAL_WORKFLOWS, WORKFLOWS } from './misc/workflows.symbol.js';
-import { WorkflowOptions } from './decorators/workflow.decorator.js';
 import type { InputJsonValue } from '@prisma/client/runtime/client';
 import { REDIS_PUB } from '#lib/core/redis/redis.symbol.js';
 import { Inject, Injectable, Logger } from '@nestjs/common';
@@ -19,14 +18,15 @@ import { RunOptions } from './types/run-options.js';
 import { StepInfo } from './types/step-info.js';
 import { Redis } from 'ioredis';
 import _ from 'lodash';
+import { WorkflowOptions } from '#lib/workflow/types/workflow-options.js';
 
 @Injectable()
 export class WorkflowService {
   constructor(
     @Inject(INTERNAL_WORKFLOWS)
-    private readonly internalWorkflows: (typeof WorkflowBase)[],
+    public readonly internalWorkflows: (typeof WorkflowBase)[],
     @Inject(WORKFLOWS)
-    private readonly externalWorkflows: (typeof WorkflowBase)[],
+    public readonly externalWorkflows: (typeof WorkflowBase)[],
     @Inject(APP_TYPE) private readonly appType: AppType,
     @Inject(REDIS_PUB) private readonly redis: Redis,
     private readonly emitter: EventEmitter2,

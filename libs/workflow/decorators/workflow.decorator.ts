@@ -1,5 +1,4 @@
-import { TriggerMeta } from '../types/trigger-meta.js';
-import { RateLimiterOptions } from 'bullmq';
+import { WorkflowOptions } from '../types/workflow-options.js';
 
 import {
   applyDecorators,
@@ -7,13 +6,6 @@ import {
   Injectable,
   Scope,
 } from '@nestjs/common';
-
-export interface WorkflowOptions {
-  triggers?: TriggerMeta[];
-  concurrency?: number;
-  limit?: RateLimiterOptions;
-  maxRetries?: number;
-}
 
 export function Workflow(options?: WorkflowOptions) {
   return applyDecorators(
