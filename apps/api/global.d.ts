@@ -1,4 +1,4 @@
-import { AuthContext } from './auth/types/auth.context.js';
+import { AuthContext } from '../../libs/auth/types/auth.context.js';
 
 export {};
 

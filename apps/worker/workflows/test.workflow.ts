@@ -1,5 +1,5 @@
 import { Workflow } from '#lib/workflow/decorators/workflow.decorator.js';
-import { Step } from '#lib/workflow/decorators/step.decorator.js';
+import { Step } from '#lib/workflow/decorators';
 import { cron, event, webhook } from '#lib/workflow/misc/trigger.js';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base.js';
 

@@ -1,5 +1,5 @@
 import { RateLimiterOptions as RateLimiterOptionsBase } from 'bullmq';
-import { TriggerMeta } from './trigger-meta.js';
+import { TriggerMetaSchema } from '../schema/trigger-meta.schema';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RateLimiterOptions implements RateLimiterOptionsBase {
@@ -39,8 +39,8 @@ export class WorkflowOptions {
 
   @ApiProperty({
     description: 'The delay in milliseconds before retrying a failed job',
-    type: TriggerMeta,
+    type: TriggerMetaSchema,
     required: false,
   })
-  triggers?: TriggerMeta[];
+  triggers?: TriggerMetaSchema[];
 }

@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --import @swc-node/register/esm-register --no-experimental-strip-types --enable-source-maps
+#!/usr/bin/env -S SWCRC=true node --import @swc-node/register/esm-register --no-experimental-strip-types --enable-source-maps
 
 import { type Options } from 'execa';
 import process from 'node:process';

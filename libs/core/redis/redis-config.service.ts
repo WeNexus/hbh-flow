@@ -1,4 +1,4 @@
-import { EnvService } from '../env/env.service.js';
+import { EnvService } from '../env/env.service';
 import { Injectable } from '@nestjs/common';
 import { RedisOptions } from 'ioredis';
 

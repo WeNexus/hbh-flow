@@ -2,12 +2,13 @@ import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { RedisModule } from './redis/redis.module.js';
-import { PrismaService } from './prisma.service.js';
-import { EnvService } from './env/env.service.js';
-import { APP_TYPE } from './app-type.symbol.js';
-import { AppType } from './types/app-type.js';
-import { initSentry } from './sentry.js';
+import { EnvService } from './env/env.service';
+import { initSentry } from './misc/sentry';
+import { JwtModule } from '@nestjs/jwt';
+import { PrismaService } from './misc';
+import { RedisModule } from './redis';
+import { APP_TYPE } from './misc';
+import { AppType } from './types';
 
 import {
   INestApplicationContext,
@@ -46,6 +47,14 @@ export async function bootstrap(
       SentryModule.forRoot(),
       CoreModule,
       RedisModule,
+      JwtModule.registerAsync({
+        inject: [EnvService],
+        useFactory(env: EnvService) {
+          return {
+            secret: env.getString('APP_KEY'),
+          };
+        },
+      }),
     ],
     providers: [
       {
@@ -64,7 +73,7 @@ export async function bootstrap(
           }
         : undefined) as Provider,
     ].filter(Boolean),
-    exports: [EnvService, RedisModule, PrismaService, APP_TYPE],
+    exports: [EnvService, RedisModule, PrismaService, JwtModule, APP_TYPE],
   })
   class WrapperModule {}
 
@@ -79,7 +88,7 @@ export async function bootstrap(
 
   if (appType === AppType.API) {
     const { SwaggerModule, DocumentBuilder } = await import('@nestjs/swagger');
-    const { RedisIoAdapter } = await import('./redis-io.adapter.js');
+    const { RedisIoAdapter } = await import('./misc/redis-io.adapter.js');
     const { default: cookieParser } = await import('cookie-parser');
     const helmet = (await import('helmet')).default;
     const _app = app as NestExpressApplication;

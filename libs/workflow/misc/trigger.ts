@@ -1,6 +1,7 @@
-import { TriggerType, TriggerMeta } from '../types/trigger-meta.js';
+import { TriggerMetaSchema } from '#lib/workflow/schema';
+import { TriggerType } from './trigger-type.enum.js';
 
-export function event(event: string, source: string): TriggerMeta {
+export function event(event: string, source: string): TriggerMetaSchema {
   return {
     type: TriggerType.Event,
     eventSource: source,
@@ -10,8 +11,11 @@ export function event(event: string, source: string): TriggerMeta {
 
 export function cron(
   pattern: string,
-  meta?: Pick<TriggerMeta, 'oldPattern' | 'oldName' | 'timezone' | 'immediate'>,
-): TriggerMeta {
+  meta?: Pick<
+    TriggerMetaSchema,
+    'oldPattern' | 'oldName' | 'timezone' | 'immediate'
+  >,
+): TriggerMetaSchema {
   return {
     type: TriggerType.Cron,
     pattern,
@@ -19,7 +23,7 @@ export function cron(
   };
 }
 
-export function webhook(): TriggerMeta {
+export function webhook(): TriggerMetaSchema {
   return {
     type: TriggerType.Webhook,
   };

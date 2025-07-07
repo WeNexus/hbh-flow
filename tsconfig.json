@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
-    "module": "NodeNext",
+    "module": "ESNext",
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "moduleResolution": "nodenext",
+    "moduleResolution": "bundler",
     "isolatedModules": true,
     "declaration": true,
     "removeComments": true,
@@ -36,17 +36,11 @@
       "#lib/workflow/*": [
         "libs/workflow/*"
       ],
-      "#app/api": [
-        "apps/api"
+      "#lib/auth": [
+        "libs/auth"
       ],
-      "#app/api/*": [
-        "apps/api/*"
-      ],
-      "#app/worker": [
-        "apps/worker"
-      ],
-      "#app/worker/*": [
-        "apps/worker/*"
+      "#lib/auth/*": [
+        "libs/auth/*"
       ]
     }
   },

@@ -1,5 +1,5 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
-import { EnvService } from '#lib/core/env/env.service.js';
+import { EnvService } from '#lib/core';
 import path from 'node:path';
 
 import express, {

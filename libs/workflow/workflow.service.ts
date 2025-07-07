@@ -1,27 +1,41 @@
-import { Prisma, Job as DBJob, JobStatus, JobStepStatus } from '@prisma/client';
-import { INTERNAL_WORKFLOWS, WORKFLOWS } from './misc/workflows.symbol.js';
+import { Job as DBJob, JobStatus, JobStepStatus, Prisma } from '@prisma/client';
+import { INTERNAL_WORKFLOWS, WORKFLOWS } from './misc/workflows.symbol';
 import type { InputJsonValue } from '@prisma/client/runtime/client';
-import { REDIS_PUB } from '#lib/core/redis/redis.symbol.js';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '#lib/core/prisma.service.js';
-import { EnvService } from '#lib/core/env/env.service.js';
-import { RepeatOptions } from './types/repeat-options.js';
-import { APP_TYPE } from '#lib/core/app-type.symbol.js';
-import { WorkflowBase } from './misc/workflow-base.js';
+import { StepInfoSchema } from './schema/step-info.schema';
+import { WorkflowOptions } from './types/workflow-options';
+import { TriggerType } from './misc/trigger-type.enum';
+import { RepeatOptions } from './types/repeat-options';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { AppType } from '#lib/core/types/app-type.js';
-import { TriggerType } from './types/trigger-meta.js';
-import { Queue, Worker, DelayedError } from 'bullmq';
+import { DelayedError, Queue, Worker } from 'bullmq';
+import { WorkflowBase } from './misc/workflow-base';
 import { ModuleRef, Reflector } from '@nestjs/core';
-import { JobPayload } from './types/job-payload.js';
-import { RunOptions } from './types/run-options.js';
-import { StepInfo } from './types/step-info.js';
+import { RunOptions } from './types/run-options';
+import { JobPayload } from './types/job-payload';
+import { JwtService } from '@nestjs/jwt';
 import { Redis } from 'ioredis';
 import _ from 'lodash';
-import { WorkflowOptions } from '#lib/workflow/types/workflow-options.js';
+
+import {
+  NoWebhookTriggerException,
+  WorkflowNotFoundException,
+} from './exceptions';
+
+import {
+  PrismaService,
+  EnvService,
+  REDIS_PUB,
+  APP_TYPE,
+  AppType,
+} from '#lib/core';
 
 @Injectable()
 export class WorkflowService {
+  public readonly workflowsByName = new Map<string, typeof WorkflowBase>();
+  public readonly workflows: (typeof WorkflowBase)[];
+  private readonly eventMap = new Map<string, Set<typeof WorkflowBase>>();
+  private readonly logger = new Logger(WorkflowService.name);
+
   constructor(
     @Inject(INTERNAL_WORKFLOWS)
     public readonly internalWorkflows: (typeof WorkflowBase)[],
@@ -29,6 +43,7 @@ export class WorkflowService {
     public readonly externalWorkflows: (typeof WorkflowBase)[],
     @Inject(APP_TYPE) private readonly appType: AppType,
     @Inject(REDIS_PUB) private readonly redis: Redis,
+    private readonly jwtService: JwtService,
     private readonly emitter: EventEmitter2,
     private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
@@ -61,10 +76,203 @@ export class WorkflowService {
       });
   }
 
-  private readonly eventMap = new Map<string, Set<typeof WorkflowBase>>();
-  public readonly workflowsByName = new Map<string, typeof WorkflowBase>();
-  private readonly logger = new Logger(WorkflowService.name);
-  public readonly workflows: (typeof WorkflowBase)[];
+  async resume(workflow: typeof WorkflowBase, jobId: number) {
+    // @ts-expect-error private property
+    const queue = workflow.queue;
+
+    if (!queue) {
+      throw new Error(`Queue not found for workflow: ${workflow.name}`);
+    }
+
+    const bullJob = await queue.getJob(`#${jobId}`);
+
+    if (!bullJob) {
+      throw new Error(`Bull job not found for ID: #${jobId}`);
+    }
+
+    if (await bullJob.isDelayed()) {
+      await bullJob.changeDelay(0);
+    }
+
+    await bullJob.promote();
+
+    if (await queue.isPaused()) {
+      await queue.resume();
+    }
+  }
+
+  async run(workflow: typeof WorkflowBase, options?: RunOptions) {
+    // @ts-expect-error private property
+    const queue = workflow.queue;
+
+    if (!queue) {
+      throw new Error(`Queue not found for workflow: ${workflow.name}`);
+    }
+
+    const dbJob = await this.prisma.job.create({
+      data: {
+        name: workflow.name,
+        status: 'WAITING',
+        payload: options?.payload as InputJsonValue,
+        sentryBaggage: options?.sentry?.baggage,
+        sentryTrace: options?.sentry?.trace,
+      },
+    });
+
+    const bullJob = await queue.add(
+      workflow.name,
+      {
+        dbJobId: dbJob.id,
+        context: options?.context as unknown,
+      },
+      {
+        delay: options?.scheduledAt
+          ? options.scheduledAt.getTime() - Date.now()
+          : 0,
+        attempts: options?.maxRetries,
+        jobId: `#${dbJob.id}`,
+        deduplication: options?.deduplication,
+      },
+    );
+
+    return {
+      bullJob,
+      dbJob,
+    };
+  }
+
+  async repeat(workflow: typeof WorkflowBase, options: RepeatOptions) {
+    // @ts-expect-error private property
+    const queue = workflow.queue;
+
+    if (!queue) {
+      throw new Error(`Queue not found for workflow: ${workflow.name}`);
+    }
+
+    let schedule: Prisma.ScheduleGetPayload<object>;
+
+    try {
+      schedule = await this.prisma.schedule.upsert({
+        where: {
+          name_cronExpression: {
+            name: options.repeat.oldName ?? workflow.name,
+            cronExpression: options.repeat.oldPattern ?? options.repeat.pattern,
+          },
+        },
+        create: {
+          name: workflow.name,
+          cronExpression: options.repeat.pattern,
+        },
+        update: {
+          name: workflow.name,
+          cronExpression: options.repeat.pattern,
+          active: true,
+        },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (e: any) {
+      // After the first upsert, the new pattern becomes the active one,
+      schedule = await this.prisma.schedule.upsert({
+        where: {
+          name_cronExpression: {
+            name: workflow.name,
+            cronExpression: options.repeat.pattern,
+          },
+        },
+        create: {
+          name: workflow.name,
+          cronExpression: options.repeat.pattern,
+        },
+        update: {
+          name: workflow.name,
+          cronExpression: options.repeat.pattern,
+          active: true,
+        },
+      });
+    }
+
+    const bullJob = await queue.upsertJobScheduler(
+      `#${schedule.id}`,
+      {
+        pattern: options.repeat.pattern,
+        tz: options.repeat.timezone,
+        immediately: options.repeat.immediate,
+      },
+      {
+        name: workflow.name,
+        data: {
+          scheduleId: schedule.id,
+          context: options?.context as unknown,
+        },
+        opts: {
+          attempts: options?.maxRetries,
+          repeatJobKey: `#${schedule.id}`,
+        },
+      },
+    );
+
+    return {
+      bullJob,
+      schedule,
+    };
+  }
+
+  async getToken(workflow: typeof WorkflowBase, expiresIn: number | string) {
+    const options = this.reflector.get<WorkflowOptions | undefined>(
+      'HBH_FLOW',
+      workflow,
+    );
+
+    if (
+      !options?.triggers?.find(
+        (trigger) => trigger.type === TriggerType.Webhook,
+      )
+    ) {
+      throw new NoWebhookTriggerException();
+    }
+
+    return this.jwtService.signAsync(
+      { wflow: workflow.name },
+      {
+        subject: 'access',
+        audience: 'workflow',
+        issuer: 'webhook',
+        expiresIn,
+      },
+    );
+  }
+
+  async handleWebhook(token: string, payload?: unknown) {
+    const jwt = await this.jwtService.verifyAsync<{ wflow: string }>(token, {
+      subject: 'access',
+      audience: 'workflow',
+      issuer: 'webhook',
+    });
+
+    const workflow = this.workflowsByName.get(jwt.wflow);
+
+    if (!workflow) {
+      throw new WorkflowNotFoundException();
+    }
+
+    const options = this.reflector.get<WorkflowOptions | undefined>(
+      'HBH_FLOW',
+      workflow,
+    );
+
+    if (
+      !options?.triggers?.find(
+        (trigger) => trigger.type === TriggerType.Webhook,
+      )
+    ) {
+      throw new NoWebhookTriggerException();
+    }
+
+    return this.run(workflow, {
+      payload,
+      // TODO: Add Sentry context
+    });
+  }
 
   private setupQueues() {
     const usedQueueNames = new Set<string>();
@@ -309,7 +517,7 @@ export class WorkflowService {
     for (const workflow of this.workflows) {
       const instance = await this.moduleRef.resolve<WorkflowBase>(workflow);
       const keys = Object.getOwnPropertyNames(Object.getPrototypeOf(instance));
-      const steps: StepInfo[] = [];
+      const steps: StepInfoSchema[] = [];
 
       for (const key of keys) {
         if (key === 'constructor') {
@@ -369,7 +577,7 @@ export class WorkflowService {
     const { bullJob, dbJob } = instance;
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const steps = (instance.constructor as any).steps as StepInfo[];
+    const steps = (instance.constructor as any).steps as StepInfoSchema[];
     // Get the step to execute
     const currentStep =
       steps.find((s) => s.method === bullJob.data.step) ?? steps[0];
@@ -506,146 +714,5 @@ export class WorkflowService {
         throw new DelayedError();
       }
     }
-  }
-
-  async resume(workflow: typeof WorkflowBase, jobId: number) {
-    // @ts-expect-error private property
-    const queue = workflow.queue;
-
-    if (!queue) {
-      throw new Error(`Queue not found for workflow: ${workflow.name}`);
-    }
-
-    const bullJob = await queue.getJob(`#${jobId}`);
-
-    if (!bullJob) {
-      throw new Error(`Bull job not found for ID: #${jobId}`);
-    }
-
-    if (await bullJob.isDelayed()) {
-      await bullJob.changeDelay(0);
-    }
-
-    await bullJob.promote();
-
-    if (await queue.isPaused()) {
-      await queue.resume();
-    }
-  }
-
-  async run(workflow: typeof WorkflowBase, options?: RunOptions) {
-    // @ts-expect-error private property
-    const queue = workflow.queue;
-
-    if (!queue) {
-      throw new Error(`Queue not found for workflow: ${workflow.name}`);
-    }
-
-    const dbJob = await this.prisma.job.create({
-      data: {
-        name: workflow.name,
-        status: 'WAITING',
-        payload: options?.payload as InputJsonValue,
-        sentryBaggage: options?.sentry?.baggage,
-        sentryTrace: options?.sentry?.trace,
-      },
-    });
-
-    const bullJob = await queue.add(
-      workflow.name,
-      {
-        dbJobId: dbJob.id,
-        context: options?.context as unknown,
-      },
-      {
-        delay: options?.scheduledAt
-          ? options.scheduledAt.getTime() - Date.now()
-          : 0,
-        attempts: options?.maxRetries,
-        jobId: `#${dbJob.id}`,
-        deduplication: options?.deduplication,
-      },
-    );
-
-    return {
-      bullJob,
-      dbJob,
-    };
-  }
-
-  async repeat(workflow: typeof WorkflowBase, options: RepeatOptions) {
-    // @ts-expect-error private property
-    const queue = workflow.queue;
-
-    if (!queue) {
-      throw new Error(`Queue not found for workflow: ${workflow.name}`);
-    }
-
-    let schedule: Prisma.ScheduleGetPayload<object>;
-
-    try {
-      schedule = await this.prisma.schedule.upsert({
-        where: {
-          name_cronExpression: {
-            name: options.repeat.oldName ?? workflow.name,
-            cronExpression: options.repeat.oldPattern ?? options.repeat.pattern,
-          },
-        },
-        create: {
-          name: workflow.name,
-          cronExpression: options.repeat.pattern,
-        },
-        update: {
-          name: workflow.name,
-          cronExpression: options.repeat.pattern,
-          active: true,
-        },
-      });
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (e: any) {
-      // After the first upsert, the new pattern becomes the active one,
-      schedule = await this.prisma.schedule.upsert({
-        where: {
-          name_cronExpression: {
-            name: workflow.name,
-            cronExpression: options.repeat.pattern,
-          },
-        },
-        create: {
-          name: workflow.name,
-          cronExpression: options.repeat.pattern,
-        },
-        update: {
-          name: workflow.name,
-          cronExpression: options.repeat.pattern,
-          active: true,
-        },
-      });
-    }
-
-    const bullJob = await queue.upsertJobScheduler(
-      `#${schedule.id}`,
-      {
-        pattern: options.repeat.pattern,
-        tz: options.repeat.timezone,
-        immediately: options.repeat.immediate,
-      },
-      {
-        name: workflow.name,
-        data: {
-          scheduleId: schedule.id,
-          context: options?.context as unknown,
-        },
-        opts: {
-          attempts: options?.maxRetries,
-          repeatJobKey: `#${schedule.id}`,
-        },
-      },
-    );
-
-    return {
-      bullJob,
-      schedule,
-    };
   }
 }

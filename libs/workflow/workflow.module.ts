@@ -1,12 +1,12 @@
-import { INTERNAL_WORKFLOWS, WORKFLOWS } from './misc/workflows.symbol.js';
-import { SetupCronWorkflow } from './workflows/setup-cron.workflow.js';
-import { WorkflowController } from './workflow.controller.js';
-import { WebhookController } from './webhook.controller.js';
-import { EnvService } from '#lib/core/env/env.service.js';
+import { SetupCronWorkflow } from '#lib/workflow/misc/setup-cron.workflow';
 import { WorkflowService } from './workflow.service.js';
-import { WorkflowBase } from './misc/workflow-base.js';
 import { DynamicModule, Type } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
+
+import {
+  INTERNAL_WORKFLOWS,
+  WorkflowBase,
+  WORKFLOWS,
+} from '#lib/workflow/misc';
 
 export class WorkflowModule {
   static register(workflows: Type<WorkflowBase>[]): DynamicModule {
@@ -14,17 +14,6 @@ export class WorkflowModule {
 
     return {
       module: WorkflowModule,
-      controllers: [WorkflowController, WebhookController],
-      imports: [
-        JwtModule.registerAsync({
-          inject: [EnvService],
-          useFactory(env: EnvService) {
-            return {
-              secret: env.getString('APP_KEY'),
-            };
-          },
-        }),
-      ],
       providers: [
         WorkflowService,
         {

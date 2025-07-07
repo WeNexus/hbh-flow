@@ -1,4 +1,4 @@
-import { WorkflowOptions } from '../types/workflow-options.js';
+import { WorkflowOptions } from '../types/workflow-options';
 
 import {
   applyDecorators,

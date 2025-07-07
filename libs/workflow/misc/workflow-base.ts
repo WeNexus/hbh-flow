@@ -1,32 +1,27 @@
 import { Job as BullJob, JobProgress, Queue, Worker } from 'bullmq';
 import { Job as DBJob, PrismaClient } from '@prisma/client';
-import { JobPayload } from '../types/job-payload.js';
-import { StepInfo } from '../types/step-info.js';
+import { StepInfoSchema } from '../schema/step-info.schema';
+import { JobPayload } from '../types/job-payload';
 
 export class WorkflowBase<P = any> {
   // We're keeping queue, worker, bullJob and dbJob private to prevent direct access from outside the class.
 
-  private readonly prisma: PrismaClient;
-
   // Static queue shared across all instances of WorkflowBase.
   private static readonly queue: Queue<JobPayload>;
-  // Also static, but we need it for non-static methods declared in the WorkflowBase.
-  private readonly queue: Queue<JobPayload>;
-
   // Static worker shared across all instances of WorkflowBase.
   private static readonly worker: Worker<JobPayload>;
-  // Also static, but we need it for non-static methods declared in the WorkflowBase.
-  private readonly worker: Worker<JobPayload>;
-
-  private readonly steps: StepInfo[];
-
-  private readonly bullJob: BullJob<JobPayload>;
-  private readonly dbJob: DBJob;
-
   protected needsRerun: boolean = false;
   protected cancelled: boolean = false;
   protected paused: boolean = false;
   protected delayed = 0;
+  private readonly prisma: PrismaClient;
+  // Also static, but we need it for non-static methods declared in the WorkflowBase.
+  private readonly queue: Queue<JobPayload>;
+  // Also static, but we need it for non-static methods declared in the WorkflowBase.
+  private readonly worker: Worker<JobPayload>;
+  private readonly steps: StepInfoSchema[];
+  private readonly bullJob: BullJob<JobPayload>;
+  private readonly dbJob: DBJob;
 
   get progress() {
     return this.bullJob.progress;
