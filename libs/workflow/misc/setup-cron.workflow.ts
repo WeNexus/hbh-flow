@@ -11,7 +11,7 @@ import { Logger } from '@nestjs/common';
  * It sets up schedulers in BullMQ
  */
 
-@Workflow()
+@Workflow({ internal: true })
 export class SetupCronWorkflow {
   private readonly logger = new Logger(SetupCronWorkflow.name);
 

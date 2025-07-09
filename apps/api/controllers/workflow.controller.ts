@@ -42,7 +42,7 @@ export class WorkflowController {
     }
 
     return Promise.all(
-      this.workflowService.externalWorkflows
+      this.workflowService.workflows
         .slice(
           (pagination.page - 1) * pagination.limit,
           pagination.page * pagination.limit,

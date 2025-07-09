@@ -1,5 +1,4 @@
 import { Job as DBJob, JobStatus, JobStepStatus, Prisma } from '@prisma/client';
-import { INTERNAL_WORKFLOWS, WORKFLOWS } from './misc/workflows.symbol';
 import type { InputJsonValue } from '@prisma/client/runtime/client';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { StepInfoSchema } from './schema/step-info.schema';
@@ -8,6 +7,7 @@ import { TriggerType } from './misc/trigger-type.enum';
 import { RepeatOptions } from './types/repeat-options';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DelayedError, Queue, Worker } from 'bullmq';
+import { WORKFLOWS } from './misc/workflows.symbol';
 import { WorkflowBase } from './misc/workflow-base';
 import { ModuleRef, Reflector } from '@nestjs/core';
 import { RunOptions } from './types/run-options';
@@ -32,15 +32,12 @@ import {
 @Injectable()
 export class WorkflowService {
   public readonly workflowsByName = new Map<string, typeof WorkflowBase>();
-  public readonly workflows: (typeof WorkflowBase)[];
   private readonly eventMap = new Map<string, Set<typeof WorkflowBase>>();
   private readonly logger = new Logger(WorkflowService.name);
 
   constructor(
-    @Inject(INTERNAL_WORKFLOWS)
-    public readonly internalWorkflows: (typeof WorkflowBase)[],
     @Inject(WORKFLOWS)
-    public readonly externalWorkflows: (typeof WorkflowBase)[],
+    public readonly workflows: (typeof WorkflowBase)[],
     @Inject(APP_TYPE) private readonly appType: AppType,
     @Inject(REDIS_PUB) private readonly redis: Redis,
     private readonly jwtService: JwtService,
@@ -52,8 +49,6 @@ export class WorkflowService {
   ) {
     // Queues must be set up in both Worker and API apps, so both can enqueue jobs
     // but only the Worker app will process them.
-
-    this.workflows = this.internalWorkflows.concat(this.externalWorkflows);
 
     this.workflowsByName = new Map(
       this.workflows.map((workflow) => [workflow.name, workflow]),
@@ -497,7 +492,7 @@ export class WorkflowService {
     );
 
     // Run SetupCronWorkflow, which is an internal workflow and is used to set up cron jobs
-    const setupCronWorkflow = this.internalWorkflows.find(
+    const setupCronWorkflow = this.workflows.find(
       (w) => w.name === 'SetupCronWorkflow',
     )!;
 

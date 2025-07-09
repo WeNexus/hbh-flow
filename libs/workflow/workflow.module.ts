@@ -1,12 +1,7 @@
 import { SetupCronWorkflow } from '#lib/workflow/misc/setup-cron.workflow';
+import { WorkflowBase, WORKFLOWS } from '#lib/workflow/misc';
 import { WorkflowService } from './workflow.service.js';
 import { DynamicModule, Type } from '@nestjs/common';
-
-import {
-  INTERNAL_WORKFLOWS,
-  WorkflowBase,
-  WORKFLOWS,
-} from '#lib/workflow/misc';
 
 export class WorkflowModule {
   static register(workflows: Type<WorkflowBase>[]): DynamicModule {
@@ -19,10 +14,6 @@ export class WorkflowModule {
         {
           provide: WORKFLOWS,
           useValue: workflows,
-        },
-        {
-          provide: INTERNAL_WORKFLOWS,
-          useValue: internalWorkflows,
         },
         ...workflows,
         ...internalWorkflows,

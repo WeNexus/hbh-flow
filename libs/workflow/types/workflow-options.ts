@@ -24,6 +24,13 @@ export class WorkflowOptions {
   concurrency?: number;
 
   @ApiProperty({
+    description: 'Whether the workflow is internal',
+    required: false,
+    default: false,
+  })
+  internal?: boolean;
+
+  @ApiProperty({
     description: 'The rate limiter options for the workflow',
     type: RateLimiterOptions,
     required: false,
