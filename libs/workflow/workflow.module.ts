@@ -13,7 +13,7 @@ export class WorkflowModule {
         WorkflowService,
         {
           provide: WORKFLOWS,
-          useValue: workflows,
+          useValue: [...workflows, ...internalWorkflows],
         },
         ...workflows,
         ...internalWorkflows,
