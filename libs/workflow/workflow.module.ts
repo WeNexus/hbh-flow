@@ -1,24 +1,11 @@
 import { SetupCronWorkflow } from '#lib/workflow/misc/setup-cron.workflow';
-import { WorkflowBase, WORKFLOWS } from '#lib/workflow/misc';
 import { WorkflowService } from './workflow.service.js';
-import { DynamicModule, Type } from '@nestjs/common';
+import { DiscoveryModule } from '@nestjs/core';
+import { Module } from '@nestjs/common';
 
-export class WorkflowModule {
-  static register(workflows: Type<WorkflowBase>[]): DynamicModule {
-    const internalWorkflows = [SetupCronWorkflow];
-
-    return {
-      module: WorkflowModule,
-      providers: [
-        WorkflowService,
-        {
-          provide: WORKFLOWS,
-          useValue: [...workflows, ...internalWorkflows],
-        },
-        ...workflows,
-        ...internalWorkflows,
-      ],
-      exports: [WorkflowService, WORKFLOWS, ...workflows],
-    };
-  }
-}
+@Module({
+  imports: [DiscoveryModule],
+  providers: [WorkflowService, SetupCronWorkflow],
+  exports: [WorkflowService],
+})
+export class WorkflowModule {}

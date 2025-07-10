@@ -12,14 +12,14 @@ import {
   StepInfoSchema,
 } from '#lib/workflow';
 
-@Controller('api')
+@Controller('api/workflows')
 export class WorkflowController {
   constructor(
     private readonly workflowService: WorkflowService,
     private readonly reflector: Reflector,
   ) {}
 
-  @Get('workflows')
+  @Get('/')
   @Protected('OBSERVER')
   @ApiOperation({
     summary: 'List all available workflows',

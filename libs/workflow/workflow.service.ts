@@ -1,20 +1,25 @@
 import { Job as DBJob, JobStatus, JobStepStatus, Prisma } from '@prisma/client';
+import { DiscoveryService, ModuleRef, Reflector } from '@nestjs/core';
 import type { InputJsonValue } from '@prisma/client/runtime/client';
-import { Inject, Injectable, Logger } from '@nestjs/common';
 import { StepInfoSchema } from './schema/step-info.schema';
 import { WorkflowOptions } from './types/workflow-options';
 import { TriggerType } from './misc/trigger-type.enum';
 import { RepeatOptions } from './types/repeat-options';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DelayedError, Queue, Worker } from 'bullmq';
-import { WORKFLOWS } from './misc/workflows.symbol';
 import { WorkflowBase } from './misc/workflow-base';
-import { ModuleRef, Reflector } from '@nestjs/core';
 import { RunOptions } from './types/run-options';
 import { JobPayload } from './types/job-payload';
 import { JwtService } from '@nestjs/jwt';
 import { Redis } from 'ioredis';
 import _ from 'lodash';
+
+import {
+  OnApplicationBootstrap,
+  Injectable,
+  Inject,
+  Logger,
+} from '@nestjs/common';
 
 import {
   NoWebhookTriggerException,
@@ -30,14 +35,9 @@ import {
 } from '#lib/core';
 
 @Injectable()
-export class WorkflowService {
-  public readonly workflowsByName = new Map<string, typeof WorkflowBase>();
-  private readonly eventMap = new Map<string, Set<typeof WorkflowBase>>();
-  private readonly logger = new Logger(WorkflowService.name);
-
+export class WorkflowService implements OnApplicationBootstrap {
   constructor(
-    @Inject(WORKFLOWS)
-    public readonly workflows: (typeof WorkflowBase)[],
+    private readonly discoveryService: DiscoveryService,
     @Inject(APP_TYPE) private readonly appType: AppType,
     @Inject(REDIS_PUB) private readonly redis: Redis,
     private readonly jwtService: JwtService,
@@ -46,9 +46,26 @@ export class WorkflowService {
     private readonly reflector: Reflector,
     private readonly moduleRef: ModuleRef,
     private readonly env: EnvService,
-  ) {
+  ) {}
+
+  private readonly logger = new Logger(WorkflowService.name);
+
+  private readonly eventMap = new Map<string, Set<typeof WorkflowBase>>();
+  public workflowsByName = new Map<string, typeof WorkflowBase>();
+  public workflows: (typeof WorkflowBase)[] = [];
+
+  onApplicationBootstrap() {
     // Queues must be set up in both Worker and API apps, so both can enqueue jobs
     // but only the Worker app will process them.
+
+    this.workflows = this.discoveryService
+      .getProviders()
+      .filter(
+        (provider) =>
+          provider.metatype &&
+          this.reflector.get<any>('HBH_FLOW', provider.metatype),
+      )
+      .map((provider) => provider.metatype as typeof WorkflowBase);
 
     this.workflowsByName = new Map(
       this.workflows.map((workflow) => [workflow.name, workflow]),
