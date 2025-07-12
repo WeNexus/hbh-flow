@@ -1,3 +1,4 @@
+import { GlobalEventService, PrismaService, RUNTIME_ID } from './misc';
 import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -30,6 +31,9 @@ export async function bootstrap(
   // @ts-expect-error appType is not a valid property of ModuleMetadata
   delete metadata.appType;
 
+  // Generate a unique runtime ID for the application.
+  const runtimeId = `${appType}-${process.pid}-${crypto.randomUUID()}`;
+
   // We're creating two modules to avoid everything being global.
 
   @Module(metadata)
@@ -61,6 +65,10 @@ export async function bootstrap(
         provide: APP_TYPE,
         useValue: appType,
       },
+      {
+        provide: RUNTIME_ID,
+        useValue: runtimeId,
+      },
       EnvService,
       PrismaService,
       (appType === AppType.API
@@ -72,8 +80,16 @@ export async function bootstrap(
             },
           }
         : undefined) as Provider,
+      GlobalEventService,
     ].filter(Boolean),
-    exports: [EnvService, RedisModule, PrismaService, JwtModule, APP_TYPE],
+    exports: [
+      EnvService,
+      RedisModule,
+      PrismaService,
+      JwtModule,
+      APP_TYPE,
+      GlobalEventService,
+    ],
   })
   class WrapperModule {}
 
