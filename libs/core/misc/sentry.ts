@@ -1,7 +1,12 @@
-import { AppType } from '../types/app-type';
+import { AppType } from '#lib/core/types/app-type';
 import * as Sentry from '@sentry/nestjs';
 import process from 'node:process';
 
+/**
+ * Initializes Sentry for error tracking and performance monitoring.
+ *
+ * @param {AppType} appType - The type of the application (e.g., 'Worker', 'API').
+ */
 export function initSentry(appType: AppType) {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,

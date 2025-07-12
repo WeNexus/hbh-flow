@@ -1,15 +1,21 @@
-import { GlobalEventService, PrismaService, RUNTIME_ID } from './misc';
 import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { EnvService } from './env/env.service';
-import { initSentry } from './misc/sentry';
+import { OAuth2Module } from '#lib/oauth2/oauth2.module';
+import { EnvService } from '#lib/core/env/env.service';
+import { ZohoModule } from '#lib/zoho/zoho.module';
+import { initSentry } from '#lib/core/misc/sentry';
+import { RedisModule } from '#lib/core/redis';
+import { AppType } from '#lib/core/types';
 import { JwtModule } from '@nestjs/jwt';
-import { PrismaService } from './misc';
-import { RedisModule } from './redis';
-import { APP_TYPE } from './misc';
-import { AppType } from './types';
+
+import {
+  GlobalEventService,
+  PrismaService,
+  RUNTIME_ID,
+  APP_TYPE,
+} from '#lib/core/misc';
 
 import {
   INestApplicationContext,
@@ -20,6 +26,15 @@ import {
   Global,
 } from '@nestjs/common';
 
+/**
+ * Bootstraps the NestJS application with the provided metadata.
+ * This function initializes the application with necessary modules,
+ * configures security, validation, and sets up the environment.
+ * It also handles different application types (API or Worker).
+ *
+ * @param metadata - The metadata for the module, including the application type.
+ * @returns A promise that resolves to the NestJS application instance.
+ */
 export async function bootstrap(
   metadata: ModuleMetadata & {
     appType: AppType;
@@ -51,6 +66,7 @@ export async function bootstrap(
       SentryModule.forRoot(),
       CoreModule,
       RedisModule,
+      OAuth2Module,
       JwtModule.registerAsync({
         inject: [EnvService],
         useFactory(env: EnvService) {
@@ -58,6 +74,23 @@ export async function bootstrap(
             secret: env.getString('APP_KEY'),
           };
         },
+      }),
+      ZohoModule.forRoot({
+        useFactory(env: EnvService) {
+          return {
+            clientId: env.getString('ZOHO_CLIENT_ID'),
+            clientSecret: env.getString('ZOHO_CLIENT_SECRET'),
+            connections: [
+              {
+                id: 'hbh',
+                description: 'Honehbeeherb Zoho Connection',
+                authorizationURL: 'https://accounts.zoho.com/oauth/v2/auth',
+                tokenURL: 'https://accounts.zoho.com/oauth/v2/token',
+              },
+            ],
+          };
+        },
+        inject: [EnvService],
       }),
     ],
     providers: [
@@ -88,6 +121,8 @@ export async function bootstrap(
       PrismaService,
       JwtModule,
       APP_TYPE,
+      OAuth2Module,
+      ZohoModule,
       GlobalEventService,
     ],
   })

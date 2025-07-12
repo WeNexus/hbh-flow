@@ -2,18 +2,23 @@ import { REDIS_PUB, REDIS_SUB } from '#lib/core/redis/redis.symbol';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { GlobalEventPayload } from '#lib/core/types';
-import { RUNTIME_ID } from './runtime-id.symbol';
+import { RUNTIME_ID } from '#lib/core/misc/symbols';
 import { Redis } from 'ioredis';
 
+/**
+ * Service for handling global events across different instances of the application.
+ * It uses Redis Pub/Sub to communicate events and the EventEmitter2
+ * to emit events within the application.
+ */
 @Injectable()
 export class GlobalEventService {
   constructor(
     @Inject(RUNTIME_ID) private readonly runtimeId: string,
     @Inject(REDIS_PUB) private readonly redisPub: Redis,
-    @Inject(REDIS_SUB) private readonly redisSub: Redis,
+    @Inject(REDIS_SUB) redisSub: Redis,
     private readonly emitter: EventEmitter2,
   ) {
-    redisPub
+    redisSub
       .subscribe('global-events')
       .then(() => {
         redisSub.on('message', (channel: string, message: string) =>
@@ -30,9 +35,9 @@ export class GlobalEventService {
       );
   }
 
-  private readonly logger = new Logger(GlobalEventService.name);
+  private logger = new Logger(GlobalEventService.name);
 
-  handleMessage(channel: string, message: string): void {
+  private handleMessage(channel: string, message: string): void {
     // TODO: Integrate Sentry
 
     let data: GlobalEventPayload;
@@ -59,7 +64,18 @@ export class GlobalEventService {
     );
   }
 
-  emit(event: string, data: object, broadcast?: boolean): void {
+  /**
+   * Emit a global event to all instances of the application.
+   * @param event The name of the event to emit.
+   * @param data The data to send with the event.
+   * @param broadcast Whether to broadcast the event to all instances (default: false).
+   * If true, the sending instance will not receive the event.
+   */
+  emit<D extends object = object>(
+    event: string,
+    data: D,
+    broadcast?: boolean,
+  ): void {
     const payload: GlobalEventPayload = {
       runtimeId: this.runtimeId,
       event,

@@ -1,6 +1,7 @@
 import type { NestFactoryStatic } from '@nestjs/core/nest-factory.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { EnvService } from './env/env.service.js';
+import { EnvService } from '#lib/core/env/env.service.js';
+import { AppType } from '#lib/core/types';
 
 const initSentryMock = vi.fn();
 const listenMock = vi.fn();
@@ -44,7 +45,7 @@ vi.mock(import('@nestjs/core'), async (importOriginal) => {
   };
 });
 
-const { bootstrap, AppType } = await import('./bootstrap.js');
+const { bootstrap } = await import('./bootstrap.js');
 
 describe('bootstrap()', () => {
   beforeEach(() => {

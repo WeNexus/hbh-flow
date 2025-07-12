@@ -1,10 +1,14 @@
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { createAdapter } from '@socket.io/redis-adapter';
+import { REDIS_PUB } from '#lib/core/redis/redis.symbol';
 import { IoAdapter } from '@nestjs/platform-socket.io';
-import { REDIS_PUB } from '../redis/redis.symbol';
+import { EnvService } from '#lib/core/env/env.service';
 import { ServerOptions, Server } from 'socket.io';
-import { EnvService } from '../env/env.service';
 import { Redis } from 'ioredis';
+
+/**
+ * This adapter allows for message broadcasting across different instances
+ */
 
 export class RedisIoAdapter extends IoAdapter {
   private adapterConstructor: ReturnType<typeof createAdapter>;
