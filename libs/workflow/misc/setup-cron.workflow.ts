@@ -2,7 +2,7 @@ import { WorkflowOptions } from '../types/workflow-options';
 import { WorkflowService } from '../workflow.service';
 import { TriggerType } from './trigger-type.enum';
 import { Workflow, Step } from '../decorators';
-import { PrismaService } from '#lib/core';
+import { WorkflowBase } from './workflow-base';
 import { Reflector } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 
@@ -12,14 +12,15 @@ import { Logger } from '@nestjs/common';
  */
 
 @Workflow({ internal: true })
-export class SetupCronWorkflow {
+export class SetupCronWorkflow extends WorkflowBase {
   private readonly logger = new Logger(SetupCronWorkflow.name);
 
   constructor(
     private readonly workflowService: WorkflowService,
-    private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
-  ) {}
+  ) {
+    super();
+  }
 
   @Step(1)
   async execute() {
@@ -93,7 +94,4 @@ export class SetupCronWorkflow {
         ?.queue?.removeJobScheduler(`#${schedule.id}`);
     }
   }
-
-  @Step(2)
-  test() {}
 }

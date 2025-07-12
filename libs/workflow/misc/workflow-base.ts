@@ -14,7 +14,7 @@ export class WorkflowBase<P = any> {
   protected cancelled: boolean = false;
   protected paused: boolean = false;
   protected delayed = 0;
-  private readonly prisma: PrismaClient;
+  protected readonly prisma: PrismaClient;
   // Also static, but we need it for non-static methods declared in the WorkflowBase.
   private readonly queue: Queue<JobPayload>;
   // Also static, but we need it for non-static methods declared in the WorkflowBase.

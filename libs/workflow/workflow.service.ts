@@ -402,6 +402,8 @@ export class WorkflowService implements OnApplicationBootstrap {
           instance.queue = queue;
           // @ts-expect-error private property
           instance.worker = workflow.worker;
+          // @ts-expect-error private property
+          instance.prisma = this.prisma;
 
           return this.execute(instance, options?.maxRetries ?? 3, token);
         },
