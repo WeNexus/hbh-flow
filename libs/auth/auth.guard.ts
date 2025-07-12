@@ -1,4 +1,4 @@
-import { JwtPayload } from './types/jwt-payload';
+import { JwtPayload } from '#lib/auth/types/jwt-payload';
 import { PrismaService } from '#lib/core';
 import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
@@ -13,6 +13,13 @@ import {
   CanActivate,
   Injectable,
 } from '@nestjs/common';
+
+/**
+ * This guard protects routes by verifying JWT tokens,
+ * checking user roles, and validating CSRF tokens for non-GET requests.
+ * It ensures that only authenticated users with the appropriate permissions
+ * can access the protected resources.
+ */
 
 @Injectable()
 export class AuthGuard implements CanActivate {

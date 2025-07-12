@@ -1,4 +1,4 @@
-import { JwtPayload } from './jwt-payload.js';
+import { JwtPayload } from '#lib/auth/types/jwt-payload';
 import { User } from '@prisma/client';
 
 export interface AuthContext {

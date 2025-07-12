@@ -1,3 +1,4 @@
+import { LoginResult } from '#lib/auth/types/login-result';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '#lib/core';
 import { JwtService } from '@nestjs/jwt';
@@ -12,10 +13,18 @@ export class AuthService {
     private readonly prisma: PrismaService,
   ) {}
 
+  /**
+   * Logs in a user by generating an access token and a CSRF token.
+   * The access token is valid for 24 hours by default.
+   *
+   * @param {number | Pick<User, 'id' | 'role'>} userOrId - The user ID or a user object with id and role.
+   * @param {string} [expiresIn='24h'] - The expiration time for the access token.
+   * @returns {Promise<LoginResult>} - An object containing the access token, CSRF token, and expiration time.
+   */
   async login(
     userOrId: number | Pick<User, 'id' | 'role'>,
     expiresIn: string = '24h',
-  ) {
+  ): Promise<LoginResult> {
     const user =
       typeof userOrId === 'number'
         ? await this.prisma.user.findUnique({
