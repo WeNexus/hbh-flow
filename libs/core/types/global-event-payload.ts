@@ -1,7 +1,7 @@
-export interface GlobalEventPayload {
+export interface GlobalEventPayload<D = object> {
   runtimeId: string;
   event: string;
-  data: object;
+  data: D;
   broadcast?: boolean;
   sentryTrace?: string;
   sentryBaggage?: string;
