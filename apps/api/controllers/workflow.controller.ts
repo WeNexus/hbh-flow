@@ -1,16 +1,12 @@
+import { WorkflowsBasicSchema, StepInfoSchema } from '#lib/workflow/schema';
+import { WorkflowService } from '#lib/workflow/workflow.service';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Controller, Get, Query } from '@nestjs/common';
-import { PaginationSchema } from '#lib/core';
+import { WorkflowOptions } from '#lib/workflow/types';
+import { PaginationSchema } from '#lib/core/schema';
+import { Protected } from '#lib/auth/decorators';
 import { Reflector } from '@nestjs/core';
-import { Protected } from '#lib/auth';
 import _ from 'lodash';
-
-import {
-  WorkflowsBasicSchema,
-  WorkflowService,
-  WorkflowOptions,
-  StepInfoSchema,
-} from '#lib/workflow';
 
 @Controller('api/workflows')
 export class WorkflowController {
@@ -53,7 +49,6 @@ export class WorkflowController {
             workflow,
           );
 
-          // @ts-expect-error private property
           const queue = workflow.queue;
 
           return {

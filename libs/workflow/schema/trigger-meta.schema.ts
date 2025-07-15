@@ -1,5 +1,5 @@
-import { type Timezone, timezones } from '../types/timezone.js';
-import { TriggerType } from '../misc/trigger-type.enum.js';
+import { type Timezone, timezones } from '#lib/workflow/types/timezone.js';
+import { TriggerType } from '#lib/workflow/misc/trigger-type.enum.js';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class TriggerMetaSchema {

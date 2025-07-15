@@ -1,26 +1,31 @@
-import { WorkflowOptions } from '../types/workflow-options';
-import { WorkflowService } from '../workflow.service';
-import { TriggerType } from './trigger-type.enum';
-import { Workflow, Step } from '../decorators';
-import { WorkflowBase } from './workflow-base';
-import { Reflector } from '@nestjs/core';
+import { WorkflowService } from '#lib/workflow/workflow.service';
+import { WorkflowBase } from '#lib/workflow/misc/workflow-base';
+import { Workflow, Step } from '#lib/workflow/decorators';
+import { WorkflowOptions } from '#lib/workflow/types';
+import { ModuleRef, Reflector } from '@nestjs/core';
+import { PrismaService } from '#lib/core/services';
+import { TriggerType } from '#lib/workflow/misc';
 import { Logger } from '@nestjs/common';
 
 /**
  * This is an internal workflow, which should run every time the app starts up.
  * It sets up schedulers in BullMQ
+ *
+ * @internal
  */
 
 @Workflow({ internal: true })
 export class SetupCronWorkflow extends WorkflowBase {
-  private readonly logger = new Logger(SetupCronWorkflow.name);
-
   constructor(
     private readonly workflowService: WorkflowService,
+    private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
+    moduleRef: ModuleRef,
   ) {
-    super();
+    super(moduleRef);
   }
+
+  private readonly logger = new Logger(SetupCronWorkflow.name);
 
   @Step(1)
   async execute() {
@@ -90,7 +95,6 @@ export class SetupCronWorkflow extends WorkflowBase {
     for (const schedule of danglingSchedules) {
       await this.workflowService.workflowsByName
         .get(schedule.name)
-        // @ts-expect-error private property
         ?.queue?.removeJobScheduler(`#${schedule.id}`);
     }
   }

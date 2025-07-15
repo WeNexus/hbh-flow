@@ -1,6 +1,5 @@
-import { AuthContext } from '#lib/auth';
-
-export {};
+import { AuthContext } from '#lib/auth/types';
+import 'express';
 
 declare global {
   namespace Express {

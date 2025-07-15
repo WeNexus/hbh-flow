@@ -1,13 +1,18 @@
 import { Workflow } from '#lib/workflow/decorators/workflow.decorator.js';
-import { Step } from '#lib/workflow/decorators';
-import { cron, event, webhook } from '#lib/workflow/misc/trigger.js';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base.js';
+import { event, webhook } from '#lib/workflow/misc/trigger.js';
+import { Step } from '#lib/workflow/decorators';
+import { ModuleRef } from '@nestjs/core';
 
 @Workflow({
   triggers: [event('Order.Created', 'HBH'), webhook()],
   concurrency: 1,
 })
 export class TestWorkflow extends WorkflowBase {
+  constructor(moduleRef: ModuleRef) {
+    super(moduleRef);
+  }
+
   @Step(1)
   step1() {
     console.log('Step 1 executed');

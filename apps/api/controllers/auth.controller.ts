@@ -1,10 +1,10 @@
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from '#lib/auth/auth.service';
 import type { AuthContext } from '#lib/auth/types';
+import { PrismaService } from '#lib/core/services';
 import { Protected } from '#lib/auth/decorators';
 import type { Response, Request } from 'express';
 import { Auth } from '#lib/auth/decorators';
-import { PrismaService } from '#lib/core';
 import argon2 from 'argon2';
 
 import {

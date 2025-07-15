@@ -24,7 +24,7 @@ export default tseslint.config({
     ...tseslint.configs.stylisticTypeChecked,
   ],
   languageOptions: {
-    // other options...
+    // other clientOptions...
     parserOptions: {
       project: ['./tsconfig.node.json', './tsconfig.app.json'],
       tsconfigRootDir: import.meta.dirname,

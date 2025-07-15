@@ -117,6 +117,7 @@ export async function bootstrap(
     ].filter(Boolean),
     exports: [
       EnvService,
+      EventEmitterModule,
       RedisModule,
       PrismaService,
       JwtModule,

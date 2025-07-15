@@ -64,6 +64,7 @@ model Schedule {
 model Job {
   id         Int     @id @default(autoincrement())
   bullId     String? @unique
+  dedupeId   String?
   scheduleId Int?
 
   name        String
@@ -83,6 +84,7 @@ model Job {
   @@index([scheduleId])
   @@index([status])
   @@index([name])
+  @@index([dedupeId])
 }
 
 model JobStep {
@@ -100,4 +102,30 @@ model JobStep {
   Job Job @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@id([jobId, name])
+}
+
+model OAuth2AuthState {
+  state    String @id
+  verifier String
+
+  provider   String
+  connection String
+
+  createdAt DateTime @default(now()) @db.Timestamptz()
+}
+
+model OAuth2Token {
+  connection String
+  provider   String
+
+  access  String
+  refresh String
+
+  scopes String[]
+
+  expiresAt DateTime  @db.Timestamptz()
+  createdAt DateTime  @default(now()) @db.Timestamptz()
+  updatedAt DateTime? @updatedAt @db.Timestamptz()
+
+  @@id([provider, connection])
 }

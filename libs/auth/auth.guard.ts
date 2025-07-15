@@ -1,5 +1,5 @@
 import { JwtPayload } from '#lib/auth/types/jwt-payload';
-import { PrismaService } from '#lib/core';
+import { PrismaService } from '#lib/core/services';
 import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';

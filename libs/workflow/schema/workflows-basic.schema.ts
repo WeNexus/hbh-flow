@@ -1,4 +1,4 @@
-import { WorkflowOptions } from '../types/workflow-options.js';
+import { WorkflowOptions } from '#lib/workflow/types/workflow-options.js';
 import { StepInfoSchema } from './step-info.schema.js';
 import { ApiProperty } from '@nestjs/swagger';
 

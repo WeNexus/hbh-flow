@@ -1,5 +1,7 @@
 {
+  "$schema": "https://swc.rs/schema.json",
   "module": {
     "resolveFully": true
-  }
+  },
+  "sourceMaps": true
 }

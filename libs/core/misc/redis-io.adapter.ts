@@ -2,8 +2,8 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { REDIS_PUB } from '#lib/core/redis/redis.symbol';
 import { IoAdapter } from '@nestjs/platform-socket.io';
-import { EnvService } from '#lib/core/env/env.service';
 import { ServerOptions, Server } from 'socket.io';
+import { EnvService } from '#lib/core/env';
 import { Redis } from 'ioredis';
 
 /**

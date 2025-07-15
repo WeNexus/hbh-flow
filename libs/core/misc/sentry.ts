@@ -5,7 +5,7 @@ import process from 'node:process';
 /**
  * Initializes Sentry for error tracking and performance monitoring.
  *
- * @param {AppType} appType - The type of the application (e.g., 'Worker', 'API').
+ * @param appType - The type of the application (e.g., 'Worker', 'API').
  */
 export function initSentry(appType: AppType) {
   Sentry.init({

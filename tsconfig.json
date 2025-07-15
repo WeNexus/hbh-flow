@@ -4,7 +4,6 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "moduleResolution": "bundler",
-    "isolatedModules": true,
     "declaration": true,
     "removeComments": true,
     "allowJs": true,
@@ -41,12 +40,25 @@
       ],
       "#lib/auth/*": [
         "libs/auth/*"
+      ],
+      "#lib/oauth2": [
+        "libs/oauth2"
+      ],
+      "#lib/oauth2/*": [
+        "libs/oauth2/*"
+      ],
+      "#lib/zoho": [
+        "libs/zoho"
+      ],
+      "#lib/zoho/*": [
+        "libs/zoho/*"
       ]
     }
   },
   "include": [
     "./libs/**/*",
-    "./apps/**/*"
+    "./apps/**/*",
+    "./global.d.ts"
   ],
   "exclude": [
     "node_modules",

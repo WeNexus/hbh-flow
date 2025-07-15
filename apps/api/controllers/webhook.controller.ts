@@ -1,14 +1,14 @@
 import { WorkflowTokenInputSchema, WorkflowTokenOutputSchema } from '../schema';
+import { WorkflowService } from '#lib/workflow/workflow.service';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Protected } from '#lib/auth/decorators';
 import { JsonWebTokenError } from '@nestjs/jwt';
-import { Protected } from '#lib/auth';
 import express from 'express';
 
 import {
   NoWebhookTriggerException,
   WorkflowNotFoundException,
-  WorkflowService,
-} from '#lib/workflow';
+} from '#lib/workflow/exceptions';
 
 import {
   UnauthorizedException,

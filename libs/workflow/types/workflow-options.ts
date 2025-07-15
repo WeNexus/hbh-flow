@@ -1,5 +1,5 @@
+import { TriggerMetaSchema } from '#lib/workflow/schema/trigger-meta.schema';
 import { RateLimiterOptions as RateLimiterOptionsBase } from 'bullmq';
-import { TriggerMetaSchema } from '../schema/trigger-meta.schema';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RateLimiterOptions implements RateLimiterOptionsBase {

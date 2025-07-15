@@ -1,18 +1,28 @@
 import { Job as DBJob, JobStatus, JobStepStatus, Prisma } from '@prisma/client';
-import { DiscoveryService, ModuleRef, Reflector } from '@nestjs/core';
+import { StepInfoSchema } from '#lib/workflow/schema/step-info.schema';
+import { WorkflowOptions } from '#lib/workflow/types/workflow-options';
 import type { InputJsonValue } from '@prisma/client/runtime/client';
-import { StepInfoSchema } from './schema/step-info.schema';
-import { WorkflowOptions } from './types/workflow-options';
-import { TriggerType } from './misc/trigger-type.enum';
-import { RepeatOptions } from './types/repeat-options';
+import { TriggerType } from '#lib/workflow/misc/trigger-type.enum';
+import { RepeatOptions } from '#lib/workflow/types/repeat-options';
+import { DelayedError, Queue, QueueEvents, Worker } from 'bullmq';
+import { WorkflowBase } from '#lib/workflow/misc/workflow-base';
+import { RunOptions } from '#lib/workflow/types/run-options';
+import { JobPayload } from '#lib/workflow/types/job-payload';
+import { APP_TYPE, PrismaService } from '#lib/core/misc';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { DelayedError, Queue, Worker } from 'bullmq';
-import { WorkflowBase } from './misc/workflow-base';
-import { RunOptions } from './types/run-options';
-import { JobPayload } from './types/job-payload';
+import { REDIS_PUB } from '#lib/core/redis';
+import { EnvService } from '#lib/core/env';
+import { AppType } from '#lib/core/types';
 import { JwtService } from '@nestjs/jwt';
 import { Redis } from 'ioredis';
 import _ from 'lodash';
+
+import {
+  ContextIdFactory,
+  DiscoveryService,
+  ModuleRef,
+  Reflector,
+} from '@nestjs/core';
 
 import {
   OnApplicationBootstrap,
@@ -25,14 +35,6 @@ import {
   NoWebhookTriggerException,
   WorkflowNotFoundException,
 } from './exceptions';
-
-import {
-  PrismaService,
-  EnvService,
-  REDIS_PUB,
-  APP_TYPE,
-  AppType,
-} from '#lib/core';
 
 @Injectable()
 export class WorkflowService implements OnApplicationBootstrap {
@@ -52,20 +54,30 @@ export class WorkflowService implements OnApplicationBootstrap {
 
   private readonly eventMap = new Map<string, Set<typeof WorkflowBase>>();
   public workflowsByName = new Map<string, typeof WorkflowBase>();
+  private workflowsSet = new Set<typeof WorkflowBase>();
   public workflows: (typeof WorkflowBase)[] = [];
 
+  /**
+   * Sets up the workflows, queues, and workers when the application starts.
+   *
+   * @internal
+   */
   onApplicationBootstrap() {
     // Queues must be set up in both Worker and API apps, so both can enqueue jobs
     // but only the Worker app will process them.
 
-    this.workflows = this.discoveryService
-      .getProviders()
-      .filter(
-        (provider) =>
-          provider.metatype &&
-          this.reflector.get<any>('HBH_FLOW', provider.metatype),
-      )
-      .map((provider) => provider.metatype as typeof WorkflowBase);
+    this.workflowsSet = new Set(
+      this.discoveryService
+        .getProviders()
+        .filter(
+          (provider) =>
+            provider.metatype &&
+            this.reflector.get<any>('HBH_FLOW', provider.metatype),
+        )
+        .map((provider) => provider.metatype as typeof WorkflowBase),
+    );
+
+    this.workflows = Array.from(this.workflowsSet);
 
     this.workflowsByName = new Map(
       this.workflows.map((workflow) => [workflow.name, workflow]),
@@ -88,19 +100,14 @@ export class WorkflowService implements OnApplicationBootstrap {
       });
   }
 
-  async resume(workflow: typeof WorkflowBase, jobId: number) {
-    // @ts-expect-error private property
-    const queue = workflow.queue;
-
-    if (!queue) {
-      throw new Error(`Queue not found for workflow: ${workflow.name}`);
-    }
-
-    const bullJob = await queue.getJob(`#${jobId}`);
-
-    if (!bullJob) {
-      throw new Error(`Bull job not found for ID: #${jobId}`);
-    }
+  /**
+   * Resumes a paused job in the workflow.
+   * Can be a workflow name or an instance of WorkflowBase or a class extending it.
+   *
+   * @param jobId - The ID of the job to resume.
+   */
+  async resume(jobId: number) {
+    const { bullJob, queue } = await this.getJob(jobId);
 
     if (await bullJob.isDelayed()) {
       await bullJob.changeDelay(0);
@@ -113,26 +120,60 @@ export class WorkflowService implements OnApplicationBootstrap {
     }
   }
 
-  async run(workflow: typeof WorkflowBase, options?: RunOptions) {
-    // @ts-expect-error private property
-    const queue = workflow.queue;
+  /**
+   * Runs a workflow with the provided options.
+   *
+   * @param workflow - The workflow to run.
+   * Can be a workflow name or an instance of WorkflowBase or a class extending it.
+   * @param options - Options for running the workflow, such as payload, context, and scheduling.
+   * @returns A promise that resolves to the created Bull job and the corresponding database job.
+   */
+  async run(workflow: any, options?: RunOptions) {
+    const flow = this.resolveWorkflowClass(workflow, true);
+    const queue = flow.queue;
 
     if (!queue) {
-      throw new Error(`Queue not found for workflow: ${workflow.name}`);
+      throw new Error(`Queue not found for workflow: ${flow.name}`);
     }
 
-    const dbJob = await this.prisma.job.create({
-      data: {
-        name: workflow.name,
-        status: 'WAITING',
-        payload: options?.payload as InputJsonValue,
-        sentryBaggage: options?.sentry?.baggage,
-        sentryTrace: options?.sentry?.trace,
-      },
-    });
+    let dbJob: DBJob | null = null;
+
+    if (options?.deduplication?.id) {
+      dbJob = await this.prisma.job.findFirst({
+        where: {
+          name: flow.name,
+          dedupeId: options.deduplication.id,
+          status: {
+            in: [
+              'DELAYED',
+              'PAUSED',
+              'RUNNING',
+              'STALLED',
+              'WAITING',
+              'WAITING_RERUN',
+            ],
+          },
+        },
+      });
+    }
+
+    if (!dbJob) {
+      dbJob = await this.prisma.job.create({
+        data: {
+          name: flow.name,
+          status: 'WAITING',
+          payload: options?.payload as InputJsonValue,
+          sentryBaggage: options?.sentry?.baggage,
+          sentryTrace: options?.sentry?.trace,
+          dedupeId: options?.deduplication?.id,
+        },
+      });
+    }
+
+    const id = `#${dbJob.id}`;
 
     const bullJob = await queue.add(
-      workflow.name,
+      flow.name,
       {
         dbJobId: dbJob.id,
         context: options?.context as unknown,
@@ -142,7 +183,7 @@ export class WorkflowService implements OnApplicationBootstrap {
           ? options.scheduledAt.getTime() - Date.now()
           : 0,
         attempts: options?.maxRetries,
-        jobId: `#${dbJob.id}`,
+        jobId: id,
         deduplication: options?.deduplication,
       },
     );
@@ -153,12 +194,20 @@ export class WorkflowService implements OnApplicationBootstrap {
     };
   }
 
-  async repeat(workflow: typeof WorkflowBase, options: RepeatOptions) {
-    // @ts-expect-error private property
-    const queue = workflow.queue;
+  /**
+   * Repeats a workflow with the provided options.
+   *
+   * @param workflow - The workflow to repeat.
+   * Can be a workflow name or an instance of WorkflowBase or a class extending it.
+   * @param options - Options for repeating the workflow, such as cron pattern, timezone, and immediate execution.
+   * @returns A promise that resolves to the created Bull job and the corresponding schedule.
+   */
+  async repeat(workflow: any, options: RepeatOptions) {
+    const flow = this.resolveWorkflowClass(workflow, true);
+    const queue = flow.queue;
 
     if (!queue) {
-      throw new Error(`Queue not found for workflow: ${workflow.name}`);
+      throw new Error(`Queue not found for workflow: ${flow.name}`);
     }
 
     let schedule: Prisma.ScheduleGetPayload<object>;
@@ -167,16 +216,16 @@ export class WorkflowService implements OnApplicationBootstrap {
       schedule = await this.prisma.schedule.upsert({
         where: {
           name_cronExpression: {
-            name: options.repeat.oldName ?? workflow.name,
+            name: options.repeat.oldName ?? flow.name,
             cronExpression: options.repeat.oldPattern ?? options.repeat.pattern,
           },
         },
         create: {
-          name: workflow.name,
+          name: flow.name,
           cronExpression: options.repeat.pattern,
         },
         update: {
-          name: workflow.name,
+          name: flow.name,
           cronExpression: options.repeat.pattern,
           active: true,
         },
@@ -187,16 +236,16 @@ export class WorkflowService implements OnApplicationBootstrap {
       schedule = await this.prisma.schedule.upsert({
         where: {
           name_cronExpression: {
-            name: workflow.name,
+            name: flow.name,
             cronExpression: options.repeat.pattern,
           },
         },
         create: {
-          name: workflow.name,
+          name: flow.name,
           cronExpression: options.repeat.pattern,
         },
         update: {
-          name: workflow.name,
+          name: flow.name,
           cronExpression: options.repeat.pattern,
           active: true,
         },
@@ -211,7 +260,7 @@ export class WorkflowService implements OnApplicationBootstrap {
         immediately: options.repeat.immediate,
       },
       {
-        name: workflow.name,
+        name: flow.name,
         data: {
           scheduleId: schedule.id,
           context: options?.context as unknown,
@@ -229,10 +278,19 @@ export class WorkflowService implements OnApplicationBootstrap {
     };
   }
 
-  async getToken(workflow: typeof WorkflowBase, expiresIn: number | string) {
+  /**
+   * Generates a JWT token for triggering a workflow via webhook.
+   *
+   * @param workflow - The workflow to generate the token for.
+   * Can be a workflow name or an instance of WorkflowBase or a class extending it.
+   * @param expiresIn - The expiration time for the token, in seconds or a string like '1h'.
+   * @returns A promise that resolves to the generated JWT token.
+   */
+  async getToken(workflow: any, expiresIn: number | string) {
+    const flow = this.resolveWorkflowClass(workflow, true);
     const options = this.reflector.get<WorkflowOptions | undefined>(
       'HBH_FLOW',
-      workflow,
+      flow,
     );
 
     if (
@@ -244,7 +302,7 @@ export class WorkflowService implements OnApplicationBootstrap {
     }
 
     return this.jwtService.signAsync(
-      { wflow: workflow.name },
+      { wflow: flow.name },
       {
         subject: 'access',
         audience: 'workflow',
@@ -254,6 +312,13 @@ export class WorkflowService implements OnApplicationBootstrap {
     );
   }
 
+  /**
+   * Handles a webhook request by verifying the JWT token and running the corresponding workflow.
+   *
+   * @param token - The JWT token from the webhook request.
+   * @param payload - Optional payload to pass to the workflow.
+   * @returns A promise that resolves to the result of the workflow execution.
+   */
   async handleWebhook(token: string, payload?: unknown) {
     const jwt = await this.jwtService.verifyAsync<{ wflow: string }>(token, {
       subject: 'access',
@@ -286,6 +351,86 @@ export class WorkflowService implements OnApplicationBootstrap {
     });
   }
 
+  /**
+   * Retrieves a job by its ID.
+   *
+   * @param jobId - The ID of the job to retrieve.
+   * @returns A promise that resolves to the job details, including the Bull job and queue.
+   */
+  async getJob(jobId: number) {
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
+      omit: {
+        payload: true,
+        sentryBaggage: true,
+        sentryTrace: true,
+      },
+    });
+
+    if (!job) {
+      throw new Error(`Job with ID ${jobId} not found`);
+    }
+
+    const queue = this.workflowsByName.get(job.name)?.queue;
+
+    if (!queue) {
+      throw new Error(`Queue not found for workflow: ${job.name}`);
+    }
+
+    const bullJob = await queue.getJob(`#${job.bullId}`);
+
+    if (!bullJob) {
+      throw new Error(`Bull job with ID #${job.bullId} not found`);
+    }
+
+    return {
+      job,
+      bullJob,
+      queue,
+    };
+  }
+
+  /**
+   * Retrieves the result of a specific step in a job.
+   *
+   * @param jobId - The ID of the job to retrieve the result from.
+   * @param step - The name of the step whose result is to be retrieved.
+   * @returns A promise that resolves to the result of the step, or null if not found.
+   */
+  async getResult<R = any>(jobId: number, step: string): Promise<R | null> {
+    const row = await this.prisma.jobStep.findFirst({
+      where: {
+        jobId,
+        name: step,
+      },
+      select: {
+        result: true,
+      },
+    });
+
+    return (row?.result ?? null) as R;
+  }
+
+  /**
+   * Waits for a job to finish processing.
+   *
+   * @param jobId - The ID of the job to wait for.
+   * @param ttl - The time-to-live in milliseconds to wait for the job to finish.
+   * @returns A promise that resolves when the job is completed.
+   */
+  async waitForJob(jobId: number, ttl = 1000 * 60 * 5) {
+    const { bullJob, job } = await this.getJob(jobId);
+
+    if (await bullJob.isCompleted()) {
+      return;
+    }
+
+    await bullJob.waitUntilFinished(
+      this.workflowsByName.get(job.name)!.queueEvents,
+      ttl,
+    );
+  }
+
   private setupQueues() {
     const usedQueueNames = new Set<string>();
 
@@ -299,7 +444,6 @@ export class WorkflowService implements OnApplicationBootstrap {
       usedQueueNames.add(queueName);
 
       // Assign the queue to the workflow for later use
-      // @ts-expect-error private property
       workflow.queue = new Queue<JobPayload>(queueName, {
         defaultJobOptions: {
           // Remove jobs from the queue after completion or failure to reduce memory usage
@@ -323,6 +467,13 @@ export class WorkflowService implements OnApplicationBootstrap {
           maxRetriesPerRequest: null, // Required for BullMQ
         }),
       });
+
+      workflow.queueEvents = new QueueEvents(queueName, {
+        connection: this.redis.duplicate({
+          db: this.env.getString('BULL_REDIS_DB'),
+          maxRetriesPerRequest: null, // Required for BullMQ
+        }),
+      });
     }
 
     this.logger.log(
@@ -332,7 +483,6 @@ export class WorkflowService implements OnApplicationBootstrap {
 
   private setupWorkers() {
     for (const workflow of this.workflows) {
-      // @ts-expect-error private property
       const queue = workflow.queue;
 
       if (!queue) {
@@ -345,11 +495,10 @@ export class WorkflowService implements OnApplicationBootstrap {
       );
 
       // Assign the worker to the workflow for later use
-      // @ts-expect-error private property
       workflow.worker = new Worker<JobPayload>(
         queue.name,
         async (job, token) => {
-          const instance = await this.moduleRef.resolve<WorkflowBase>(workflow);
+          const instance = await this.getWorkflowInstance(workflow, true);
 
           if (!instance) {
             throw new Error(
@@ -394,16 +543,10 @@ export class WorkflowService implements OnApplicationBootstrap {
             });
           }
 
-          // @ts-expect-error private property
           instance.bullJob = job;
-          // @ts-expect-error private property
           instance.dbJob = dbJob;
-          // @ts-expect-error private property
           instance.queue = queue;
-          // @ts-expect-error private property
           instance.worker = workflow.worker;
-          // @ts-expect-error private property
-          instance.prisma = this.prisma;
 
           return this.execute(instance, options?.maxRetries ?? 3, token);
         },
@@ -483,7 +626,6 @@ export class WorkflowService implements OnApplicationBootstrap {
         }
 
         for (const workflow of workflows) {
-          // @ts-expect-error private property
           const queue = workflow.queue;
 
           if (!queue) {
@@ -529,7 +671,7 @@ export class WorkflowService implements OnApplicationBootstrap {
 
   private async extractSteps() {
     for (const workflow of this.workflows) {
-      const instance = await this.moduleRef.resolve<WorkflowBase>(workflow);
+      const instance = await this.getWorkflowInstance(workflow, true);
       const keys = Object.getOwnPropertyNames(Object.getPrototypeOf(instance));
       const steps: StepInfoSchema[] = [];
 
@@ -557,9 +699,59 @@ export class WorkflowService implements OnApplicationBootstrap {
         }
       }
 
-      // @ts-expect-error private property
       workflow.steps = steps.sort((a, b) => a.index - b.index);
     }
+  }
+
+  private resolveWorkflowClass<
+    T extends true | undefined,
+    R = T extends true ? typeof WorkflowBase : typeof WorkflowBase | null,
+  >(workflow: any, _throw?: T): R {
+    let flow: typeof WorkflowBase | null = null;
+
+    if (typeof workflow === 'string') {
+      flow = this.workflowsByName.get(workflow) ?? null;
+    }
+
+    if (workflow instanceof WorkflowBase) {
+      flow = workflow.constructor as typeof WorkflowBase;
+    }
+
+    if (this.workflowsSet.has(workflow as typeof WorkflowBase)) {
+      flow = workflow as typeof WorkflowBase;
+    }
+
+    if (!flow && _throw) {
+      const name = (
+        typeof workflow === 'string'
+          ? workflow
+          : typeof workflow === 'function'
+            ? (workflow as typeof WorkflowBase).name
+            : workflow
+      ) as string;
+
+      throw new WorkflowNotFoundException(
+        `Workflow ${name} not found in the DI container`,
+      );
+    }
+
+    return flow as R;
+  }
+
+  private getWorkflowInstance<
+    T extends true | undefined,
+    R = T extends true ? Promise<WorkflowBase> : Promise<WorkflowBase> | null,
+  >(workflow: any, _throw?: T): R {
+    const flow = this.resolveWorkflowClass(workflow, _throw);
+
+    if (!flow) {
+      return null as R;
+    }
+
+    const contextId = ContextIdFactory.create();
+    return this.moduleRef.resolve<WorkflowBase>(flow, contextId, {
+      strict: false,
+    }) as R;
   }
 
   private async updateDBJob(
@@ -572,13 +764,11 @@ export class WorkflowService implements OnApplicationBootstrap {
     }, {});
 
     const result = await this.prisma.job.update({
-      // @ts-expect-error private property
       where: { id: instance.dbJob.id },
       data,
       select,
     });
 
-    // @ts-expect-error private property
     _.merge(instance.dbJob, result);
   }
 
@@ -587,19 +777,18 @@ export class WorkflowService implements OnApplicationBootstrap {
     maxRetries: number,
     token?: string,
   ) {
-    // @ts-expect-error private properties
+    const workflow = this.resolveWorkflowClass(instance, true);
     const { bullJob, dbJob } = instance;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    const steps = (instance.constructor as any).steps as StepInfoSchema[];
+    const steps = workflow.steps;
     // Get the step to execute
     const currentStep =
       steps.find((s) => s.method === bullJob.data.step) ?? steps[0];
 
-    for (let i = currentStep.index - 1; i < steps.length; i++) {
+    for (const stepInfo of steps) {
+      const i = steps.indexOf(stepInfo);
       const isLastStep = i === steps.length - 1;
       const isFirstStep = i === 0;
-      const stepInfo = steps[i];
 
       // Create or update the job step in the database
       // This will create a new job step if it doesn't exist, or update the existing one
@@ -651,8 +840,21 @@ export class WorkflowService implements OnApplicationBootstrap {
 
       try {
         result = await (instance[stepInfo.method] as () => Promise<unknown>)();
-      } catch (e) {
-        error = e;
+      } catch (e: unknown) {
+        if (e instanceof Error) {
+          this.logger.error(e.message, e.stack);
+          error = {
+            name: e.name,
+            message: e.message,
+            cause: e.cause,
+            stack: e.stack,
+          };
+        } else {
+          this.logger.error(
+            `Unknown error in step ${stepInfo.method}: ${e as any}`,
+          );
+          error = e;
+        }
       }
 
       // @ts-expect-error private properties

@@ -11,7 +11,7 @@ export class RedisConfigService {
 
   /**
    * Retrieves the Redis configuration options.
-   * @returns {RedisOptions} The Redis configuration options.
+   * @returns The Redis configuration options.
    */
   get(): RedisOptions {
     return {

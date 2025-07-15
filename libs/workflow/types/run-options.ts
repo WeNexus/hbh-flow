@@ -1,6 +1,6 @@
 import { DeduplicationOptions } from 'bullmq';
 
-export interface RunOptions {
+export interface RunOptions<P = any> {
   // Sentry
   sentry?: {
     trace?: string;
@@ -19,5 +19,5 @@ export interface RunOptions {
    * Payload data to pass to the workflow, this is the main data that the workflow will process.
    * It can be any type of data, but should be serializable.
    */
-  payload?: any;
+  payload?: P;
 }
