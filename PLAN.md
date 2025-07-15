@@ -16,8 +16,8 @@ So our primary objective is to build a solution that addresses these limitations
 - [x] **Codebase Setup**: Set up the initial codebase with a focus on modularity and scalability.
 - [x] **Authentication**: Implement a secure authentication system to manage user access with JWT tokens and role-based access control.
 - [x] **Real-time Communication**: Set up a real-time communication system using Socket.IO to enable real-time updates and notifications for the UI.
-- [ ] **Task Management**: Implement a task management system that can queue, execute, and monitor tasks. This should include support for retries, error handling, and logging.
-- [ ] **API Integration**: Create a flexible API integration system that allows us to define and manage API connections. This should support authentication, rate limiting, and error handling.
+- [x] **Task Management**: Implement a task management system that can queue, execute, and monitor tasks. This should include support for retries, error handling, and logging.
+- [x] **API Integration**: Create a flexible API integration system that allows us to define and manage API connections. This should support authentication, rate limiting, and error handling.
 - [ ] **REST API**: Expose the core functionality of the backend such as Replaying events, connecting to external APIs, etc.
 
 ## Frontend Roadmap
