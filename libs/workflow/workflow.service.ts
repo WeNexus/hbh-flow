@@ -804,7 +804,7 @@ export class WorkflowService implements OnApplicationBootstrap {
     const steps = workflow.steps;
     // Get the step to execute
     const currentStep =
-      steps.find((s) => s.method === bullJob.data.step) ?? steps[0];
+      steps.find((s) => s.index === bullJob.data.stepIndex) ?? steps[0];
 
     for (const stepInfo of steps) {
       const i = steps.indexOf(stepInfo);
@@ -890,7 +890,7 @@ export class WorkflowService implements OnApplicationBootstrap {
       if (nextStep !== currentStep) {
         await bullJob.updateData({
           ...bullJob.data,
-          step: nextStep?.method,
+          stepIndex: nextStep?.index,
         });
       }
 

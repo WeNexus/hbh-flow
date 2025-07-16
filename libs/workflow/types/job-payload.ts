@@ -1,6 +1,6 @@
 export interface JobPayload {
   dbJobId?: number;
   scheduleId?: number;
-  step?: string;
+  stepIndex?: number;
   context?: any;
 }
