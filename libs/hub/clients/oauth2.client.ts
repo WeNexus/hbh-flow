@@ -1,10 +1,10 @@
 import { GlobalEventService, PrismaService } from '#lib/core/services';
 import { WorkflowService } from '#lib/workflow/workflow.service';
-import { TokenRefreshWorkflow } from '#lib/oauth2/misc';
-import { OAuth2ClientOptions } from '#lib/oauth2/types';
 import { OAuth2Client as ArcticClient } from 'arctic';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Jsonify, SetRequired } from 'type-fest';
+import { TokenRefreshWorkflow } from '../misc';
+import { OAuth2ClientOptions } from '../types';
 import { OAuth2Token } from '@prisma/client';
 import { EnvService } from '#lib/core/env';
 import { ModuleRef } from '@nestjs/core';
@@ -14,7 +14,7 @@ import {
   TokenRefreshFailedException,
   NoConnectionException,
   NotConnectedException,
-} from '#lib/oauth2/exceptions';
+} from '../exceptions';
 
 type Options = SetRequired<
   OAuth2ClientOptions,
@@ -216,7 +216,7 @@ export abstract class OAuth2Client {
       const failedListener = (e?: Error) => {
         this.moduleRef
           .get(EventEmitter2, { strict: false })
-          .off('global.oauth2.refresh', listener);
+          .off('global.hub.refresh', listener);
         clearTimeout(timeoutId);
         reject(new TokenRefreshFailedException(e?.message));
       };
@@ -224,15 +224,15 @@ export abstract class OAuth2Client {
       const timeoutId = setTimeout(failedListener, 5000000); // 10 seconds timeout
       this.moduleRef
         .get(EventEmitter2, { strict: false })
-        .once('global.oauth2.refresh', listener);
+        .once('global.hub.refresh', listener);
 
       // Trigger the token refresh workflow
       this.moduleRef
         .get(WorkflowService, { strict: false })
         .run(TokenRefreshWorkflow, {
-          // deduplication: {
-          //   id: 'oauth2:refresh',
-          // },
+          deduplication: {
+            id: 'hub:refresh',
+          },
           payload: {
             provider: this.clientOptions.id,
             connection,
@@ -305,7 +305,7 @@ export abstract class OAuth2Client {
 
     this.moduleRef
       .get(GlobalEventService, { strict: false })
-      .emit<OAuth2Token>('global.oauth2.refresh', token);
+      .emit<OAuth2Token>('global.hub.refresh', token);
 
     return token;
   }

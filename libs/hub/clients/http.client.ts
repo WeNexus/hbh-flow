@@ -1,13 +1,11 @@
-import { RequestConfig } from '#lib/oauth2/types/request-config';
 import { Axios, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { OAuth2Client } from './oauth2.client';
-import { OAuth2Token } from '@prisma/client';
+import { RequestConfig } from '../types';
 
 /**
- * Base class for OAuth2 HTTP clients.
- * This class should be extended by specific OAuth2 HTTP clients.
+ * Base class for HTTP clients.
+ * This class should be extended by specific OAuth2/Token HTTP clients.
  */
-export abstract class OAuth2HttpClient extends OAuth2Client {
+export abstract class HttpClient {
   protected readonly fetchers = new Map<string, Axios>();
 
   /**
@@ -26,12 +24,10 @@ export abstract class OAuth2HttpClient extends OAuth2Client {
    * This method should be implemented by subclasses to handle token injection or other modifications.
    *
    * @param config - The Axios request configuration to intercept.
-   * @param token - The OAuth2 token to use for authentication, if applicable.
    * @return A promise that resolves to the modified Axios request configuration.
    */
   protected abstract intercept(
     config: AxiosRequestConfig,
-    token?: OAuth2Token,
   ): Promise<AxiosRequestConfig> | AxiosRequestConfig;
 
   protected async getFetcher(connection: string): Promise<Axios> {
@@ -40,8 +36,6 @@ export abstract class OAuth2HttpClient extends OAuth2Client {
     if (fetcher) {
       return fetcher;
     }
-
-    this.validateConnection(connection);
 
     const config = await this.defaultConfig(connection);
     fetcher = new Axios(config);
@@ -59,13 +53,11 @@ export abstract class OAuth2HttpClient extends OAuth2Client {
   async request<T = any, D = any>(
     config: RequestConfig<D>,
   ): Promise<AxiosResponse<T>> {
-    const fetcher = await this.getFetcher(config.connection);
-    const token = config.noAuth
-      ? undefined
-      : await this.getToken(config.connection);
-    const interceptedConfig = await this.intercept(config, token);
+    const interceptedConfig = await this.intercept(config);
 
-    return fetcher.request<T>(interceptedConfig);
+    return this.getFetcher(config.connection).then((fetcher) =>
+      fetcher.request<T>(interceptedConfig),
+    );
   }
 
   /**

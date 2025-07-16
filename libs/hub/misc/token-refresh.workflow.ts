@@ -1,4 +1,4 @@
-import { OAuth2Service } from '#lib/oauth2/oauth2.service';
+import { HubService } from '../hub.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { WorkflowBase } from '#lib/workflow/misc';
 import { ModuleRef } from '@nestjs/core';
@@ -18,7 +18,7 @@ interface Payload {
 @Workflow({ internal: true })
 export class TokenRefreshWorkflow extends WorkflowBase<Payload> {
   constructor(
-    private readonly oauth2Service: OAuth2Service,
+    private readonly hubService: HubService,
     moduleRef: ModuleRef,
   ) {
     super(moduleRef);
@@ -26,7 +26,7 @@ export class TokenRefreshWorkflow extends WorkflowBase<Payload> {
 
   @Step(0)
   async refreshToken() {
-    return this.oauth2Service.refreshTokens(
+    return this.hubService.refreshTokens(
       this.payload.provider,
       this.payload.connection,
     );

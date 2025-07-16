@@ -2,7 +2,7 @@ import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { OAuth2Module } from '#lib/oauth2/oauth2.module';
+import { HubModule } from '../hub/hub.module';
 import { EnvService } from '#lib/core/env/env.service';
 import { ZohoModule } from '#lib/zoho/zoho.module';
 import { initSentry } from '#lib/core/misc/sentry';
@@ -66,7 +66,7 @@ export async function bootstrap(
       SentryModule.forRoot(),
       CoreModule,
       RedisModule,
-      OAuth2Module,
+      HubModule,
       JwtModule.registerAsync({
         inject: [EnvService],
         useFactory(env: EnvService) {
@@ -122,7 +122,7 @@ export async function bootstrap(
       PrismaService,
       JwtModule,
       APP_TYPE,
-      OAuth2Module,
+      HubModule,
       ZohoModule,
       GlobalEventService,
     ],

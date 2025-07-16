@@ -1,6 +1,6 @@
 import { AuthorizationOutputSchema } from '../schema/authorization-output.schema';
 import { ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
-import { OAuth2Service } from '#lib/oauth2/oauth2.service';
+import { HubService } from '../../../libs/hub/hub.service';
 import { Protected } from '#lib/auth/decorators';
 import * as arctic from 'arctic';
 
@@ -8,7 +8,7 @@ import {
   NoConnectionException,
   NoProviderException,
   NoStateException,
-} from '#lib/oauth2/exceptions';
+} from '../../../libs/hub/exceptions';
 
 import {
   NotFoundException,
@@ -19,9 +19,9 @@ import {
   Get,
 } from '@nestjs/common';
 
-@Controller('api/oauth2')
+@Controller('api/hub')
 export class OAuth2Controller {
-  constructor(private readonly oauth2Service: OAuth2Service) {}
+  constructor(private readonly oauth2Service: HubService) {}
 
   @Post('/:id/:connection/authorize')
   @Protected('DEVELOPER')

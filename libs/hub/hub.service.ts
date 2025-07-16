@@ -3,21 +3,21 @@ import { GlobalEventService, PrismaService } from '#lib/core/services';
 import { NoProviderException, NoStateException } from './exceptions';
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { DiscoveryService, Reflector } from '@nestjs/core';
-import { OAuth2ClientOptions } from '#lib/oauth2/types';
-import { OAuth2Client } from '#lib/oauth2/clients';
+import { OAuth2ClientOptions } from './types';
+import { OAuth2Client } from './clients';
 import { OnEvent } from '@nestjs/event-emitter';
 import { OAuth2Token } from '@prisma/client';
 import type { Jsonify } from 'type-fest';
 import * as arctic from 'arctic';
 
 /**
- * Service for managing OAuth2 clients and tokens.
+ * Service for managing OAuth2 clients and Token Clients.
  * This service provides methods to get authorization URLs, handle callbacks,
  * retrieve access tokens, and refresh tokens.
  */
 
 @Injectable()
-export class OAuth2Service implements OnApplicationBootstrap {
+export class HubService implements OnApplicationBootstrap {
   constructor(
     private readonly globalEventService: GlobalEventService,
     private readonly discoveryService: DiscoveryService,
@@ -52,7 +52,7 @@ export class OAuth2Service implements OnApplicationBootstrap {
     }
   }
 
-  @OnEvent('global.oauth2.refresh')
+  @OnEvent('global.hub.refresh')
   protected handleTokenRefresh(payload: Jsonify<OAuth2Token>) {
     const provider = this.validateProvider(payload.provider);
 
@@ -162,7 +162,7 @@ export class OAuth2Service implements OnApplicationBootstrap {
       },
     });
 
-    this.globalEventService.emit<OAuth2Token>('global.oauth2.refresh', token);
+    this.globalEventService.emit<OAuth2Token>('global.hub.refresh', token);
 
     return tokens;
   }

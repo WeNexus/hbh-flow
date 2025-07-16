@@ -1,15 +1,14 @@
-import { Client, OAUTH2_CLIENT_OPTIONS } from '#lib/oauth2/misc';
-import type { OAuth2ClientOptions } from '#lib/oauth2/types';
+import type { OAuth2ClientOptions, RequestConfig } from '../hub/types';
+import { Client, OAUTH2_CLIENT_OPTIONS } from '../hub/misc';
 import { AxiosError, AxiosRequestConfig } from 'axios';
-import { OAuth2HttpClient } from '#lib/oauth2/clients';
-import { ZohoUserInfo } from '#lib/zoho/types';
 import { ModuleRef, Reflector } from '@nestjs/core';
-import { OAuth2Token } from '@prisma/client';
+import { OAuth2HttpClient } from '../hub/clients';
+import { ZohoUserInfo } from '#lib/zoho/types';
 import { EnvService } from '#lib/core/env';
 import { Inject } from '@nestjs/common';
 import _ from 'lodash';
 
-@Client({
+@Client('oauth2', {
   id: 'zoho',
   name: 'Zoho',
   icon: 'https://www.zohowebstatic.com/sites/zweb/images/commonroot/zoho-logo-web.svg',
@@ -66,7 +65,11 @@ export class ZohoService extends OAuth2HttpClient {
     }
   }
 
-  protected defaultConfig(): Promise<AxiosRequestConfig> | AxiosRequestConfig {
+  protected defaultConfig(
+    connection: string,
+  ): Promise<AxiosRequestConfig> | AxiosRequestConfig {
+    this.validateConnection(connection);
+
     return {
       baseURL: 'https://www.zohoapis.com',
       headers: {
@@ -78,10 +81,12 @@ export class ZohoService extends OAuth2HttpClient {
     };
   }
 
-  protected intercept(config: AxiosRequestConfig, token?: OAuth2Token) {
-    if (!token) {
+  protected async intercept(config: RequestConfig) {
+    if (config.noAuth) {
       return config;
     }
+
+    const token = await this.getToken(config.connection);
 
     const headers = config.headers || {};
     headers.Authorization = `Zoho-oauthtoken ${token.access}`;

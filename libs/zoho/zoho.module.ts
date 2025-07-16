@@ -1,5 +1,5 @@
-import { OAUTH2_CLIENT_OPTIONS } from '#lib/oauth2/misc';
-import { OAuth2ModuleConfig } from '#lib/oauth2/types';
+import { OAUTH2_CLIENT_OPTIONS } from '../hub/misc';
+import { OAuth2ModuleConfig } from '../hub/types';
 import { DynamicModule } from '@nestjs/common';
 import { ZohoService } from './zoho.service';
 
