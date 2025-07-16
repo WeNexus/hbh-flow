@@ -40,7 +40,6 @@ export class TriggerMetaSchema {
   pattern?: string;
 
   oldPattern?: string; // Old cron expression for scheduling, used for updating existing schedules
-  oldName?: string; // Old name of the workflow, used for updating existing schedules
   immediate?: boolean; // If true, the job will be executed immediately after it is created.
 
   @ApiProperty({

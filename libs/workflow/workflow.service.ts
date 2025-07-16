@@ -93,6 +93,27 @@ export class WorkflowService implements OnApplicationBootstrap {
           // You should be able to only trigger a workflow manually from the Worker
           // Webhook, event and cron triggers are not supported in the API app.
           this.setupTriggers();
+
+          // Run ChownJobsWorkflow, which is an internal workflow and is used to update the name
+          // of jobs in the database when the workflow name changes.
+          const chownJobsWorkflow = this.workflows.find(
+            (w) => w.name === 'ChownJobsWorkflow',
+          )!;
+
+          this.run(chownJobsWorkflow, {
+            deduplication: {
+              id: chownJobsWorkflow.name,
+              ttl: this.env.isProd ? 30000 : undefined, // 30 seconds
+            },
+            scheduledAt: this.env.isProd
+              ? new Date(Date.now() + 30000)
+              : undefined, // 30 seconds from now
+          }).catch((err) => {
+            this.logger.error(
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+              `Failed to run chown jobs workflow: ${err.message}`,
+            );
+          });
         }
       })
       .catch((e) => {
@@ -216,7 +237,7 @@ export class WorkflowService implements OnApplicationBootstrap {
       schedule = await this.prisma.schedule.upsert({
         where: {
           name_cronExpression: {
-            name: options.repeat.oldName ?? flow.name,
+            name: options.oldName ?? flow.name,
             cronExpression: options.repeat.oldPattern ?? options.repeat.pattern,
           },
         },

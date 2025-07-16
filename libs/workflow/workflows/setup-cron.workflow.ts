@@ -52,12 +52,12 @@ export class SetupCronWorkflow extends WorkflowBase {
         );
 
         const { schedule } = await this.workflowService.repeat(workflow, {
+          oldName: options.oldName,
           repeat: {
             immediate: trigger.immediate,
             pattern: trigger.pattern!,
             timezone: trigger.timezone,
             oldPattern: trigger.oldPattern,
-            oldName: trigger.oldName,
           },
         });
 

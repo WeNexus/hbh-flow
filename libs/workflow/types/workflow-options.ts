@@ -30,6 +30,8 @@ export class WorkflowOptions {
   })
   internal?: boolean;
 
+  oldName?: string; // Old name of the workflow, used for merging existing records
+
   @ApiProperty({
     description: 'The rate limiter options for the workflow',
     type: RateLimiterOptions,

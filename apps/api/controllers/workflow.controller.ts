@@ -1,5 +1,5 @@
-import { WorkflowsBasicSchema, StepInfoSchema } from '#lib/workflow/schema';
 import { WorkflowService } from '#lib/workflow/workflow.service';
+import { WorkflowsBasicSchema } from '#lib/workflow/schema';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Controller, Get, Query } from '@nestjs/common';
 import { WorkflowOptions } from '#lib/workflow/types';
@@ -57,11 +57,10 @@ export class WorkflowController {
             activeCount: await queue.getActiveCount(),
             waitingCount: await queue.getWaitingCount(),
             failingCount: await queue.getFailedCount(),
-            // @ts-expect-error private property
-            steps: workflow.steps as StepInfoSchema[],
+            steps: workflow.steps,
             ...options,
             triggers: options.triggers?.map((t) =>
-              _.omit(t, 'oldName', 'oldPattern', 'immediate'),
+              _.omit(t, 'oldPattern', 'immediate'),
             ),
           };
         }),

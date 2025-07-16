@@ -25,10 +25,7 @@ export function event(event: string, source: string): TriggerMetaSchema {
  */
 export function cron(
   pattern: string,
-  meta?: Pick<
-    TriggerMetaSchema,
-    'oldPattern' | 'oldName' | 'timezone' | 'immediate'
-  >,
+  meta?: Pick<TriggerMetaSchema, 'oldPattern' | 'timezone' | 'immediate'>,
 ): TriggerMetaSchema {
   return {
     type: TriggerType.Cron,
