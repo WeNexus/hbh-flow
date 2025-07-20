@@ -7,7 +7,7 @@ export interface RecordActivityConfig {
   req: Request;
   action: Action;
   resource?: Resource;
-  resourceId?: string;
+  resourceId?: string | number;
   subAction?: string;
   details?: Record<string, any>;
 

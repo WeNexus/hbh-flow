@@ -15,7 +15,7 @@ export class ActivityService {
         userId: config.auth.user.id,
         action: config.action,
         resource: config.resource,
-        resourceId: config.resourceId,
+        resourceId: config.resourceId?.toString(),
         subAction: config.subAction,
         details: {
           ip: config.req.ip,
