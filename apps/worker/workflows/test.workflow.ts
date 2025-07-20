@@ -8,7 +8,6 @@ import { ModuleRef } from '@nestjs/core';
   triggers: [
     event('Order.Created', 'HBH'),
     webhook(),
-    cron(/* every 6 seconds */ '*/7 * * * * *', { immediate: true }),
   ],
   concurrency: 1,
 })

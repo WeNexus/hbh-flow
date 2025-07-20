@@ -1,2 +1,2 @@
-export * from './auth-context.decorator';
 export * from './protected.decorator';
+export * from './auth.decorator';

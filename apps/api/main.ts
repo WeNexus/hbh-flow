@@ -2,6 +2,7 @@ import { WorkflowController } from './controllers/workflow.controller';
 import { WebhookController } from './controllers/webhook.controller';
 import { OAuth2Controller } from './controllers/oauth2.controller';
 import { WorkflowModule } from '#lib/workflow/workflow.module.js';
+import { UserController } from './controllers/user.controller';
 import { AuthController } from './controllers/auth.controller';
 import { AuthModule } from '#lib/auth/auth.module';
 import { workflows } from '../worker/workflows';
@@ -14,9 +15,10 @@ await bootstrap({
   imports: [AuthModule, UIModule, WorkflowModule],
   providers: [...workflows],
   controllers: [
-    AuthController,
-    WebhookController,
     WorkflowController,
+    WebhookController,
     OAuth2Controller,
+    AuthController,
+    UserController,
   ],
 });

@@ -1,3 +1,4 @@
+import { UserSchema, LoginOutputSchema, LoginInputSchema } from '../schema';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from '#lib/auth/auth.service';
 import type { AuthContext } from '#lib/auth/types';
@@ -6,12 +7,6 @@ import { Protected } from '#lib/auth/decorators';
 import type { Response, Request } from 'express';
 import { Auth } from '#lib/auth/decorators';
 import argon2 from 'argon2';
-
-import {
-  WhoamiOutputSchema,
-  LoginOutputSchema,
-  LoginInputSchema,
-} from '../schema';
 
 import {
   BadRequestException,
@@ -172,9 +167,9 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'Returns the authenticated user',
-    type: WhoamiOutputSchema,
+    type: UserSchema,
   })
-  whoami(@Req() req: Request): WhoamiOutputSchema {
+  whoami(@Req() req: Request): UserSchema {
     return req.auth!.user;
   }
 }
