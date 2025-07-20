@@ -206,7 +206,7 @@ export abstract class WorkflowBase<P = any> {
    */
   async getResult<T = any>(step: string): Promise<T> {
     const row = await this.moduleRef
-      .get(PrismaService, { strict: true })
+      .get(PrismaService, { strict: false })
       .jobStep.findFirst({
         where: {
           jobId: this.dbJob.id,

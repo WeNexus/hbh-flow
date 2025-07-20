@@ -1,10 +1,9 @@
 import { WorkflowService } from '#lib/workflow/workflow.service';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base';
 import { Workflow, Step } from '#lib/workflow/decorators';
-import { WorkflowOptions } from '#lib/workflow/types';
-import { ModuleRef, Reflector } from '@nestjs/core';
 import { PrismaService } from '#lib/core/services';
-import { TriggerType } from '#lib/workflow/misc';
+import { TriggerType } from '#lib/workflow/misc/index';
+import { ModuleRef } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 
 /**
@@ -19,7 +18,6 @@ export class SetupCronWorkflow extends WorkflowBase {
   constructor(
     private readonly workflowService: WorkflowService,
     private readonly prisma: PrismaService,
-    private readonly reflector: Reflector,
     moduleRef: ModuleRef,
   ) {
     super(moduleRef);
@@ -31,13 +29,11 @@ export class SetupCronWorkflow extends WorkflowBase {
   async execute() {
     const scheduleIds: number[] = [];
 
-    for (const workflow of this.workflowService.workflows) {
-      const options = this.reflector.get<WorkflowOptions | undefined>(
-        'HBH_FLOW',
-        workflow,
-      );
+    for (const workflow of this.workflowService.flows) {
+      const options = this.workflowService.getOptions(workflow);
 
       if (!options?.triggers) {
+        // No triggers defined for this workflow, skip it
         continue;
       }
 
@@ -52,13 +48,10 @@ export class SetupCronWorkflow extends WorkflowBase {
         );
 
         const { schedule } = await this.workflowService.repeat(workflow, {
-          oldName: options.oldName,
-          repeat: {
-            immediate: trigger.immediate,
-            pattern: trigger.pattern!,
-            timezone: trigger.timezone,
-            oldPattern: trigger.oldPattern,
-          },
+          immediate: trigger.immediate,
+          pattern: trigger.pattern!,
+          timezone: trigger.timezone,
+          oldPattern: trigger.oldPattern,
         });
 
         // Keep track of the schedule IDs to ignore these when deactivating dangling schedules
@@ -68,14 +61,14 @@ export class SetupCronWorkflow extends WorkflowBase {
 
     const danglingSchedules = await this.prisma.schedule.findMany({
       where: {
-        active: true,
+        dangling: false,
         id: {
           notIn: scheduleIds,
         },
       },
       select: {
         id: true,
-        name: true,
+        workflowId: true,
       },
     });
 
@@ -87,15 +80,19 @@ export class SetupCronWorkflow extends WorkflowBase {
         },
       },
       data: {
-        active: false,
+        dangling: true,
       },
     });
 
     // Remove dangling schedules from BullMQ
     for (const schedule of danglingSchedules) {
-      await this.workflowService.workflowsByName
-        .get(schedule.name)
-        ?.queue?.removeJobScheduler(`#${schedule.id}`);
+      const dbFlow = await this.workflowService.getDBFlow(
+        schedule.workflowId,
+      );
+
+      await this.workflowService
+        .getQueue(dbFlow.id)
+        .removeJobScheduler(`#${schedule.id}`);
     }
   }
 }

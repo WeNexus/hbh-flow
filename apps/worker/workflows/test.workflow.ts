@@ -1,11 +1,15 @@
 import { Workflow } from '#lib/workflow/decorators/workflow.decorator.js';
+import { cron, event, webhook } from '#lib/workflow/misc/trigger.js';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base.js';
-import { event, webhook } from '#lib/workflow/misc/trigger.js';
 import { Step } from '#lib/workflow/decorators';
 import { ModuleRef } from '@nestjs/core';
 
 @Workflow({
-  triggers: [event('Order.Created', 'HBH'), webhook()],
+  triggers: [
+    event('Order.Created', 'HBH'),
+    webhook(),
+    cron(/* every 6 seconds */ '*/7 * * * * *', { immediate: true }),
+  ],
   concurrency: 1,
 })
 export class TestWorkflow extends WorkflowBase {

@@ -25,6 +25,7 @@ enum JobStatus {
   STALLED
   FAILED
   PAUSED
+  DRAFT
 }
 
 enum JobStepStatus {
@@ -32,6 +33,25 @@ enum JobStepStatus {
   RUNNING
   WAITING_RERUN
   FAILED
+}
+
+enum Action {
+  CREATE
+  UPDATE
+  DELETE
+  OTHER
+}
+
+enum Resource {
+  USER
+  WORKFLOW
+}
+
+enum Trigger {
+  MANUAL
+  WEBHOOK
+  SCHEDULE
+  EVENT
 }
 
 model User {
@@ -44,31 +64,49 @@ model User {
 
   createdAt DateTime  @default(now()) @db.Timestamptz()
   updatedAt DateTime? @updatedAt @db.Timestamptz()
+
+  Activities Activity[]
+  Revisions  Revision[]
 }
 
-model Schedule {
-  id Int @id @default(autoincrement())
+model Workflow {
+  id  Int    @id @default(autoincrement())
+  key String @unique
 
-  name           String
-  cronExpression String
-  active         Boolean @default(true)
+  active           Boolean  @default(true) // Indicates if the workflow is currently active, when inactive jobs will be kept in the queue but not executed
+  disabledEvents   String[] // List of event triggers that are disabled
+  disabledWebhooks String[] // List of webhooks that are disabled
 
   createdAt DateTime  @default(now()) @db.Timestamptz()
   updatedAt DateTime? @updatedAt @db.Timestamptz()
 
   Jobs Job[]
+}
 
-  @@unique([name, cronExpression])
+model Schedule {
+  id         Int @id @default(autoincrement())
+  workflowId Int
+
+  cronExpression String
+  active         Boolean @default(true)
+  dangling       Boolean @default(false)
+
+  createdAt DateTime  @default(now()) @db.Timestamptz()
+  updatedAt DateTime? @updatedAt @db.Timestamptz()
+
+  @@unique([workflowId, cronExpression])
 }
 
 model Job {
   id         Int     @id @default(autoincrement())
+  parentId   Int? // Optional parent job ID for reruns
   bullId     String? @unique
   dedupeId   String?
-  scheduleId Int?
+  workflowId Int
 
-  name        String
   status      JobStatus @default(WAITING)
+  trigger     Trigger   @default(MANUAL) // Which trigger initiated the job
+  triggerId   String? // Identifier for the trigger (e.g., webhook ID, event, schedule ID)
   scheduledAt DateTime? @db.Timestamptz()
   payload     Json?
 
@@ -78,13 +116,11 @@ model Job {
   createdAt DateTime  @default(now()) @db.Timestamptz()
   updatedAt DateTime? @updatedAt @db.Timestamptz()
 
-  Schedule Schedule? @relation(fields: [scheduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  Workflow Workflow? @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   Steps    JobStep[]
 
-  @@index([scheduleId])
   @@index([status])
-  @@index([name])
-  @@index([dedupeId])
+  @@index([workflowId])
 }
 
 model JobStep {
@@ -128,4 +164,42 @@ model OAuth2Token {
   updatedAt DateTime? @updatedAt @db.Timestamptz()
 
   @@id([provider, connection])
+}
+
+model Activity {
+  id Int @id @default(autoincrement())
+
+  userId Int
+
+  resource   Resource?
+  resourceId String? // ID of the resource being acted upon (if applicable)
+  action     Action
+  subAction  String? // Additional action details (e.g., "rerun", "disable")
+  details    Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz()
+
+  User User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId])
+  @@index([resource, resourceId])
+}
+
+model Revision {
+  id     Int @id @default(autoincrement())
+  userId Int
+
+  resource   Resource
+  resourceId String // ID of the target resource (e.g., Product ID)
+  action     Action // Action performed on the resource (e.g., CREATE, UPDATE, DELETE)
+
+  data  Json // Serialized data of the resource at the time of revision
+  delta Json? // Optional delta of changes made, if applicable
+
+  createdAt DateTime @default(now()) @db.Timestamptz()
+
+  User User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([resource, resourceId])
+  @@index([userId])
 }

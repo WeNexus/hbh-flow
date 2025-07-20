@@ -17,6 +17,6 @@ import {
 export function Workflow(options?: WorkflowOptions) {
   return applyDecorators(
     Injectable({ scope: Scope.TRANSIENT }),
-    SetMetadata('HBH_FLOW', options),
+    SetMetadata('HBH_FLOW', options ?? {}),
   );
 }

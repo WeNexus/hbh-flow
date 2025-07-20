@@ -43,7 +43,7 @@ export class WebhookController {
   async generateWebhookToken(
     @Body() payload: WorkflowTokenInputSchema,
   ): Promise<WorkflowTokenOutputSchema> {
-    const workflow = this.workflowService.workflowsByName.get(payload.workflow);
+    const workflow = this.workflowService.resolveClass(payload.workflow);
 
     if (!workflow) {
       throw new BadRequestException('Workflow not found');
@@ -52,6 +52,7 @@ export class WebhookController {
     try {
       const token = await this.workflowService.getToken(
         workflow,
+        payload.key,
         payload.expiresIn ?? '7d',
       );
 

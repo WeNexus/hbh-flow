@@ -17,6 +17,12 @@ export class RateLimiterOptions implements RateLimiterOptionsBase {
 
 export class WorkflowOptions {
   @ApiProperty({
+    description: 'The name of the workflow',
+    required: false,
+  })
+  key?: string; // In case the class is renamed, this should be kept as is
+
+  @ApiProperty({
     description: 'The concurrency limit for the workflow execution',
     required: false,
     default: Infinity,
@@ -29,8 +35,6 @@ export class WorkflowOptions {
     default: false,
   })
   internal?: boolean;
-
-  oldName?: string; // Old name of the workflow, used for merging existing records
 
   @ApiProperty({
     description: 'The rate limiter options for the workflow',

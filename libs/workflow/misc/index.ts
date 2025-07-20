@@ -1,3 +1,4 @@
+export * from './setup-cron.workflow';
 export * from './trigger-type.enum';
 export * from './workflow-base';
 export * from './trigger';
