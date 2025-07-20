@@ -2,20 +2,20 @@ import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { HubModule } from '../hub/hub.module';
 import { EnvService } from '#lib/core/env/env.service';
+import { RUNTIME_ID, APP_TYPE } from '#lib/core/misc';
 import { ZohoModule } from '#lib/zoho/zoho.module';
 import { initSentry } from '#lib/core/misc/sentry';
+import { HubModule } from '../hub/hub.module';
 import { RedisModule } from '#lib/core/redis';
 import { AppType } from '#lib/core/types';
 import { JwtModule } from '@nestjs/jwt';
 
 import {
   GlobalEventService,
+  ActivityService,
   PrismaService,
-  RUNTIME_ID,
-  APP_TYPE,
-} from '#lib/core/misc';
+} from '#lib/core/services';
 
 import {
   INestApplicationContext,
@@ -114,6 +114,7 @@ export async function bootstrap(
           }
         : undefined) as Provider,
       GlobalEventService,
+      ActivityService,
     ].filter(Boolean),
     exports: [
       EnvService,
@@ -125,6 +126,7 @@ export async function bootstrap(
       HubModule,
       ZohoModule,
       GlobalEventService,
+      ActivityService,
     ],
   })
   class WrapperModule {}

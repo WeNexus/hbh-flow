@@ -66,7 +66,6 @@ model User {
   updatedAt DateTime? @updatedAt @db.Timestamptz()
 
   Activities Activity[]
-  Revisions  Revision[]
 }
 
 model Workflow {
@@ -179,27 +178,28 @@ model Activity {
 
   createdAt DateTime @default(now()) @db.Timestamptz()
 
-  User User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  User      User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  Revisions Revision[]
 
   @@index([userId])
   @@index([resource, resourceId])
 }
 
 model Revision {
-  id     Int @id @default(autoincrement())
-  userId Int
+  id         Int @id @default(autoincrement())
+  activityId Int
 
   resource   Resource
   resourceId String // ID of the target resource (e.g., Product ID)
   action     Action // Action performed on the resource (e.g., CREATE, UPDATE, DELETE)
 
-  data  Json // Serialized data of the resource at the time of revision
+  data  Json? // Serialized data of the resource at the time of revision
   delta Json? // Optional delta of changes made, if applicable
 
   createdAt DateTime @default(now()) @db.Timestamptz()
 
-  User User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  Activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([resource, resourceId])
-  @@index([userId])
+  @@index([activityId])
 }
