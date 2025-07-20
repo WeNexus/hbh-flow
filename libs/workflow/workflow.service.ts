@@ -1,4 +1,4 @@
-import { APP_TYPE, GlobalEventService, PrismaService } from '#lib/core/misc';
+import { GlobalEventService, PrismaService } from '#lib/core/services';
 import { StepInfoSchema } from '#lib/workflow/schema/step-info.schema';
 import { WorkflowOptions } from '#lib/workflow/types/workflow-options';
 import type { InputJsonValue } from '@prisma/client/runtime/client';
@@ -11,6 +11,7 @@ import { RunOptions } from '#lib/workflow/types/run-options';
 import { JobPayload } from '#lib/workflow/types/job-payload';
 import { REDIS_PUB } from '#lib/core/redis';
 import { EnvService } from '#lib/core/env';
+import { APP_TYPE } from '#lib/core/misc';
 import { AppType } from '#lib/core/types';
 import { JwtService } from '@nestjs/jwt';
 import type { Jsonify } from 'type-fest';
