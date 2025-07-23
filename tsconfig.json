@@ -41,11 +41,11 @@
       "#lib/auth/*": [
         "libs/auth/*"
       ],
-      "#lib/oauth2": [
-        "libs/oauth2"
+      "#lib/hub": [
+        "libs/hub"
       ],
-      "#lib/oauth2/*": [
-        "libs/oauth2/*"
+      "#lib/hub/*": [
+        "libs/hub/*"
       ],
       "#lib/zoho": [
         "libs/zoho"

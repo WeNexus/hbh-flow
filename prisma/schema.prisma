@@ -45,6 +45,8 @@ enum Action {
 enum Resource {
   USER
   WORKFLOW
+  OAUTH2_AUTH_STATE
+  OAUTH2_TOKEN
 }
 
 enum Trigger {
@@ -171,7 +173,7 @@ model Activity {
   userId Int
 
   resource   Resource?
-  resourceId String? // ID of the resource being acted upon (if applicable)
+  resourceId Json? // ID of the resource being acted upon (if applicable)
   action     Action
   subAction  String? // Additional action details (e.g., "rerun", "disable")
   details    Json?
@@ -190,7 +192,7 @@ model Revision {
   activityId Int
 
   resource   Resource
-  resourceId String // ID of the target resource (e.g., Product ID)
+  resourceId Json // ID of the target resource (e.g., Product ID)
   action     Action // Action performed on the resource (e.g., CREATE, UPDATE, DELETE)
 
   data  Json? // Serialized data of the resource at the time of revision

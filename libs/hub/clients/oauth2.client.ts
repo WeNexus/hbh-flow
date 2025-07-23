@@ -33,7 +33,7 @@ export abstract class OAuth2Client {
   ) {
     const url = new URL(this.env.getString('APP_URL'));
     const basePath = url.pathname.endsWith('/') ? '' : url.pathname;
-    url.pathname = `${basePath}/api/oauth2/callback`;
+    url.pathname = `${basePath}/api/hub/callback`;
 
     // Initialize Arctic clients for each connection.
     for (const connection of this.clientOptions.connections) {
@@ -178,7 +178,7 @@ export abstract class OAuth2Client {
     if (!this.tokens.has(connection)) {
       const _token = await this.moduleRef
         .get(PrismaService, { strict: false })
-        .oAuth2Token.findFirstOrThrow({
+        .oAuth2Token.findFirst({
           where: {
             provider: this.clientOptions.id,
             connection,

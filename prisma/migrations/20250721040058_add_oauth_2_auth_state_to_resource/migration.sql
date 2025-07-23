@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "Resource" ADD VALUE 'OAUTH2_AUTH_STATE';

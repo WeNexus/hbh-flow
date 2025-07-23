@@ -26,7 +26,7 @@ export class ZohoService extends OAuth2HttpClient {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       _.merge(
         {},
-        reflector.get<OAuth2ClientOptions>('HBH_OAUTH2_CLIENT', ZohoService),
+        reflector.get<OAuth2ClientOptions>('HBH_HUB_CLIENT', ZohoService),
         options,
       ) as any,
       env,

@@ -15,9 +15,7 @@ export function Client<T extends ClientType = ClientType>(
 ) {
   return applyDecorators(
     Injectable(),
-    SetMetadata(
-      type === 'oauth2' ? 'HBH_OAUTH2_CLIENT' : 'HBH_TOKEN_CLIENT',
-      options,
-    ),
+    SetMetadata('HBH_HUB_CLIENT_TYPE', type),
+    SetMetadata('HBH_HUB_CLIENT', options),
   );
 }

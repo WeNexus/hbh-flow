@@ -1,14 +1,12 @@
-import { InstanceWrapper } from '@nestjs/core/injector/instance-wrapper';
+import { OAuth2ClientOptions, TokenClientOptions, ClientType } from './types';
 import { GlobalEventService, PrismaService } from '#lib/core/services';
 import { NoProviderException, NoStateException } from './exceptions';
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { DiscoveryService, Reflector } from '@nestjs/core';
-import { OAuth2ClientOptions } from './types';
-import { OAuth2Client } from './clients';
+import { OAuth2Client, TokenClient } from './clients';
 import { OnEvent } from '@nestjs/event-emitter';
 import { OAuth2Token } from '@prisma/client';
 import type { Jsonify } from 'type-fest';
-import * as arctic from 'arctic';
 
 /**
  * Service for managing OAuth2 clients and Token Clients.
@@ -25,7 +23,25 @@ export class HubService implements OnApplicationBootstrap {
     private readonly reflector: Reflector,
   ) {}
 
-  private readonly providers = new Map<string, InstanceWrapper<OAuth2Client>>();
+  public readonly providers = new Map<
+    string,
+    | {
+        type: 'oauth2';
+        options: OAuth2ClientOptions;
+        client: OAuth2Client;
+      }
+    | {
+        type: 'token';
+        options: TokenClientOptions;
+        client: TokenClient;
+      }
+  >();
+
+  public readonly providersArray: {
+    type: ClientType;
+    options: OAuth2ClientOptions | TokenClientOptions;
+    client: OAuth2Client | TokenClient;
+  }[] = [];
 
   /**
    * @internal
@@ -36,19 +52,33 @@ export class HubService implements OnApplicationBootstrap {
         continue;
       }
 
-      const metadata = this.reflector.get<OAuth2ClientOptions>(
-        'HBH_OAUTH2_CLIENT',
-        provider.metatype,
-      );
+      const metadata = this.reflector.get<
+        OAuth2ClientOptions | TokenClientOptions
+      >('HBH_HUB_CLIENT', provider.metatype);
 
       if (!metadata) {
         continue;
       }
 
-      this.providers.set(
-        metadata.id,
-        provider as InstanceWrapper<OAuth2Client>,
+      const type = this.reflector.get<ClientType>(
+        'HBH_HUB_CLIENT_TYPE',
+        provider.metatype,
       );
+
+      const client = provider.instance as OAuth2Client | TokenClient;
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      this.providers.set(metadata.id, {
+        type,
+        options: client.clientOptions,
+        client,
+      } as any);
+
+      this.providersArray.push({
+        type,
+        options: client.clientOptions,
+        client,
+      });
     }
   }
 
@@ -56,23 +86,36 @@ export class HubService implements OnApplicationBootstrap {
   protected handleTokenRefresh(payload: Jsonify<OAuth2Token>) {
     const provider = this.validateProvider(payload.provider);
 
+    if (provider.type !== 'oauth2') {
+      throw new NoProviderException(
+        `Provider "${payload.provider}" is not an OAuth2 provider.`,
+      );
+    }
+
     // Update cache
-    provider.instance.tokens.set(
+    provider.client.tokens.set(
       payload.connection,
-      provider.instance.deSerializeToken(payload),
+      provider.client.deSerializeToken(payload),
     );
   }
 
-  private validateProvider(id: string) {
-    const provider = this.providers.get(id);
+  /**
+   * Validates the existence of a provider by its ID.
+   *
+   * @param id - The ID of the provider to validate.
+   * @returns The client associated with the provider if it exists.
+   * @throws NoProviderException if the provider with the given ID does not exist.
+   */
+  public validateProvider(id: string) {
+    const client = this.providers.get(id);
 
-    if (!provider) {
+    if (!client) {
       throw new NoProviderException(
         `OAuth2 provider with id "${id}" not found.`,
       );
     }
 
-    return provider;
+    return client;
   }
 
   /**
@@ -88,10 +131,15 @@ export class HubService implements OnApplicationBootstrap {
     connection: string,
     scopes?: string[],
   ): Promise<URL> {
-    return this.validateProvider(id).instance.getAuthorizationUrl(
-      connection,
-      scopes,
-    );
+    const provider = this.validateProvider(id);
+
+    if (provider.type !== 'oauth2') {
+      throw new NoProviderException(
+        `Provider "${id}" is not an OAuth2 provider.`,
+      );
+    }
+
+    return provider.client.getAuthorizationUrl(connection, scopes);
   }
 
   /**
@@ -99,12 +147,9 @@ export class HubService implements OnApplicationBootstrap {
    *
    * @param state - The state parameter from the OAuth2 callback.
    * @param code - The authorization code received from the OAuth2 provider.
-   * @returns The OAuth2 tokens received from the provider.
+   * @returns An object containing the tokens and the connection information.
    */
-  async handleCallback(
-    state: string,
-    code: string,
-  ): Promise<arctic.OAuth2Tokens> {
+  async handleCallback(state: string, code: string) {
     const oauth2State = await this.prisma.oAuth2AuthState.findFirst({
       where: {
         state,
@@ -123,23 +168,30 @@ export class HubService implements OnApplicationBootstrap {
     }
 
     const provider = this.validateProvider(oauth2State.provider);
-    const arcticClient = provider.instance.validateConnection(
+
+    if (provider.type !== 'oauth2') {
+      throw new NoProviderException(
+        `Provider "${oauth2State.provider}" is not an OAuth2 provider.`,
+      );
+    }
+
+    const arcticClient = provider.client.validateConnection(
       oauth2State.connection,
     );
 
-    const connectionOptions = provider.instance.clientOptions.connections.find(
+    const connectionOptions = provider.client.clientOptions.connections.find(
       (conn) => conn.id === oauth2State.connection,
     );
 
     // this may throw an error, so it should be handled by the caller
-    const tokens = await arcticClient.validateAuthorizationCode(
+    const arcticTokens = await arcticClient.validateAuthorizationCode(
       connectionOptions!.tokenURL,
       code,
       oauth2State.verifier,
     );
 
     // update the connection with the new tokens
-    const token = await this.prisma.oAuth2Token.upsert({
+    const dbTokens = await this.prisma.oAuth2Token.upsert({
       where: {
         provider_connection: {
           provider: oauth2State.provider,
@@ -149,33 +201,43 @@ export class HubService implements OnApplicationBootstrap {
       create: {
         provider: oauth2State.provider,
         connection: oauth2State.connection,
-        access: tokens.accessToken(),
-        refresh: tokens.refreshToken(),
-        expiresAt: tokens.accessTokenExpiresAt(),
-        scopes: tokens.scopes().length ? tokens.scopes() : undefined,
+        access: arcticTokens.accessToken(),
+        refresh: arcticTokens.refreshToken(),
+        expiresAt: arcticTokens.accessTokenExpiresAt(),
+        scopes: arcticTokens.scopes().length
+          ? arcticTokens.scopes()
+          : undefined,
       },
       update: {
-        access: tokens.accessToken(),
-        refresh: tokens.refreshToken(),
-        expiresAt: tokens.accessTokenExpiresAt(),
-        scopes: tokens.scopes().length ? tokens.scopes() : undefined,
+        access: arcticTokens.accessToken(),
+        refresh: arcticTokens.refreshToken(),
+        expiresAt: arcticTokens.accessTokenExpiresAt(),
+        scopes: arcticTokens.scopes().length
+          ? arcticTokens.scopes()
+          : undefined,
       },
     });
 
-    this.globalEventService.emit<OAuth2Token>('global.hub.refresh', token);
+    this.globalEventService.emit<OAuth2Token>('global.hub.refresh', dbTokens);
 
-    return tokens;
+    return {
+      arcticTokens,
+      dbTokens,
+    };
   }
 
   /**
-   * Retrieves the access token for the specified OAuth2 provider and connection.
+   * Retrieves tokens for the specified provider and connection.
    *
-   * @param id - The ID of the OAuth2 provider.
+   * @param id - The ID of the provider.
    * @param connection - The ID of the connection to use.
-   * @returns The access token for the specified provider and connection.
+   * @returns The tokens for the specified provider and connection.
    */
-  async getAccessToken(id: string, connection: string): Promise<OAuth2Token> {
-    return this.validateProvider(id).instance.getToken(connection);
+  async getTokens(
+    id: string,
+    connection: string,
+  ): Promise<OAuth2Token | Record<string, string>> {
+    return this.validateProvider(id).client.getToken(connection);
   }
 
   /**
@@ -186,6 +248,33 @@ export class HubService implements OnApplicationBootstrap {
    * @returns The updated OAuth2 token.
    */
   async refreshTokens(id: string, connection: string) {
-    return this.validateProvider(id).instance.refreshToken(connection);
+    const provider = this.validateProvider(id);
+
+    if (provider.type !== 'oauth2') {
+      throw new NoProviderException(
+        `Provider "${id}" is not an OAuth2 provider.`,
+      );
+    }
+
+    return provider.client.refreshToken(connection);
+  }
+
+  /**
+   * Tests the connection to a provider.
+   *
+   * @param id - The ID of the provider.
+   * @param connection - The connection ID for the provider.
+   * @returns A boolean indicating whether the connection is valid.
+   */
+  async testConnection(id: string, connection: string): Promise<boolean> {
+    const provider = this.validateProvider(id);
+
+    if (provider.type === 'oauth2') {
+      const user: unknown = await provider.client.getUserInfo(connection);
+
+      return !!user;
+    }
+
+    return provider.client.testConnection(connection);
   }
 }

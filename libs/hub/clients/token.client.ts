@@ -15,6 +15,21 @@ export abstract class TokenClient {
 
   protected tokens = new Map<string, Record<string, string>>();
 
+  /**
+   * Test the connection for a specific connection identifier.
+   * This method should be implemented by subclasses to perform the actual connection test.
+   *
+   * @param connection - The connection identifier to test.
+   * @return A promise that resolves to a boolean indicating whether the connection is valid.
+   */
+  abstract testConnection(connection: string): Promise<boolean> | boolean;
+
+  /**
+   * Retrieve tokens for a specific connection.
+   *
+   * @param connection - The connection identifier.
+   * @returns The tokens for the specified connection.
+   */
   getToken(connection: string): Record<string, string> {
     const token = this.tokens.get(connection);
 

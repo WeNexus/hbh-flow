@@ -12,10 +12,10 @@ export class ActivityService {
   async recordActivity(config: RecordActivityConfig) {
     const activity = await this.prisma.activity.create({
       data: {
-        userId: config.auth.user.id,
+        userId: config.auth?.user.id ?? 1,
         action: config.action,
         resource: config.resource,
-        resourceId: config.resourceId?.toString(),
+        resourceId: config.resourceId,
         subAction: config.subAction,
         details: {
           ip: config.req.ip,
