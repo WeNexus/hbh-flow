@@ -1,8 +1,10 @@
 import { WorkflowTokenInputSchema, WorkflowTokenOutputSchema } from '../schema';
 import { WorkflowService } from '#lib/workflow/workflow.service';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { Protected } from '#lib/auth/decorators';
+import { Auth, Protected } from '#lib/auth/decorators';
+import { ActivityService } from '#lib/core/services';
 import { JsonWebTokenError } from '@nestjs/jwt';
+import { AuthContext } from '#lib/auth/types';
 import express from 'express';
 
 import {
@@ -22,7 +24,10 @@ import {
 
 @Controller()
 export class WebhookController {
-  constructor(private readonly workflowService: WorkflowService) {}
+  constructor(
+    private readonly workflowService: WorkflowService,
+    private readonly activityService: ActivityService,
+  ) {}
 
   @Post('api/webhook/token')
   @Protected('DEVELOPER')
@@ -41,6 +46,8 @@ export class WebhookController {
     type: WorkflowTokenOutputSchema,
   })
   async generateWebhookToken(
+    @Req() req: express.Request,
+    @Auth() auth: AuthContext,
     @Body() payload: WorkflowTokenInputSchema,
   ): Promise<WorkflowTokenOutputSchema> {
     const workflow = this.workflowService.resolveClass(payload.workflow);
@@ -55,6 +62,20 @@ export class WebhookController {
         payload.key,
         payload.expiresIn ?? '7d',
       );
+
+      // Log the activity of generating a webhook token
+      await this.activityService.recordActivity({
+        req,
+        auth,
+        resource: 'WORKFLOW',
+        resourceId: (await this.workflowService.getDBFlow(workflow)).id,
+        action: 'OTHER',
+        subAction: 'GENERATE_WEBHOOK_TOKEN',
+        details: {
+          key: payload.key,
+          expiresIn: payload.expiresIn,
+        },
+      });
 
       return {
         token,
