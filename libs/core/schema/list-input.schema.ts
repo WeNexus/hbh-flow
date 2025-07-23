@@ -34,7 +34,6 @@ export class ListInputSchema extends PaginationSchema {
   @ApiProperty({
     description:
       'Please take a look at the Prisma documentation for more information on how to use filters and sorting.',
-    type: Object,
     example: {
       category: 'general',
       status: {
