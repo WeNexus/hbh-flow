@@ -3,8 +3,8 @@ import { WorkflowService } from '#lib/workflow/workflow.service';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Auth, Protected } from '#lib/auth/decorators';
 import { ActivityService } from '#lib/core/services';
+import type { AuthContext } from '#lib/auth/types';
 import { JsonWebTokenError } from '@nestjs/jwt';
-import { AuthContext } from '#lib/auth/types';
 import express from 'express';
 
 import {
