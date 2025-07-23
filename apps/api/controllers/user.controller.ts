@@ -31,14 +31,14 @@ import {
   UserSchema,
 } from '../schema';
 
-@Controller('api/user')
+@Controller('api/users')
 export class UserController {
   constructor(
     private readonly activityService: ActivityService,
     private readonly prisma: PrismaService,
   ) {}
 
-  @Get('/list')
+  @Get('/')
   @Protected('OBSERVER')
   @ApiOperation({
     summary: 'Get a list of users',
