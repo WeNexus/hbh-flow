@@ -16,6 +16,7 @@ import {
   Res,
   Get,
   Req,
+  ForbiddenException,
 } from '@nestjs/common';
 
 @Controller('api/auth')
@@ -66,6 +67,23 @@ export class AuthController {
       throw new BadRequestException('Incorrect email or password');
     }
 
+    if (user.role === 'SYSTEM') {
+      const admin = await this.prisma.user.findFirst({
+        where: {
+          role: 'ADMIN',
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (admin) {
+        throw new ForbiddenException(
+          `You can log in as SYSTEM user only if there is no ADMIN user in the system..`,
+        );
+      }
+    }
+
     try {
       const tokens = await this.authService.login(user);
 
@@ -73,7 +91,7 @@ export class AuthController {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        maxAge: user.role === 'SYSTEM' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000, // 1 hour for SYSTEM, 24 hours for others
       });
 
       const result = {

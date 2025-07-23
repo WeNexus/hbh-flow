@@ -28,6 +28,7 @@ export class AuthGuard implements CanActivate {
     'DATA_ENTRY',
     'DEVELOPER',
     'ADMIN',
+    'SYSTEM',
   ];
 
   constructor(

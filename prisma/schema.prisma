@@ -8,6 +8,7 @@ datasource db {
 }
 
 enum Role {
+  SYSTEM
   ADMIN
   DEVELOPER
   DATA_ENTRY
