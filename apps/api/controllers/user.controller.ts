@@ -54,18 +54,22 @@ export class UserController {
     description: 'Bad Request - Invalid pagination or filter parameters.',
   })
   async getUsers(
-    @Query() pagination: ListInputSchema,
+    @Query() input: ListInputSchema,
   ): Promise<UserListOutputSchema> {
-    const { page = 1, limit = 10 } = pagination;
+    const { page = 1, limit = 10 } = input;
 
     const where: Prisma.UserWhereInput = {
-      ...(pagination.search && {
-        OR: [
-          { email: { contains: pagination.search, mode: 'insensitive' } },
-          { name: { contains: pagination.search, mode: 'insensitive' } },
-        ],
-      }),
-      ...pagination.filter,
+      AND: [
+        input.search
+          ? {
+              OR: [
+                { email: { contains: input.search, mode: 'insensitive' } },
+                { name: { contains: input.search, mode: 'insensitive' } },
+              ],
+            }
+          : {},
+        input.filter ?? {},
+      ],
     };
 
     const count = await this.prisma.user.count({ where });
@@ -74,7 +78,7 @@ export class UserController {
       skip: (page - 1) * limit,
       take: limit,
       orderBy: {
-        [pagination.sortField || 'createdAt']: pagination.sortOrder || 'desc',
+        [input.sortField || 'createdAt']: input.sortOrder || 'desc',
       },
       omit: {
         password: true,
