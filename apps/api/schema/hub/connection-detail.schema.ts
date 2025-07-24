@@ -1,6 +1,6 @@
 import { ConnectionSchema } from './connection.schema';
+import { UserSchema } from '../user/user.schema';
 import { ApiProperty } from '@nestjs/swagger';
-import { UserSchema } from '../user.schema';
 
 export class ConnectionDetailSchema extends ConnectionSchema {
   @ApiProperty({ description: 'Indicates if the connection is working' })

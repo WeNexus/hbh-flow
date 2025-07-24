@@ -146,7 +146,8 @@ export class UserController {
   })
   @ApiResponse({
     status: 403,
-    description: "Forbidden - Can't create an ADMIN user as a DEVELOPER.",
+    description:
+      "Forbidden - Can't create an ADMIN user as a DEVELOPER. Or can't create a user with SYSTEM role.",
   })
   async createUser(
     @Req() req: Request,
@@ -206,6 +207,15 @@ export class UserController {
     status: 404,
     description: 'User not found.',
   })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid input.',
+  })
+  @ApiResponse({
+    status: 403,
+    description:
+      "Forbidden - Can't update a SYSTEM user or your own role, or update a user to ADMIN role unless you are an ADMIN.",
+  })
   async updateUser(
     @Req() req: Request,
     @Param('id') id: number,
@@ -220,10 +230,16 @@ export class UserController {
       throw new NotFoundException('User not found');
     }
 
-    // Only developers and admins can update users
+    if (user.role === 'SYSTEM') {
+      throw new ForbiddenException("You can't update a system user");
+    }
+
+    // Only developers and admins and systems can update users
     // admins can update any role, developers can only update users with roles other than ADMIN
     const isPowerUser =
-      auth.user.role === 'DEVELOPER' || auth.user.role === 'ADMIN';
+      auth.user.role === 'DEVELOPER' ||
+      auth.user.role === 'ADMIN' ||
+      auth.user.role === 'SYSTEM';
     const isSelfUpdate = auth.user.id === id;
 
     if (!isPowerUser && !isSelfUpdate) {
@@ -240,7 +256,7 @@ export class UserController {
 
     if (auth.user.role !== 'ADMIN' && input.role === 'ADMIN') {
       // Prevent non-admins from updating a user to ADMIN role
-      throw new BadRequestException(
+      throw new ForbiddenException(
         "Can't update a user to ADMIN role unless you are an ADMIN",
       );
     }
@@ -300,6 +316,10 @@ export class UserController {
 
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    if (user.role === 'SYSTEM') {
+      throw new ForbiddenException("You can't delete a system user");
     }
 
     if (auth.user.id === id) {
