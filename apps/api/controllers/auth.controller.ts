@@ -101,14 +101,7 @@ export class AuthController {
 
       await this.activityService.recordActivity({
         req,
-        auth: {
-          payload: {
-            cst: tokens.csrfToken,
-            rol: user.role,
-            uid: user.id.toString(),
-          },
-          user,
-        },
+        userId: user.id,
         action: 'OTHER',
         resource: 'USER',
         resourceId: user.id.toString(),
@@ -147,7 +140,7 @@ export class AuthController {
 
     await this.activityService.recordActivity({
       req,
-      auth,
+      userId: auth.user.id,
       action: 'OTHER',
       resource: 'USER',
       resourceId: auth.user.id,
@@ -204,7 +197,7 @@ export class AuthController {
 
       await this.activityService.recordActivity({
         req,
-        auth,
+        userId: auth.user.id,
         action: 'OTHER',
         resource: 'USER',
         resourceId: auth.user.id,

@@ -181,7 +181,7 @@ export class UserController {
 
     await this.activityService.recordActivity({
       req,
-      auth,
+      userId: auth.user.id,
       action: 'CREATE',
       resource: 'USER',
       resourceId: user.id.toString(),
@@ -273,7 +273,7 @@ export class UserController {
 
     await this.activityService.recordActivity({
       req,
-      auth,
+      userId: auth.user.id,
       action: 'UPDATE',
       resource: 'USER',
       resourceId: id.toString(),
@@ -335,7 +335,7 @@ export class UserController {
 
     await this.activityService.recordActivity({
       req,
-      auth,
+      userId: auth.user.id,
       action: 'DELETE',
       resource: 'USER',
       resourceId: id.toString(),

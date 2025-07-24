@@ -66,7 +66,7 @@ export class WebhookController {
       // Log the activity of generating a webhook token
       await this.activityService.recordActivity({
         req,
-        auth,
+        userId: auth.user.id,
         resource: 'WORKFLOW',
         resourceId: (await this.workflowService.getDBFlow(workflow)).id,
         action: 'OTHER',

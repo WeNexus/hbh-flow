@@ -406,12 +406,12 @@ export class HubController {
       );
 
       await this.activityService.recordActivity({
+        req,
         action: 'CREATE',
         resource: 'OAUTH2_AUTH_STATE',
         resourceId: url.searchParams.get('state') ?? '',
         subAction: 'OAUTH2_INITIATE_AUTHORIZATION',
-        auth,
-        req,
+        userId: auth.user.id,
       });
 
       return {
@@ -458,6 +458,7 @@ export class HubController {
       const { dbTokens } = await this.hubService.handleCallback(state, code);
 
       await this.activityService.recordActivity({
+        req,
         action: 'CREATE',
         resource: 'OAUTH2_TOKEN',
         resourceId: {
@@ -465,8 +466,7 @@ export class HubController {
           connection: dbTokens.connection,
         },
         subAction: 'OAUTH2_AUTHORIZATION',
-        auth,
-        req,
+        userId: auth.user.id,
       });
 
       return `

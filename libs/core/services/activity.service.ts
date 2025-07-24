@@ -12,14 +12,14 @@ export class ActivityService {
   async recordActivity(config: RecordActivityConfig) {
     const activity = await this.prisma.activity.create({
       data: {
-        userId: config.auth?.user.id ?? 1,
+        userId: config.userId,
         action: config.action,
         resource: config.resource,
         resourceId: config.resourceId,
         subAction: config.subAction,
         details: {
-          ip: config.req.ip,
-          userAgent: config.req.headers['user-agent'],
+          ip: config.req?.ip,
+          userAgent: config.req?.headers['user-agent'],
           ...config.details,
         },
       },
