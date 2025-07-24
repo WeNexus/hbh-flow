@@ -209,7 +209,7 @@ export class HubController {
       );
 
       if (!conn) {
-        throw new NoConnectionException(
+        throw new NotFoundException(
           `Connection with ID "${id}" not found for provider "${id}".`,
         );
       }
@@ -274,7 +274,18 @@ export class HubController {
         },
       });
 
-      // xyz-abc/abc
+      let connectedUser: Record<string, any> | undefined = undefined;
+
+      if (provider.type !== 'token') {
+        try {
+          connectedUser = (await provider.client.getUserInfo(
+            connection,
+          )) as Record<string, any>;
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (e: unknown) {
+          // If getting user info fails, we can still return the connection details
+        }
+      }
 
       return {
         id: conn.id,
@@ -287,13 +298,7 @@ export class HubController {
           : undefined,
         connectedAt: lastActivity?.createdAt.toISOString() ?? undefined,
         connectedBy: lastActivity ? lastActivity.User : undefined,
-        connectedUser:
-          provider.type === 'token'
-            ? undefined
-            : ((await provider.client.getUserInfo(connection)) as Record<
-                string,
-                any
-              >),
+        connectedUser,
       };
     } catch (e: unknown) {
       if (
