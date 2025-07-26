@@ -1,3 +1,4 @@
+import { ConnectionController } from './controllers/connection.controller';
 import { WorkflowController } from './controllers/workflow.controller';
 import { WebhookController } from './controllers/webhook.controller';
 import { WorkflowModule } from '#lib/workflow/workflow.module.js';
@@ -19,6 +20,7 @@ await bootstrap({
     UserController,
     WebhookController,
     HubController,
+    ConnectionController,
     WorkflowController,
   ],
 });
