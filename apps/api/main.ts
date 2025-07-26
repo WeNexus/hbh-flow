@@ -15,10 +15,10 @@ await bootstrap({
   imports: [AuthModule, UIModule, WorkflowModule],
   providers: [...workflows],
   controllers: [
-    WorkflowController,
-    WebhookController,
-    HubController,
     AuthController,
     UserController,
+    WebhookController,
+    HubController,
+    WorkflowController,
   ],
 });
