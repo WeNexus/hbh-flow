@@ -1,49 +1,45 @@
 import { UserSchema, LoginOutputSchema, LoginInputSchema } from '../schema';
 import { ActivityService, PrismaService } from '#lib/core/services';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Protected, Auth } from '#lib/auth/decorators';
 import { AuthService } from '#lib/auth/auth.service';
 import type { AuthContext } from '#lib/auth/types';
-import { Protected } from '#lib/auth/decorators';
-import type { Response, Request } from 'express';
-import { Auth } from '#lib/auth/decorators';
+import type { Request, Response } from 'express';
 import argon2 from 'argon2';
 
 import {
   BadRequestException,
+  ForbiddenException,
   Controller,
+  HttpCode,
   Body,
   Post,
   Res,
   Get,
   Req,
-  ForbiddenException,
 } from '@nestjs/common';
 
 @Controller('api/auth')
 export class AuthController {
   constructor(
+    private readonly activityService: ActivityService,
     private readonly authService: AuthService,
     private readonly prisma: PrismaService,
-    private readonly activityService: ActivityService,
   ) {}
 
   @Post('login')
   @ApiOperation({
     summary: 'User login',
     description:
-      'Authenticates a user and sets an access token cookie and returns CSRF token.',
+      'Authenticates a user using their email and password. On success, sets an access token cookie and returns a CSRF token.',
   })
   @ApiResponse({
-    status: 400,
-    description: 'Bad Request - Incorrect email or password',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Login successful',
+    status: 201,
+    description: 'Login successful. Cookie and CSRF token issued.',
     type: LoginOutputSchema,
     headers: {
       'Set-Cookie': {
-        description: 'Access token cookie',
+        description: 'Access token stored as an HTTP-only cookie.',
         schema: {
           type: 'string',
           example: 'access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
@@ -51,35 +47,35 @@ export class AuthController {
       },
     },
   })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid credentials or malformed request data.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'SYSTEM user login is blocked when ADMIN user already exists.',
+  })
   async login(
     @Req() req: Request,
     @Body() input: LoginInputSchema,
     @Res({ passthrough: true }) res: Response,
   ): Promise<LoginOutputSchema> {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        email: input.email,
-      },
+    const { result: user } = await this.prisma.user.findUnique({
+      where: { email: input.email },
     });
 
-    // Check if user exists and password matches
     if (!user || !(await argon2.verify(user.password, input.password))) {
       throw new BadRequestException('Incorrect email or password');
     }
 
     if (user.role === 'SYSTEM') {
-      const admin = await this.prisma.user.findFirst({
-        where: {
-          role: 'ADMIN',
-        },
-        select: {
-          id: true,
-        },
+      const { result: admin } = await this.prisma.user.findFirst({
+        where: { role: 'ADMIN' },
+        select: { id: true },
       });
-
       if (admin) {
         throw new ForbiddenException(
-          `You can log in as SYSTEM user only if there is no ADMIN user in the system..`,
+          'SYSTEM user cannot log in while an ADMIN user exists.',
         );
       }
     }
@@ -91,25 +87,25 @@ export class AuthController {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
-        maxAge: user.role === 'SYSTEM' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000, // 1 hour for SYSTEM, 24 hours for others
+        maxAge:
+          user.role === 'SYSTEM'
+            ? 60 * 60 * 1000 // 1 hour
+            : 24 * 60 * 60 * 1000, // 24 hours
       });
-
-      const result = {
-        csrfToken: tokens.csrfToken,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      };
 
       await this.activityService.recordActivity({
         req,
         userId: user.id,
         action: 'OTHER',
         resource: 'USER',
-        resourceId: user.id.toString(),
+        resourceId: user.id,
         subAction: 'LOGIN',
       });
 
-      return result;
-
+      return {
+        csrfToken: tokens.csrfToken,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      };
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       throw new BadRequestException('Incorrect email or password');
@@ -120,18 +116,29 @@ export class AuthController {
   @Protected()
   @ApiOperation({
     summary: 'User logout',
-    description: 'Logs out the user by clearing the access token cookie.',
+    description:
+      'Clears the user’s access token cookie, effectively logging them out.',
   })
   @ApiResponse({
-    status: 200,
-    description: 'Logout successful',
+    status: 204,
+    description: 'Logout successful. Access token cookie cleared.',
+    headers: {
+      'Set-Cookie': {
+        description: 'Clears the access_token cookie.',
+        schema: {
+          type: 'string',
+          example:
+            'access_token=; Max-Age=0; HttpOnly; Secure; SameSite=Strict',
+        },
+      },
+    },
   })
+  @HttpCode(204)
   async logout(
     @Req() req: Request,
     @Auth() auth: AuthContext,
     @Res({ passthrough: true }) res: Response,
   ) {
-    // Clear the access token cookie
     res.clearCookie('access_token', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -146,8 +153,6 @@ export class AuthController {
       resourceId: auth.user.id,
       subAction: 'LOGOUT',
     });
-
-    return { message: 'Logged out successfully' };
   }
 
   @Post('refresh')
@@ -155,25 +160,25 @@ export class AuthController {
   @ApiOperation({
     summary: 'Refresh access token',
     description:
-      'Refreshes the access token using the current user context. Requires a valid access token.',
+      'Generates a new access token and CSRF token. Stores the token in a secure cookie.',
   })
   @ApiResponse({
-    status: 400,
-    description: 'Bad Request - Failed to refresh token',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Login successful',
+    status: 201,
+    description: 'New token issued and cookie set.',
     type: LoginOutputSchema,
     headers: {
       'Set-Cookie': {
-        description: 'Access token cookie',
+        description: 'Updated access_token cookie.',
         schema: {
           type: 'string',
           example: 'access_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
         },
       },
     },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Refresh failed. Possibly due to invalid session.',
   })
   async refresh(
     @Req() req: Request,
@@ -187,13 +192,8 @@ export class AuthController {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        maxAge: 24 * 60 * 60 * 1000,
       });
-
-      const result = {
-        csrfToken: tokens.csrfToken,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      };
 
       await this.activityService.recordActivity({
         req,
@@ -204,7 +204,10 @@ export class AuthController {
         subAction: 'REFRESH_TOKEN',
       });
 
-      return result;
+      return {
+        csrfToken: tokens.csrfToken,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      };
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       throw new BadRequestException('Failed to refresh token');
@@ -214,12 +217,13 @@ export class AuthController {
   @Get('whoami')
   @Protected()
   @ApiOperation({
-    summary: 'Get authenticated user information',
-    description: 'Returns the details of the currently authenticated user.',
+    summary: 'Get current user info',
+    description:
+      'Retrieves details of the currently logged-in user from the session context.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Returns the authenticated user',
+    description: 'Authenticated user returned.',
     type: UserSchema,
   })
   whoami(@Req() req: Request): UserSchema {

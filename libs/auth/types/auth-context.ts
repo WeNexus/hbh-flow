@@ -4,4 +4,5 @@ import { User } from '@prisma/client';
 export interface AuthContext {
   payload: JwtPayload;
   user: Omit<User, 'password'>;
+  isPowerUser: boolean;
 }

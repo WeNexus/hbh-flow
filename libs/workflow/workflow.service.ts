@@ -1,22 +1,21 @@
-import { GlobalEventService, PrismaService } from '#lib/core/services';
+import { WorkflowConfigSchema } from '#lib/workflow/schema/workflow-config.schema';
+import { JobStepStatus, Job as DBJob, JobStatus, Prisma } from '@prisma/client';
 import { StepInfoSchema } from '#lib/workflow/schema/step-info.schema';
-import { WorkflowOptions } from '#lib/workflow/types/workflow-options';
 import type { InputJsonValue } from '@prisma/client/runtime/client';
+import { ActivityService, PrismaService } from '#lib/core/services';
 import { TriggerType } from '#lib/workflow/misc/trigger-type.enum';
 import { RepeatOptions } from '#lib/workflow/types/repeat-options';
-import { DelayedError, Queue, QueueEvents, Worker } from 'bullmq';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base';
-import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { RunOptions } from '#lib/workflow/types/run-options';
 import { JobPayload } from '#lib/workflow/types/job-payload';
+import { WorkflowNotFoundException } from './exceptions';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { REDIS_PUB } from '#lib/core/redis';
 import { EnvService } from '#lib/core/env';
 import { APP_TYPE } from '#lib/core/misc';
 import { AppType } from '#lib/core/types';
-import { JwtService } from '@nestjs/jwt';
-import type { Jsonify } from 'type-fest';
+import { merge } from 'lodash-es';
 import { Redis } from 'ioredis';
-import _ from 'lodash';
 
 import {
   ContextIdFactory,
@@ -33,26 +32,20 @@ import {
 } from '@nestjs/common';
 
 import {
-  Workflow as DBWorkflow,
-  JobStepStatus,
-  Job as DBJob,
-  JobStatus,
-  Prisma,
-} from '@prisma/client';
-
-import {
-  NoWebhookTriggerException,
-  WorkflowNotFoundException,
-} from './exceptions';
+  Job as BullJob,
+  DelayedError,
+  QueueEvents,
+  Worker,
+  Queue,
+} from 'bullmq';
 
 @Injectable()
 export class WorkflowService implements OnApplicationBootstrap {
   constructor(
     private readonly discoveryService: DiscoveryService,
     @Inject(APP_TYPE) private readonly appType: AppType,
+    private readonly activityService: ActivityService,
     @Inject(REDIS_PUB) private readonly redis: Redis,
-    private globalEvent: GlobalEventService,
-    private readonly jwtService: JwtService,
     private readonly emitter: EventEmitter2,
     private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
@@ -62,10 +55,7 @@ export class WorkflowService implements OnApplicationBootstrap {
 
   private readonly logger = new Logger(WorkflowService.name);
 
-  private readonly eventMap = new Map<string, Set<typeof WorkflowBase>>();
   public readonly flowsByKey = new Map<string, typeof WorkflowBase>();
-  public readonly dbFlowsByKey = new Map<string, DBWorkflow>();
-  public readonly dbFlowsById = new Map<number, DBWorkflow>();
   private readonly flowsSet = new Set<typeof WorkflowBase>();
   public readonly flows: (typeof WorkflowBase)[] = [];
 
@@ -76,17 +66,17 @@ export class WorkflowService implements OnApplicationBootstrap {
    *
    * @internal
    */
-  onApplicationBootstrap() {
+  async onApplicationBootstrap() {
     // Queues must be set up in both Worker and API, so both can enqueue jobs
     // but only the Worker must process them.
 
-    // getOptions and resolveClass functions can't be used in this method
+    // getConfig and resolveClass functions can't be used in this method
     const flows = this.discoveryService
       .getProviders()
       .filter(
         (provider) =>
           provider.metatype &&
-          this.reflector.get<WorkflowOptions | null>(
+          this.reflector.get<WorkflowConfigSchema | null>(
             'HBH_FLOW',
             provider.metatype,
           ),
@@ -94,48 +84,33 @@ export class WorkflowService implements OnApplicationBootstrap {
       .map((provider) => provider.metatype as typeof WorkflowBase);
 
     for (const flow of flows) {
-      const options = this.reflector.get<WorkflowOptions | null>(
+      const config = this.reflector.get<WorkflowConfigSchema | null>(
         'HBH_FLOW',
         flow,
       );
 
       this.flowsSet.add(flow);
       this.flows.push(flow);
-      this.flowsByKey.set(options!.key ?? flow.name, flow);
+      this.flowsByKey.set(config!.key ?? flow.name, flow);
+      // Store the DB flow by key and ID for quick access
+      void this.getDBFlow(flow);
     }
 
-    this.extractSteps()
-      .then(() => {
-        this.setupQueues();
-        this.setupTriggers();
+    await this.extractSteps();
+    await this.setupQueues();
+    await this.setupTriggers();
 
-        if (this.appType === AppType.Worker) {
-          this.setupWorkers();
-        }
-      })
-      .catch((e) => {
-        throw e;
-      });
+    if (this.appType === AppType.Worker) {
+      await this.setupWorkers();
+    }
   }
 
-  @OnEvent('global.workflow.update')
-  private onWorkflowUpdate(data: Jsonify<DBWorkflow>) {
-    const deserialized: DBWorkflow = {
-      ...data,
-      createdAt: new Date(data.createdAt),
-      updatedAt: data.updatedAt ? new Date(data.updatedAt) : null,
-    };
-
-    this.dbFlowsByKey.set(deserialized.key, deserialized);
-    this.dbFlowsById.set(deserialized.id, deserialized);
-  }
-
-  private setupQueues() {
+  private async setupQueues() {
     const usedKeys = new Set<string>();
 
     for (const flow of this.flows) {
-      const options = this.getOptions(flow);
-      const key = options?.key ?? flow.name;
+      const config = await this.getConfig(flow);
+      const key = config?.key ?? flow.name;
 
       if (usedKeys.has(key)) {
         throw new Error(`Duplicate workflow key detected: ${key}`);
@@ -148,18 +123,18 @@ export class WorkflowService implements OnApplicationBootstrap {
         defaultJobOptions: {
           // Remove jobs from the queue after completion or failure to reduce memory usage
           removeOnComplete: {
-            count: options?.internal ? 1 : 100, // Keep the last 100 completed jobs
+            count: config?.internal ? 1 : 100, // Keep the last 100 completed jobs
             age: 1000 * 60 * 60 * 24, // Keep jobs for 24 hours
           },
           removeOnFail: {
-            count: options?.internal ? 5 : 200, // Keep the last 200 failed jobs
+            count: config?.internal ? 5 : 200, // Keep the last 200 failed jobs
             age: 1000 * 60 * 60 * 48, // Keep jobs for 48 hours
           },
           attempts: 1, // Number of retry attempts for failed jobs
         },
         streams: {
           events: {
-            maxLen: options?.internal ? 50 : 1000, // Maximum number of events to keep in the stream, use low value to reduce memory usage
+            maxLen: config?.internal ? 50 : 1000, // Maximum number of events to keep in the stream, use low value to reduce memory usage
           },
         },
         connection: this.redis.duplicate({
@@ -179,17 +154,24 @@ export class WorkflowService implements OnApplicationBootstrap {
         // In case the workflow was deactivated, the queue must stay paused
         // so we're ensuring that the queue was not resumed mistakenly
 
-        const dbFlow = this.dbFlowsByKey.get(key);
+        void this.getDBFlow(key)
+          .then((dbFlow) => {
+            if (!dbFlow?.active) {
+              this.logger.warn(
+                `Workflow ${flow.name} is not active, pausing the queue.`,
+              );
 
-        if (!dbFlow?.active) {
-          this.logger.warn(
-            `Workflow ${flow.name} is not active, pausing the queue.`,
-          );
-
-          flow.queue.pause().catch(() => {
-            // Ignore errors, the queue might already be paused
+              flow.queue.pause().catch(() => {
+                // Ignore errors, the queue might already be paused
+              });
+            }
+          })
+          .catch((e: Error) => {
+            this.logger.error(
+              `Failed to get DB flow for ${flow.name}: ${e.message}`,
+              e.stack,
+            );
           });
-        }
       });
     }
 
@@ -198,10 +180,10 @@ export class WorkflowService implements OnApplicationBootstrap {
     );
   }
 
-  private setupWorkers() {
+  private async setupWorkers() {
     for (const flow of this.flows) {
       const queue = flow.queue;
-      const options = this.getOptions(flow);
+      const config = await this.getConfig(flow);
 
       // Assign the worker to the workflow for later use
       flow.worker = new Worker<JobPayload>(
@@ -219,40 +201,45 @@ export class WorkflowService implements OnApplicationBootstrap {
 
           if (job.data.dbJobId) {
             // Doing upsert, in case the job was deleted from the database
-            dbJob = await this.prisma.job.upsert({
-              where: { id: job.data.dbJobId },
-              create: {
-                id: job.data.dbJobId,
-                workflowId: dbFlow.id,
-                bullId: job.id,
-                status: 'RUNNING',
-                payload: job.data.context as InputJsonValue,
-              },
-              update: {
-                bullId: job.id,
-                status: 'RUNNING',
-              },
-            });
+            dbJob = (
+              await this.prisma.job.upsert({
+                where: { id: job.data.dbJobId },
+                create: {
+                  id: job.data.dbJobId,
+                  workflowId: dbFlow.id,
+                  bullId: job.id,
+                  status: 'RUNNING',
+                  payload: job.data.context as InputJsonValue,
+                },
+                update: {
+                  bullId: job.id,
+                  status: 'RUNNING',
+                },
+              })
+            ).result;
           } else if (job.data.scheduleId) {
-            const schedule = await this.prisma.schedule.findUniqueOrThrow({
-              where: { id: job.data.scheduleId },
-            });
+            const { result: schedule } =
+              await this.prisma.schedule.findUniqueOrThrow({
+                where: { id: job.data.scheduleId },
+              });
 
-            dbJob = await this.prisma.job.upsert({
-              where: {
-                bullId: job.id,
-              },
-              create: {
-                workflowId: dbFlow.id,
-                bullId: job.id,
-                status: 'RUNNING',
-                trigger: 'SCHEDULE',
-                triggerId: schedule.id.toString(),
-              },
-              update: {
-                status: 'RUNNING',
-              },
-            });
+            dbJob = (
+              await this.prisma.job.upsert({
+                where: {
+                  bullId: job.id,
+                },
+                create: {
+                  workflowId: dbFlow.id,
+                  bullId: job.id,
+                  status: 'RUNNING',
+                  trigger: 'SCHEDULE',
+                  triggerId: schedule.id.toString(),
+                },
+                update: {
+                  status: 'RUNNING',
+                },
+              })
+            ).result;
           } else {
             return this.logger.warn(
               `Job ${job.id} does not have a dbJobId or scheduleId, skipping execution.`,
@@ -264,13 +251,13 @@ export class WorkflowService implements OnApplicationBootstrap {
           instance.queue = queue;
           instance.worker = flow.worker;
 
-          return this.execute(instance, options?.maxRetries ?? 3, token);
+          return this.execute(instance, config?.maxRetries ?? 3, token);
         },
         {
           autorun: true,
           stalledInterval: 1000 * 60 * 30, // 30 minutes
-          limiter: options?.limit, // Rate limiting options
-          concurrency: options?.concurrency ?? 100,
+          limiter: config?.limit, // Rate limiting config
+          concurrency: config?.concurrency ?? 100,
           maxStalledCount: 100, // The maximum number of times a job can be stalled before being moved to failed
           lockDuration: 1000 * 60 * 5, // 5 minutes
           connection: this.redis.duplicate({
@@ -286,15 +273,45 @@ export class WorkflowService implements OnApplicationBootstrap {
     );
   }
 
-  private setupTriggers() {
-    for (const flow of this.flows) {
-      const options = this.getOptions(flow);
+  private async setupTriggers() {
+    await this.setupEvents();
 
-      if (!options?.triggers) {
+    if (this.appType === AppType.API) {
+      this.run('SetupEventsWorkflow', {
+        deduplication: {
+          id: 'SetupEventsWorkflow',
+          ttl: this.env.isProd ? 30000 : undefined, // 30 seconds
+        },
+      })
+        .then(({ dbJob }) =>
+          this.activityService.recordActivity({
+            userId: 1,
+            action: 'CREATE',
+            resource: 'JOB',
+            resourceId: dbJob.id,
+            subAction: 'RUN_WORKFLOW',
+          }),
+        )
+        .catch((err) => {
+          this.logger.error(
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            `Failed to run setup events workflow: ${err.message}`,
+          );
+        });
+
+      this.setupCronSchedules();
+    }
+  }
+
+  private async setupEvents() {
+    for (const flow of this.flows) {
+      const config = await this.getConfig(flow);
+
+      if (!config?.triggers) {
         continue;
       }
 
-      for (const trigger of options.triggers) {
+      for (const trigger of config.triggers) {
         if (trigger.type !== TriggerType.Event) {
           continue;
         }
@@ -303,84 +320,45 @@ export class WorkflowService implements OnApplicationBootstrap {
 
         const events =
           typeof trigger.event === 'string' ? [trigger.event] : trigger.event!;
-        const source = trigger.eventSource ? `${trigger.eventSource}.` : '';
 
-        for (const item of events) {
-          const event = `flow.${source}${item}`;
+        for (const event of events) {
+          const fullEventName = this.getFullEventName(
+            event,
+            trigger.provider,
+            trigger.connection,
+          );
 
-          if (!this.eventMap.has(event)) {
-            this.eventMap.set(event, new Set());
-          }
-
-          // Add the workflow to the event map
-          this.eventMap.get(event)!.add(flow);
-        }
-      }
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-this-alias
-    const instance = this;
-
-    this.emitter.on(
-      'flow.**',
-      function (
-        this: Record<string, any>,
-        payload: any,
-        trace?: string,
-        baggage?: string,
-      ) {
-        const event = this.event as string;
-
-        const flows = instance.eventMap.get(event);
-
-        if (!flows) {
-          instance.logger.warn(`No workflows found for event: ${event}`);
-          return; // No workflows for this event
-        }
-
-        for (const flow of flows) {
-          instance
-            .getDBFlow(flow)
-            .then((df) => {
-              instance
-                .run(flow, {
-                  trigger: 'EVENT',
-                  triggerId: event,
-                  draft: df.disabledEvents.includes(event), // If the event is disabled, the workflow will not run
-                  payload: payload as InputJsonValue,
-                  sentry: {
-                    trace,
-                    baggage,
-                  },
+          this.emitter.on(
+            fullEventName,
+            (payload: any, trace?: string, baggage?: string) => {
+              this.getDBEvent(flow, event, trigger.provider, trigger.connection)
+                .then((dbEvent) => {
+                  this.run(flow, {
+                    trigger: 'EVENT',
+                    triggerId: fullEventName,
+                    draft: !dbEvent.active, // If the event is disabled, the workflow will not run
+                    payload: payload as InputJsonValue,
+                    sentry: {
+                      trace,
+                      baggage,
+                    },
+                  }).catch((e: Error) => {
+                    this.logger.error(
+                      `Failed to run workflow ${flow.name} for event ${fullEventName}: ${e.message}`,
+                      e.stack,
+                    );
+                  });
                 })
                 .catch((e: Error) => {
-                  instance.logger.error(
-                    `Failed to run workflow ${flow.name} for event ${event}: ${e.message}`,
+                  this.logger.error(
+                    `Failed to get DB event for ${fullEventName}: ${e.message}`,
+                    e.stack,
                   );
                 });
-            })
-            .catch((e: Error) => {
-              instance.logger.error(
-                `Failed to get DB workflow for ${flow.name}: ${e.message}`,
-              );
-            });
+            },
+          );
         }
-      },
-    );
-
-    if (this.appType === AppType.API) {
-      // Run SetupCronWorkflow, which is an internal workflow and is used to set up cron jobs
-
-      this.run('SetupCronWorkflow', {
-        deduplication: {
-          id: 'SetupCronWorkflow',
-          ttl: this.env.isProd ? 30000 : undefined, // 30 seconds
-        },
-        scheduledAt: this.env.isProd ? new Date(Date.now() + 5000) : undefined, // 5 seconds from now
-      }).catch((err) => {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        this.logger.error(`Failed to run setup cron workflow: ${err.message}`);
-      });
+      }
     }
   }
 
@@ -418,20 +396,28 @@ export class WorkflowService implements OnApplicationBootstrap {
     }
   }
 
-  private getInstance<
+  private async getInstance<
     T extends true | undefined,
     R = T extends true ? Promise<WorkflowBase> : Promise<WorkflowBase> | null,
-  >(identifier: any, _throw?: T): R {
-    const flow = this.resolveClass(identifier, _throw);
+  >(identifier: any, _throw?: T): Promise<R> {
+    const flow = await this.resolveClass(identifier, _throw);
 
     if (!flow) {
       return null as R;
     }
 
     const contextId = ContextIdFactory.create();
-    return this.moduleRef.resolve<WorkflowBase>(flow, contextId, {
+    return (await this.moduleRef.resolve<WorkflowBase>(flow, contextId, {
       strict: false,
-    }) as R;
+    })) as R;
+  }
+
+  private getFullEventName(
+    event: string,
+    provider?: string | null,
+    connection?: string | null,
+  ) {
+    return `${provider ? `${provider}.` : ''}${connection ? `${connection}.` : ''}${event}`;
   }
 
   private async updateDBJob(
@@ -443,13 +429,13 @@ export class WorkflowService implements OnApplicationBootstrap {
       return acc;
     }, {});
 
-    const result = await this.prisma.job.update({
+    const { result: result } = await this.prisma.job.update({
       where: { id: instance.dbJob.id },
       data,
       select,
     });
 
-    _.merge(instance.dbJob, result);
+    merge(instance.dbJob, result);
   }
 
   private async execute(
@@ -457,23 +443,30 @@ export class WorkflowService implements OnApplicationBootstrap {
     maxRetries: number,
     token?: string,
   ) {
-    const flow = this.resolveClass(instance, true);
+    const flow = await this.resolveClass(instance, true);
     const { bullJob, dbJob } = instance;
 
     const steps = flow.steps;
+    const totalSteps = steps.length;
     // Get the step to execute
     const currentStep =
       steps.find((s) => s.index === bullJob.data.stepIndex) ?? steps[0];
 
-    for (const stepInfo of steps) {
-      const i = steps.indexOf(stepInfo);
+    for (let i = 0; i < totalSteps; i++) {
+      const stepInfo = steps[i];
+
+      if (stepInfo.index < currentStep.index) {
+        // Skip steps that have already been executed
+        continue;
+      }
+
       const isLastStep = i === steps.length - 1;
       const isFirstStep = i === 0;
 
       // Create or update the job step in the database
       // This will create a new job step if it doesn't exist, or update the existing one
       // to set the status to RUNNING and increment the attempts
-      let dbStep = await this.prisma.jobStep.upsert({
+      let { result: dbStep } = await this.prisma.jobStep.upsert({
         where: {
           jobId_name: {
             jobId: dbJob.id,
@@ -579,21 +572,23 @@ export class WorkflowService implements OnApplicationBootstrap {
         await this.updateDBJob(instance, { status: jobStatus });
       }
 
-      dbStep = await this.prisma.jobStep.update({
-        where: {
-          jobId_name: {
-            jobId: dbJob.id,
-            name: stepInfo.method,
+      dbStep = (
+        await this.prisma.jobStep.update({
+          where: {
+            jobId_name: {
+              jobId: dbJob.id,
+              name: stepInfo.method,
+            },
           },
-        },
-        data: {
-          status: stepStatus,
-          result: (error ?? result) as InputJsonValue,
-        },
-        omit: {
-          result: true,
-        },
-      });
+          data: {
+            status: stepStatus,
+            result: (error ?? result) as InputJsonValue,
+          },
+          omit: {
+            result: true,
+          },
+        })
+      ).result;
 
       this.emitter.emit('workflow.step.finished', {
         instance,
@@ -605,13 +600,43 @@ export class WorkflowService implements OnApplicationBootstrap {
 
       if (delayed > 0 && nextStep) {
         // Last step can't be delayed unless it's a rerun, that's why we check for nextStep, which is undefined for the last step
-        await bullJob.moveToDelayed(delayed, token);
+        await bullJob.moveToDelayed(Date.now() + delayed, token);
         throw new DelayedError();
       }
     }
   }
 
   // ---------------------- Public methods ----------------------
+
+  /**
+   * Sets up the cron workflow for scheduling.
+   * This method is called when the application starts to set up the cron workflow.
+   * Or when a custom schedule is created.
+   */
+  setupCronSchedules() {
+    this.run('SetupCronWorkflow', {
+      deduplication: {
+        id: 'SetupCronWorkflow',
+        ttl: this.env.isProd ? 30000 : undefined, // 30 seconds
+      },
+      scheduledAt: this.env.isProd ? new Date(Date.now() + 5000) : undefined, // 5 seconds from now
+    })
+      .then(({ dbJob }) =>
+        this.activityService.recordActivity({
+          userId: 1,
+          action: 'CREATE',
+          resource: 'JOB',
+          resourceId: dbJob.id,
+          subAction: 'RUN_WORKFLOW',
+        }),
+      )
+      .catch((err) => {
+        this.logger.error(
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          `Failed to run setup cron workflow: ${err.message}`,
+        );
+      });
+  }
 
   /**
    * Resumes a paused job in the workflow.
@@ -653,9 +678,15 @@ export class WorkflowService implements OnApplicationBootstrap {
    * @param options - Options for running the workflow, such as payload, context, and scheduling.
    * @returns A promise that resolves to the created Bull job and the corresponding database job.
    */
-  async run(identifier: any, options?: RunOptions) {
+  async run(
+    identifier: any,
+    options?: RunOptions,
+  ): Promise<{
+    bullJob: BullJob | null;
+    dbJob: DBJob;
+  }> {
     const dbFlow = await this.getDBFlow(identifier);
-    const flow = this.resolveClass(identifier, true);
+    const flow = await this.resolveClass(identifier, true);
     const queue = flow.queue;
 
     if (!queue) {
@@ -665,43 +696,48 @@ export class WorkflowService implements OnApplicationBootstrap {
     let dbJob: DBJob | null = null;
 
     if (options?.deduplication?.id) {
-      dbJob = await this.prisma.job.findFirst({
-        where: {
-          workflowId: dbFlow.id,
-          dedupeId: options.deduplication.id,
-          status: {
-            in: [
-              'DELAYED',
-              'PAUSED',
-              'RUNNING',
-              'STALLED',
-              'WAITING',
-              'WAITING_RERUN',
-            ],
+      dbJob = (
+        await this.prisma.job.findFirst({
+          where: {
+            workflowId: dbFlow.id,
+            dedupeId: options.deduplication.id,
+            status: {
+              in: [
+                'DELAYED',
+                'PAUSED',
+                'RUNNING',
+                'STALLED',
+                'WAITING',
+                'WAITING_RERUN',
+              ],
+            },
           },
-        },
-      });
+        })
+      ).result;
     }
 
     if (!dbJob) {
-      dbJob = await this.prisma.job.create({
-        data: {
-          workflowId: dbFlow.id,
-          status: options?.draft ? 'DRAFT' : 'WAITING',
-          trigger: options?.trigger ?? 'MANUAL',
-          triggerId: options?.triggerId ?? null,
-          payload: options?.payload as InputJsonValue,
-          sentryBaggage: options?.sentry?.baggage,
-          sentryTrace: options?.sentry?.trace,
-          dedupeId: options?.deduplication?.id,
-        },
-      });
+      dbJob = (
+        await this.prisma.job.create({
+          data: {
+            workflowId: dbFlow.id,
+            parentId: options?.parentId,
+            status: options?.draft ? 'DRAFT' : 'WAITING',
+            trigger: options?.trigger ?? 'MANUAL',
+            triggerId: options?.triggerId ?? null,
+            payload: options?.payload as InputJsonValue,
+            sentryBaggage: options?.sentry?.baggage,
+            sentryTrace: options?.sentry?.trace,
+            dedupeId: options?.deduplication?.id,
+          },
+        })
+      ).result;
     }
 
     if (options?.draft) {
       return {
         bullJob: null,
-        dbJob: dbJob,
+        dbJob,
       };
     }
 
@@ -739,7 +775,7 @@ export class WorkflowService implements OnApplicationBootstrap {
    */
   async repeat(identifier: any, options: RepeatOptions) {
     const dbFlow = await this.getDBFlow(identifier);
-    const flow = this.resolveClass(identifier, true);
+    const flow = await this.resolveClass(identifier, true);
     const queue = flow.queue;
 
     if (!queue) {
@@ -749,45 +785,49 @@ export class WorkflowService implements OnApplicationBootstrap {
     let schedule: Prisma.ScheduleGetPayload<object>;
 
     try {
-      schedule = await this.prisma.schedule.upsert({
-        where: {
-          workflowId_cronExpression: {
-            workflowId: dbFlow.id,
-            cronExpression: options.oldPattern ?? options.pattern,
+      schedule = (
+        await this.prisma.schedule.upsert({
+          where: {
+            workflowId_cronExpression: {
+              workflowId: dbFlow.id,
+              cronExpression: options.oldPattern ?? options.pattern,
+            },
           },
-        },
-        create: {
-          workflowId: dbFlow.id,
-          cronExpression: options.pattern,
-        },
-        update: {
-          workflowId: dbFlow.id,
-          cronExpression: options.pattern,
-          dangling: false,
-        },
-      });
+          create: {
+            workflowId: dbFlow.id,
+            cronExpression: options.pattern,
+          },
+          update: {
+            workflowId: dbFlow.id,
+            cronExpression: options.pattern,
+            dangling: false,
+          },
+        })
+      ).result;
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e: any) {
       // After the first upsert in the try block, the oldPattern no longer exists
       // in that case, Prisma will throw an error
       // we need to set dangling to false
-      schedule = await this.prisma.schedule.upsert({
-        where: {
-          workflowId_cronExpression: {
+      schedule = (
+        await this.prisma.schedule.upsert({
+          where: {
+            workflowId_cronExpression: {
+              workflowId: dbFlow.id,
+              cronExpression: options.pattern,
+            },
+          },
+          create: {
             workflowId: dbFlow.id,
             cronExpression: options.pattern,
           },
-        },
-        create: {
-          workflowId: dbFlow.id,
-          cronExpression: options.pattern,
-        },
-        update: {
-          workflowId: dbFlow.id,
-          cronExpression: options.pattern,
-          dangling: false,
-        },
-      });
+          update: {
+            workflowId: dbFlow.id,
+            cronExpression: options.pattern,
+            dangling: false,
+          },
+        })
+      ).result;
     }
 
     const bullJob = await queue.upsertJobScheduler(
@@ -817,88 +857,13 @@ export class WorkflowService implements OnApplicationBootstrap {
   }
 
   /**
-   * Generates a JWT token for triggering a workflow via webhook.
-   *
-   * @param identifier - The workflow to generate the token for.
-   * Can be a workflow name or an instance of WorkflowBase or a class extending it.
-   * @param key - The key to use for the token in case of multiple webhooks.
-   * @param expiresIn - The expiration time for the token, in seconds or a string like '1h'.
-   * @returns A promise that resolves to the generated JWT token.
-   */
-  async getToken(identifier: any, key: string, expiresIn: number | string) {
-    const flow = this.resolveClass(identifier, true);
-    const options = this.getOptions(flow);
-
-    if (
-      !options?.triggers?.find(
-        (trigger) => trigger.type === TriggerType.Webhook,
-      )
-    ) {
-      throw new NoWebhookTriggerException();
-    }
-
-    return this.jwtService.signAsync(
-      { wflow: flow.name, wid: key },
-      {
-        subject: 'access',
-        audience: 'workflow',
-        issuer: 'webhook',
-        expiresIn,
-      },
-    );
-  }
-
-  /**
-   * Handles a webhook request by verifying the JWT token and running the corresponding workflow.
-   *
-   * @param token - The JWT token from the webhook request.
-   * @param payload - Optional payload to pass to the workflow.
-   * @returns A promise that resolves to the result of the workflow execution.
-   */
-  async handleWebhook(token: string, payload?: unknown) {
-    const jwt = await this.jwtService.verifyAsync<{
-      wflow: string;
-      wid: string;
-    }>(token, {
-      subject: 'access',
-      audience: 'workflow',
-      issuer: 'webhook',
-    });
-
-    const flow = this.flowsByKey.get(jwt.wflow);
-
-    if (!flow) {
-      throw new WorkflowNotFoundException();
-    }
-
-    const dbFlow = await this.getDBFlow(flow);
-    const options = this.getOptions(flow);
-
-    if (
-      !options?.triggers?.find(
-        (trigger) => trigger.type === TriggerType.Webhook,
-      )
-    ) {
-      throw new NoWebhookTriggerException();
-    }
-
-    return this.run(flow, {
-      draft: dbFlow.disabledWebhooks.includes(jwt.wid),
-      trigger: 'WEBHOOK',
-      triggerId: jwt.wid,
-      payload,
-      // TODO: Add Sentry context
-    });
-  }
-
-  /**
    * Retrieves a job by its ID.
    *
    * @param jobId - The ID of the job to retrieve.
    * @returns A promise that resolves to the job details, including the Bull job and queue.
    */
   async getJob(jobId: number) {
-    const job = await this.prisma.job.findUnique({
+    const { result: job } = await this.prisma.job.findUnique({
       where: { id: jobId },
       omit: {
         payload: true,
@@ -911,7 +876,7 @@ export class WorkflowService implements OnApplicationBootstrap {
       throw new Error(`Job with ID ${jobId} not found`);
     }
 
-    const queue = this.getQueue(job.workflowId);
+    const queue = await this.getQueue(job.workflowId);
     const bullJob = await queue.getJob(`#${job.bullId}`);
 
     if (!bullJob) {
@@ -933,7 +898,7 @@ export class WorkflowService implements OnApplicationBootstrap {
    * @returns A promise that resolves to the result of the step, or null if not found.
    */
   async getResult<R = any>(jobId: number, step: string): Promise<R | null> {
-    const row = await this.prisma.jobStep.findFirst({
+    const { result: row } = await this.prisma.jobStep.findFirst({
       where: {
         jobId,
         name: step,
@@ -961,26 +926,29 @@ export class WorkflowService implements OnApplicationBootstrap {
     }
 
     const dbFlow = await this.getDBFlow(job.workflowId);
-    const flow = this.resolveClass(dbFlow.key, true);
+    const flow = await this.resolveClass(dbFlow.key, true);
 
     await bullJob.waitUntilFinished(flow.queueEvents, ttl);
   }
 
   /**
-   * Retrieves the options for a specific workflow.
+   * Retrieves the config for a specific workflow.
    *
-   * @param identifier - The workflow class to get options for.
+   * @param identifier - The workflow class to get config for.
    * @param _throw - Whether to throw an error if the workflow is not found.
-   * @returns The options for the workflow, or null if not found.
+   * @returns The config for the workflow, or null if not found.
    */
-  getOptions(identifier: typeof WorkflowBase, _throw?: true) {
-    const flow = this.resolveClass(identifier, _throw);
+  async getConfig<
+    T extends true | undefined,
+    R = T extends true ? WorkflowConfigSchema : WorkflowConfigSchema | null,
+  >(identifier: any, _throw?: T): Promise<R> {
+    const flow = await this.resolveClass(identifier, _throw);
 
     if (!flow) {
-      return null;
+      return null as R;
     }
 
-    return this.reflector.get<WorkflowOptions | null>('HBH_FLOW', flow);
+    return this.reflector.get<R>('HBH_FLOW', flow);
   }
 
   /**
@@ -988,8 +956,8 @@ export class WorkflowService implements OnApplicationBootstrap {
    *
    * @param identifier - The workflow to get the queue for.
    */
-  getQueue(identifier: any) {
-    return this.resolveClass(identifier, true).queue;
+  async getQueue(identifier: any) {
+    return (await this.resolveClass(identifier, true)).queue;
   }
 
   /**
@@ -1000,14 +968,14 @@ export class WorkflowService implements OnApplicationBootstrap {
    * @param _throw - Whether to throw an error if the workflow is not found.
    * @returns The resolved workflow class or null if not found.
    */
-  resolveClass<
+  async resolveClass<
     T extends true | undefined,
     R = T extends true ? typeof WorkflowBase : typeof WorkflowBase | null,
-  >(identifier: any, _throw?: T): R {
+  >(identifier: any, _throw?: T): Promise<R> {
     let flow: typeof WorkflowBase | null = null;
 
     if (typeof identifier === 'number') {
-      const dbFlow = this.dbFlowsById.get(identifier);
+      const dbFlow = await this.getDBFlow(identifier);
 
       if (!dbFlow) {
         flow = null;
@@ -1024,7 +992,7 @@ export class WorkflowService implements OnApplicationBootstrap {
             (provider) =>
               provider.metatype &&
               provider.metatype.name === identifier &&
-              this.reflector.get<WorkflowOptions | null>(
+              this.reflector.get<WorkflowConfigSchema | null>(
                 'HBH_FLOW',
                 provider.metatype,
               ),
@@ -1061,19 +1029,15 @@ export class WorkflowService implements OnApplicationBootstrap {
    * @returns A promise that resolves to the DBWorkflow object.
    */
   async getDBFlow(identifier: any) {
-    let flow: typeof WorkflowBase | null = null;
-    let dbFlow: DBWorkflow | null = null;
-
     if (typeof identifier === 'number') {
       // Careful not to use `this.resolveClass` anywhere outside this scope in this method
       // because you may end up with an infinite loop
-      if (this.dbFlowsById.has(identifier)) {
-        return this.dbFlowsById.get(identifier)!;
-      }
-
-      dbFlow = await this.prisma.workflow.findUnique({
-        where: { id: identifier },
-      });
+      const dbFlow = (
+        await this.prisma.workflow.findUnique({
+          where: { id: identifier },
+          // cache: true,
+        })
+      ).result;
 
       if (!dbFlow) {
         throw new WorkflowNotFoundException(
@@ -1081,92 +1045,71 @@ export class WorkflowService implements OnApplicationBootstrap {
         );
       }
 
-      flow =
-        this.flows.find(
-          (f) =>
-            this.getOptions(f)?.key === dbFlow!.key || f.name === dbFlow!.key,
-        ) ?? null;
-
-      if (!flow) {
-        // The workflow isn't registered in the DI container or the class doesn't exist
-        throw new WorkflowNotFoundException(
-          `Workflow with name ${dbFlow.key} not found in the DI container`,
-        );
-      }
-    } else {
-      flow = this.resolveClass(identifier, true);
+      return dbFlow;
     }
 
-    const options = this.getOptions(flow!);
-    const key = options?.key ?? flow!.name;
+    const flow = await this.resolveClass(identifier, true);
+    const config = await this.getConfig(flow);
+    const key = config?.key ?? flow.name;
 
-    dbFlow = this.dbFlowsByKey.get(key) ?? null;
-
-    if (!dbFlow) {
-      // Try to find the workflow by its name or key
-      dbFlow = await this.prisma.workflow.findFirst({
-        where: {
-          key: {
-            in: [flow!.name, options?.key].filter(Boolean) as string[],
-          },
-        },
-      });
-    }
-
-    if (!dbFlow) {
-      // Still not found, we need to create one
-      // upsert is used to prevent concurrency issues
-      dbFlow = await this.prisma.workflow.upsert({
-        where: { key: options?.key ?? flow!.name },
-        create: {
-          key,
-        },
-        update: {
-          key,
-        },
-      });
-    }
-
-    this.dbFlowsByKey.set(key, dbFlow);
-    this.dbFlowsById.set(dbFlow.id, dbFlow);
-
-    return dbFlow;
+    return (
+      await this.prisma.workflow.upsert({
+        where: { key },
+        create: { key, folderId: config?.internal ? 1 : null },
+        update: { key },
+      })
+    ).result;
   }
 
   /**
-   * Updates the database workflow with the provided data.
+   * Retrieves or creates a database event for a workflow.
    *
    * @param identifier - The identifier for the workflow
    * Can be a workflow name, an instance of WorkflowBase, or a class extending it.
-   * @param data - The data to update the workflow with.
-   * @returns A promise that resolves to the updated DBWorkflow object.
+   * @param name - The name of the event to retrieve or create.
+   * @param provider - Optional provider for the event.
+   * @param connection - Optional connection for the event.
+   * @returns A promise that resolves to the event result.
    */
-  async updateDBFlow(
+  async getDBEvent(
     identifier: any,
-    data: Prisma.WorkflowUpdateInput,
-  ): Promise<DBWorkflow> {
+    name: string,
+    provider?: string,
+    connection?: string,
+  ) {
     const dbFlow = await this.getDBFlow(identifier);
 
-    const updated = await this.prisma.workflow.update({
-      where: { id: dbFlow.id },
-      data,
+    const dbEvent = await this.prisma.event.findFirst({
+      where: {
+        workflowId: dbFlow.id,
+        connection,
+        provider,
+        name,
+      },
     });
 
-    this.dbFlowsByKey.set(updated.key, updated);
-    this.dbFlowsById.set(updated.id, updated);
-
-    if (dbFlow.active !== updated.active) {
-      const queue = this.getQueue(identifier);
-
-      if (updated.active) {
-        await queue.resume();
-      } else {
-        await queue.pause();
-      }
+    if (dbEvent.result) {
+      return dbEvent.result;
     }
 
-    this.globalEvent.emit('workflow.updated', updated, true);
-
-    return updated;
+    return (
+      await this.prisma.event.upsert({
+        where: {
+          id: 0,
+        },
+        update: {
+          workflowId: dbFlow.id,
+          name,
+          provider,
+          connection,
+        },
+        create: {
+          workflowId: dbFlow.id,
+          name,
+          provider,
+          connection,
+        },
+      })
+    ).result;
   }
 }

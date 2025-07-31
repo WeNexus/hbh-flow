@@ -21,7 +21,7 @@ import { Redis } from 'ioredis';
       },
     },
   ],
-  exports: [REDIS_PUB, REDIS_SUB],
+  exports: [REDIS_PUB, REDIS_SUB, RedisConfigService],
 })
 export class RedisModule implements OnModuleDestroy {
   constructor(

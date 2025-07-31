@@ -66,7 +66,7 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid access token');
     }
 
-    const user = await this.prisma.user.findUnique({
+    const { result: user } = await this.prisma.user.findUnique({
       where: {
         id: Number(jwtPayload.uid),
       },
@@ -103,6 +103,10 @@ export class AuthGuard implements CanActivate {
     req.auth = {
       user,
       payload: jwtPayload,
+      isPowerUser:
+        user.role === 'DEVELOPER' ||
+        user.role === 'ADMIN' ||
+        user.role === 'SYSTEM',
     };
 
     return true;

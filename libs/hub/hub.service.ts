@@ -150,16 +150,18 @@ export class HubService implements OnApplicationBootstrap {
    * @returns An object containing the tokens and the connection information.
    */
   async handleCallback(state: string, code: string) {
-    const oauth2State = await this.prisma.oAuth2AuthState.findFirst({
-      where: {
-        state,
+    const { result: oauth2State } = await this.prisma.oAuth2AuthState.findFirst(
+      {
+        where: {
+          state,
+        },
+        select: {
+          provider: true,
+          connection: true,
+          verifier: true,
+        },
       },
-      select: {
-        provider: true,
-        connection: true,
-        verifier: true,
-      },
-    });
+    );
 
     if (!oauth2State) {
       throw new NoStateException(
@@ -191,7 +193,7 @@ export class HubService implements OnApplicationBootstrap {
     );
 
     // update the connection with the new tokens
-    const dbTokens = await this.prisma.oAuth2Token.upsert({
+    const { result: dbTokens } = await this.prisma.oAuth2Token.upsert({
       where: {
         provider_connection: {
           provider: oauth2State.provider,

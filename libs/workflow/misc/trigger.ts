@@ -5,13 +5,19 @@ import { TriggerType } from './trigger-type.enum.js';
  * Helper function to create a metadata object for event triggers.
  *
  * @param event - The name of the event to trigger on.
- * @param source - The source of the event (e.g., 'user', 'system').
+ * @param provider - Optional provider name for the event trigger.
+ * @param connection - Optional connection name to use for the event trigger.
  * @returns An object containing the trigger type, event source, and event name.
  */
-export function event(event: string, source: string): TriggerMetaSchema {
+export function event(
+  event: string,
+  provider?: string,
+  connection?: string,
+): TriggerMetaSchema {
   return {
     type: TriggerType.Event,
-    eventSource: source,
+    provider,
+    connection,
     event,
   };
 }
@@ -31,16 +37,5 @@ export function cron(
     type: TriggerType.Cron,
     pattern,
     ...meta,
-  };
-}
-
-/**
- * Helper function to create a metadata object for webhook triggers.
- *
- * @returns An object containing the trigger type for webhooks.
- */
-export function webhook(): TriggerMetaSchema {
-  return {
-    type: TriggerType.Webhook,
   };
 }

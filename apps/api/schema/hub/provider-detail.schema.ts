@@ -1,4 +1,4 @@
-import { ConnectionSchema } from './connection.schema';
+import { ConnectionSchema } from '../connection/connection.schema';
 import { ProviderSchema } from './provider.schema';
 import { ApiProperty } from '@nestjs/swagger';
 

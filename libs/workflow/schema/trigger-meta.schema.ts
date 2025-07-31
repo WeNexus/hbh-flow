@@ -26,10 +26,17 @@ export class TriggerMetaSchema {
 
   @ApiProperty({
     description:
-      'There could multiple instance of the same service, it specifies the source.',
+      'Provider name for the event trigger. This is useful when you have multiple providers for the same event.',
     required: false,
   })
-  eventSource?: string;
+  provider?: string;
+
+  @ApiProperty({
+    description:
+      'Connection name to use for the event trigger. This is useful when you have multiple connections to the same provider.',
+    required: false,
+  })
+  connection?: string;
 
   @ApiProperty({
     description:

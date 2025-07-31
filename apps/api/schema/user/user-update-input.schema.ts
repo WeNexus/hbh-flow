@@ -1,6 +1,6 @@
 import { Role as BaseRole } from '@prisma/client';
 import { ApiProperty } from '@nestjs/swagger';
-import _ from 'lodash';
+import { omit } from 'lodash-es';
 
 import {
   IsOptional,
@@ -10,7 +10,7 @@ import {
   IsEnum,
 } from 'class-validator';
 
-const Role = _.omit(BaseRole, 'SYSTEM');
+const Role = omit(BaseRole, 'SYSTEM');
 
 export class UserUpdateInputSchema {
   @ApiProperty({

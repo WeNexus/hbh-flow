@@ -8,9 +8,11 @@ export interface RunOptions<P = any> {
     baggage?: string;
   };
   // BullMQ
+  parentId?: number;
   scheduledAt?: Date;
   maxRetries?: number;
   deduplication?: DeduplicationOptions;
+  priority?: number;
   // Data
   /**
    * The trigger that initiated the workflow run.

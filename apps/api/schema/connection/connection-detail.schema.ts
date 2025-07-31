@@ -3,7 +3,9 @@ import { UserSchema } from '../user/user.schema';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ConnectionDetailSchema extends ConnectionSchema {
-  @ApiProperty({ description: 'Indicates if the connection is working' })
+  @ApiProperty({
+    description: 'Indicates whether the connection is working',
+  })
   working: boolean;
 
   @ApiProperty({
@@ -13,7 +15,8 @@ export class ConnectionDetailSchema extends ConnectionSchema {
   reason?: string;
 
   @ApiProperty({
-    description: 'The date and time when the token was last refreshed',
+    description:
+      'The date and time when the tokens were last refreshed. Applicable for OAuth connections',
     required: false,
     format: 'date-time',
     example: '2023-10-01T12:00:00Z',
@@ -29,14 +32,14 @@ export class ConnectionDetailSchema extends ConnectionSchema {
   connectedAt?: string;
 
   @ApiProperty({
-    description: 'The user who established the connection',
+    description: 'The Flow user who established the connection',
     required: false,
     type: UserSchema,
   })
   connectedBy?: UserSchema;
 
   @ApiProperty({
-    description: 'The user associated with the connection',
+    description: 'The third-party user associated with the connection',
     required: false,
   })
   connectedUser?: Record<string, any>;

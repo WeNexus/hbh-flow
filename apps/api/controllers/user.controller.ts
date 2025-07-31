@@ -1,18 +1,19 @@
+import { ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { ActivityService, PrismaService } from '#lib/core/services';
-import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Auth, Protected } from '#lib/auth/decorators';
 import { ListInputSchema } from '#lib/core/schema';
 import type { AuthContext } from '#lib/auth/types';
-import type { Request, Response } from 'express';
-import { Prisma } from '@prisma/client';
+import { listData } from '#lib/core/misc';
+import type { Request } from 'express';
+import { omit } from 'lodash-es';
 import argon2 from 'argon2';
-import _ from 'lodash';
 
 import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
   Controller,
+  HttpCode,
   Delete,
   Param,
   Query,
@@ -20,7 +21,6 @@ import {
   Body,
   Post,
   Get,
-  Res,
   Req,
 } from '@nestjs/common';
 
@@ -41,79 +41,45 @@ export class UserController {
   @Get('/')
   @Protected('OBSERVER')
   @ApiOperation({
-    summary: 'Get a list of users',
-    description: 'Retrieve a paginated list of users with optional filters.',
+    summary: 'List users',
+    description: 'Retrieves a paginated and optionally filtered list of users.',
   })
   @ApiResponse({
     status: 200,
-    description: 'List of users retrieved successfully.',
+    description: 'Successfully retrieved the list of users.',
     type: UserListOutputSchema,
   })
   @ApiResponse({
     status: 400,
-    description: 'Bad Request - Invalid pagination or filter parameters.',
+    description: 'Invalid filter or pagination input.',
   })
-  async getUsers(
-    @Query() input: ListInputSchema,
-  ): Promise<UserListOutputSchema> {
-    const { page = 1, limit = 10 } = input;
-
-    const where: Prisma.UserWhereInput = {
-      AND: [
-        input.search
-          ? {
-              OR: [
-                { email: { contains: input.search, mode: 'insensitive' } },
-                { name: { contains: input.search, mode: 'insensitive' } },
-              ],
-            }
-          : {},
-        input.filter ?? {},
-      ],
-    };
-
-    const count = await this.prisma.user.count({ where });
-    const data = await this.prisma.user.findMany({
-      where,
-      skip: (page - 1) * limit,
-      take: limit,
-      orderBy: {
-        [input.sortField || 'createdAt']: input.sortOrder || 'desc',
-      },
+  async list(@Query() input: ListInputSchema): Promise<UserListOutputSchema> {
+    return listData(this.prisma, 'user', input, ['email', 'name'], {
       omit: {
-        password: true,
         updatedAt: true,
+        password: true,
       },
     });
-
-    return {
-      data,
-      count,
-      page,
-      limit,
-      pages: Math.ceil(count / limit),
-      hasNext: page * limit < count,
-      hasPrev: page > 1,
-    };
   }
 
   @Get('/:id')
   @Protected('OBSERVER')
   @ApiOperation({
     summary: 'Get user by ID',
-    description: 'Retrieve a user by their unique ID.',
+    description: 'Retrieves a user by their unique numeric ID.',
   })
+  @ApiParam({ name: 'id', type: Number, description: 'The user ID.' })
   @ApiResponse({
     status: 200,
-    description: 'User retrieved successfully.',
+    description: 'User found and returned.',
     type: UserSchema,
   })
   @ApiResponse({
     status: 404,
     description: 'User not found.',
   })
-  async getUserById(@Param('id') id: number) {
-    const user = await this.prisma.user.findUnique({
+  async single(@Param('id') id: number) {
+    const { result: user } = await this.prisma.user.findUnique({
       where: { id },
       select: {
         id: true,
@@ -125,9 +91,7 @@ export class UserController {
       },
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    if (!user) throw new NotFoundException('User not found.');
 
     return user;
   }
@@ -136,7 +100,8 @@ export class UserController {
   @Protected('DEVELOPER')
   @ApiOperation({
     summary: 'Create a new user',
-    description: 'Create a new user with the provided details.',
+    description:
+      'Creates a new user account. Developers cannot create ADMIN users.',
   })
   @ApiResponse({
     status: 201,
@@ -145,36 +110,32 @@ export class UserController {
   })
   @ApiResponse({
     status: 400,
-    description:
-      'Bad Request - Invalid input or user with this email already exists.',
+    description: 'Email already exists or input is invalid.',
   })
   @ApiResponse({
     status: 403,
-    description:
-      "Forbidden - Can't create an ADMIN user as a DEVELOPER. Or can't create a user with SYSTEM role.",
+    description: 'Restricted action: Cannot assign ADMIN or SYSTEM roles.',
   })
-  async createUser(
+  async create(
     @Req() req: Request,
     @Body() input: UserCreateInputSchema,
     @Auth() auth: AuthContext,
   ) {
-    const existingUser = await this.prisma.user.findUnique({
+    const { result: existingUser } = await this.prisma.user.findUnique({
       where: { email: input.email },
     });
 
     if (existingUser) {
-      throw new BadRequestException('User with this email already exists');
+      throw new BadRequestException('A user with this email already exists.');
     }
 
-    // Only developers and admins can create users
-    // admins can create any role, developers can only create users with roles other than ADMIN
     if (auth.user.role === 'DEVELOPER' && input.role === 'ADMIN') {
       throw new BadRequestException(
-        "Can't create an ADMIN user as a DEVELOPER",
+        'You do not have permission to create an ADMIN user.',
       );
     }
 
-    const user = await this.prisma.user.create({
+    const { result: user } = await this.prisma.user.create({
       data: {
         password: await argon2.hash(input.password),
         email: input.email,
@@ -188,11 +149,11 @@ export class UserController {
       userId: auth.user.id,
       action: 'CREATE',
       resource: 'USER',
-      resourceId: user.id.toString(),
-      updated: _.omit(user, 'updatedAt'),
+      resourceId: user.id,
+      updated: omit(user, 'updatedAt'),
     });
 
-    return _.omit(user, 'password', 'updatedAt'); // Omit sensitive fields
+    return omit(user, 'password', 'updatedAt');
   }
 
   @Patch('/:id')
@@ -200,72 +161,61 @@ export class UserController {
   @Protected('OBSERVER')
   @ApiOperation({
     summary: 'Update user by ID',
-    description: 'Update user details by their unique ID.',
+    description:
+      'Updates an existing user. Role changes are restricted, especially for SYSTEM users.',
   })
+  @ApiParam({ name: 'id', type: Number, description: 'The user ID.' })
   @ApiResponse({
     status: 200,
     description: 'User updated successfully.',
     type: UserSchema,
   })
   @ApiResponse({
-    status: 404,
-    description: 'User not found.',
-  })
-  @ApiResponse({
     status: 400,
-    description: 'Bad Request - Invalid input.',
+    description: 'Invalid update input.',
   })
   @ApiResponse({
     status: 403,
-    description:
-      "Forbidden - Can't update a SYSTEM user or your own role, or update a user to ADMIN role unless you are an ADMIN.",
+    description: 'Permission denied due to role restrictions.',
   })
-  async updateUser(
+  @ApiResponse({
+    status: 404,
+    description: 'User not found.',
+  })
+  @HttpCode(200)
+  async update(
     @Req() req: Request,
     @Param('id') id: number,
     @Body() input: UserUpdateInputSchema,
     @Auth() auth: AuthContext,
   ) {
-    const user = await this.prisma.user.findUnique({
+    const { result: user } = await this.prisma.user.findUnique({
       where: { id },
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    if (!user) throw new NotFoundException('User not found.');
 
     if (user.role === 'SYSTEM') {
-      throw new ForbiddenException("You can't update a system user");
+      throw new ForbiddenException('SYSTEM users cannot be updated.');
     }
 
-    // Only developers and admins and systems can update users
-    // admins can update any role, developers can only update users with roles other than ADMIN
-    const isPowerUser =
-      auth.user.role === 'DEVELOPER' ||
-      auth.user.role === 'ADMIN' ||
-      auth.user.role === 'SYSTEM';
     const isSelfUpdate = auth.user.id === id;
 
-    if (!isPowerUser && !isSelfUpdate) {
-      // The user is neither a developer nor an admin, or they are trying to update a user other than themselves
+    if (!auth.isPowerUser && !isSelfUpdate) {
       throw new ForbiddenException(
-        "You don't have permission to perform this action",
+        'You are not authorized to update this user.',
       );
     }
 
     if (isSelfUpdate && input.role) {
-      // Prevent users from changing their own role
-      throw new ForbiddenException("You can't change your own role");
+      throw new ForbiddenException('You cannot change your own role.');
     }
 
     if (auth.user.role !== 'ADMIN' && input.role === 'ADMIN') {
-      // Prevent non-admins from updating a user to ADMIN role
-      throw new ForbiddenException(
-        "Can't update a user to ADMIN role unless you are an ADMIN",
-      );
+      throw new ForbiddenException('Only ADMINs can assign the ADMIN role.');
     }
 
-    const updated = await this.prisma.user.update({
+    const { result: updated } = await this.prisma.user.update({
       where: { id },
       data: {
         ...input,
@@ -280,72 +230,68 @@ export class UserController {
       userId: auth.user.id,
       action: 'UPDATE',
       resource: 'USER',
-      resourceId: id.toString(),
+      resourceId: id,
       subAction: isSelfUpdate ? 'SELF_UPDATE' : undefined,
-      data: _.omit(user, 'updatedAt'), // Original data before update
-      updated: _.omit(updated, 'updatedAt'),
+      data: omit(user, 'updatedAt'),
+      updated: omit(updated, 'updatedAt'),
     });
 
-    return _.omit(updated, 'password', 'updatedAt'); // Omit sensitive fields
+    return omit(updated, 'password', 'updatedAt');
   }
 
   @Delete('/:id')
   @Protected('DEVELOPER')
   @ApiOperation({
     summary: 'Delete user by ID',
-    description: 'Delete a user by their unique ID.',
+    description:
+      'Deletes a user by ID. Developers cannot delete ADMIN users or their own accounts.',
   })
+  @ApiParam({ name: 'id', type: Number, description: 'The user ID.' })
   @ApiResponse({
     status: 204,
     description: 'User deleted successfully.',
   })
   @ApiResponse({
+    status: 403,
+    description: 'Forbidden due to role, ownership, or SYSTEM protection.',
+  })
+  @ApiResponse({
     status: 404,
     description: 'User not found.',
   })
-  @ApiResponse({
-    status: 403,
-    description:
-      "Forbidden - Can't delete your own account or an ADMIN user as a DEVELOPER.",
-  })
-  async deleteUser(
+  @HttpCode(204)
+  async delete(
     @Req() req: Request,
-    @Res() res: Response,
     @Auth() auth: AuthContext,
     @Param('id') id: number,
   ) {
-    const user = await this.prisma.user.findUnique({
+    const { result: user } = await this.prisma.user.findUnique({
       where: { id },
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    if (!user) throw new NotFoundException('User not found.');
 
     if (user.role === 'SYSTEM') {
-      throw new ForbiddenException("You can't delete a system user");
+      throw new ForbiddenException('SYSTEM users cannot be deleted.');
     }
 
     if (auth.user.id === id) {
-      throw new ForbiddenException("Can't delete your own account");
-    }
-    if (auth.user.role === 'DEVELOPER' && user.role === 'ADMIN') {
-      throw new ForbiddenException("Can't delete an ADMIN user as a DEVELOPER");
+      throw new ForbiddenException('You cannot delete your own account.');
     }
 
-    await this.prisma.user.delete({
-      where: { id },
-    });
+    if (auth.user.role === 'DEVELOPER' && user.role === 'ADMIN') {
+      throw new ForbiddenException('DEVELOPERS cannot delete ADMIN users.');
+    }
+
+    await this.prisma.user.delete({ where: { id } });
 
     await this.activityService.recordActivity({
       req,
       userId: auth.user.id,
       action: 'DELETE',
       resource: 'USER',
-      resourceId: id.toString(),
-      data: _.omit(user, 'updatedAt'), // Original data before deletion
+      resourceId: id,
+      data: omit(user, 'updatedAt'),
     });
-
-    res.status(204).send(); // No content response
   }
 }

@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-export abstract class ListOutputSchema {
-  abstract data: any[]; // Array of items in the list
+export abstract class ListOutputSchema<D = any> {
+  abstract data: D; // Array of items in the list
 
   @ApiProperty({
     description: 'Total number of items in the list',

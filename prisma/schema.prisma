@@ -48,6 +48,11 @@ enum Resource {
   WORKFLOW
   OAUTH2_AUTH_STATE
   OAUTH2_TOKEN
+  JOB
+  SCHEDULE
+  FOLDER
+  WEBHOOK
+  EVENT
 }
 
 enum Trigger {
@@ -55,6 +60,17 @@ enum Trigger {
   WEBHOOK
   SCHEDULE
   EVENT
+}
+
+enum WebhookHashLocation {
+  HEADER
+  QUERY
+}
+
+enum HashAlgorithm {
+  sha256
+  sha512
+  md5
 }
 
 model User {
@@ -71,27 +87,123 @@ model User {
   Activities Activity[]
 }
 
-model Workflow {
-  id  Int    @id @default(autoincrement())
-  key String @unique
+model Activity {
+  id Int @id @default(autoincrement())
 
-  active           Boolean  @default(true) // Indicates if the workflow is currently active, when inactive jobs will be kept in the queue but not executed
-  disabledEvents   String[] // List of event triggers that are disabled
-  disabledWebhooks String[] // List of webhooks that are disabled
+  userId Int
+
+  resource   Resource?
+  resourceId Json? // ID of the resource being acted upon (if applicable)
+  action     Action
+  subAction  String? // Additional action details (e.g., "rerun", "disable")
+  details    Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz()
+
+  User      User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  Revisions Revision[]
+
+  @@index([userId])
+  @@index([resource, resourceId])
+}
+
+model Revision {
+  id         Int @id @default(autoincrement())
+  activityId Int
+
+  resource   Resource
+  resourceId Json // ID of the target resource (e.g., Product ID)
+  action     Action // Action performed on the resource (e.g., CREATE, UPDATE, DELETE)
+
+  data  Json? // Serialized data of the resource at the time of revision
+  delta Json? // Optional delta of changes made, if applicable
+
+  createdAt DateTime @default(now()) @db.Timestamptz()
+
+  Activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([resource, resourceId])
+  @@index([activityId])
+}
+
+model Folder {
+  id       Int  @id @default(autoincrement())
+  parentId Int? // Optional parent folder ID for nested folders
+
+  name        String
+  description String?
 
   createdAt DateTime  @default(now()) @db.Timestamptz()
   updatedAt DateTime? @updatedAt @db.Timestamptz()
 
-  Jobs Job[]
+  Workflows Workflow[]
+  Parent    Folder?    @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  Children  Folder[]   @relation("FolderHierarchy")
+}
+
+model Workflow {
+  id       Int    @id @default(autoincrement())
+  folderId Int?
+  key      String @unique
+
+  active Boolean @default(true) // Indicates if the workflow is active, when inactive jobs will be kept in the queue but not executed
+
+  createdAt DateTime  @default(now()) @db.Timestamptz()
+  updatedAt DateTime? @updatedAt @db.Timestamptz()
+
+  Jobs     Job[]
+  Webhooks Webhook[]
+  Events   Event[]
+  Folder   Folder?   @relation(fields: [folderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+model Webhook {
+  id         Int @id @default(autoincrement())
+  workflowId Int
+
+  name          String
+  description   String?
+  token         String? // Optional token for authentication
+  secret        String? // Optional secret for HMAC verification
+  hashLocation  WebhookHashLocation? // Optional location for the HMAC hash (header or query)
+  hashKey       String? // Which header or query parameter to use for the HMAC hash
+  hashAlgorithm HashAlgorithm? // Optional hash algorithm for HMAC verification
+  active        Boolean              @default(true) // Indicates if the webhook is active
+
+  expiresAt DateTime  @db.Timestamptz()
+  createdAt DateTime  @default(now()) @db.Timestamptz()
+  updatedAt DateTime? @updatedAt @db.Timestamptz()
+
+  Workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+model Event {
+  id         Int @id @default(autoincrement())
+  workflowId Int
+
+  name       String
+  provider   String? // Optional provider for the event source (e.g., "zoho", "bigCommerce")
+  connection String? // Optional connection identifier for the event source
+  active     Boolean @default(true) // Indicates if the event is active
+  dangling   Boolean @default(false) // Indicates if the event is dangling (not linked to any workflow)
+
+  createdAt DateTime  @default(now()) @db.Timestamptz()
+  updatedAt DateTime? @updatedAt @db.Timestamptz()
+
+  Workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([workflowId, provider, connection, name])
 }
 
 model Schedule {
   id         Int @id @default(autoincrement())
   workflowId Int
 
-  cronExpression String
-  active         Boolean @default(true)
-  dangling       Boolean @default(false)
+  cronExpression    String
+  oldCronExpression String? // Previous cron expression before the last update
+  active            Boolean @default(true)
+  dangling          Boolean @default(false)
+  userDefined       Boolean @default(false) // Indicates if the schedule was created by the user
 
   createdAt DateTime  @default(now()) @db.Timestamptz()
   updatedAt DateTime? @updatedAt @db.Timestamptz()
@@ -166,43 +278,4 @@ model OAuth2Token {
   updatedAt DateTime? @updatedAt @db.Timestamptz()
 
   @@id([provider, connection])
-}
-
-model Activity {
-  id Int @id @default(autoincrement())
-
-  userId Int
-
-  resource   Resource?
-  resourceId Json? // ID of the resource being acted upon (if applicable)
-  action     Action
-  subAction  String? // Additional action details (e.g., "rerun", "disable")
-  details    Json?
-
-  createdAt DateTime @default(now()) @db.Timestamptz()
-
-  User      User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  Revisions Revision[]
-
-  @@index([userId])
-  @@index([resource, resourceId])
-}
-
-model Revision {
-  id         Int @id @default(autoincrement())
-  activityId Int
-
-  resource   Resource
-  resourceId Json // ID of the target resource (e.g., Product ID)
-  action     Action // Action performed on the resource (e.g., CREATE, UPDATE, DELETE)
-
-  data  Json? // Serialized data of the resource at the time of revision
-  delta Json? // Optional delta of changes made, if applicable
-
-  createdAt DateTime @default(now()) @db.Timestamptz()
-
-  Activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
-  @@index([resource, resourceId])
-  @@index([activityId])
 }

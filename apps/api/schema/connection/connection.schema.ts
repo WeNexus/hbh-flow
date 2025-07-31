@@ -1,7 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ConnectionSchema {
-  @ApiProperty({ description: 'The unique identifier for the connection' })
+  @ApiProperty({
+    description: 'A unique identifier within the provider for the connection',
+  })
   id: string;
 
   @ApiProperty({

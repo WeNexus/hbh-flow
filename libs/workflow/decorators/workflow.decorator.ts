@@ -1,4 +1,4 @@
-import { WorkflowOptions } from '#lib/workflow/types';
+import { WorkflowConfigSchema } from '#lib/workflow/schema';
 
 import {
   applyDecorators,
@@ -14,7 +14,7 @@ import {
  * @param options - The configuration options for the workflow.
  * @returns A class decorator that applies metadata and makes the class injectable.
  */
-export function Workflow(options?: WorkflowOptions) {
+export function Workflow(options?: WorkflowConfigSchema) {
   return applyDecorators(
     Injectable({ scope: Scope.TRANSIENT }),
     SetMetadata('HBH_FLOW', options ?? {}),

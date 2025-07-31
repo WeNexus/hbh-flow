@@ -6,7 +6,7 @@ import { OAuth2HttpClient } from '../hub/clients';
 import { ZohoUserInfo } from '#lib/zoho/types';
 import { EnvService } from '#lib/core/env';
 import { Inject } from '@nestjs/common';
-import _ from 'lodash';
+import { merge } from 'lodash-es';
 
 @Client('oauth2', {
   id: 'zoho',
@@ -24,7 +24,7 @@ export class ZohoService extends OAuth2HttpClient {
     super(
       moduleRef,
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-      _.merge(
+      merge(
         {},
         reflector.get<OAuth2ClientOptions>('HBH_HUB_CLIENT', ZohoService),
         options,

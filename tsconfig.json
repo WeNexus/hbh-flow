@@ -52,6 +52,12 @@
       ],
       "#lib/zoho/*": [
         "libs/zoho/*"
+      ],
+      "#lib/prisma-cache": [
+        "libs/prisma-cache"
+      ],
+      "#lib/prisma-cache/*": [
+        "libs/prisma-cache/*"
       ]
     }
   },

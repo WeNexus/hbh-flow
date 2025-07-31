@@ -1,11 +1,15 @@
 import { WorkflowService } from './workflow.service.js';
-import { SetupCronWorkflow } from '#lib/workflow/misc';
 import { DiscoveryModule } from '@nestjs/core';
 import { Module } from '@nestjs/common';
 
+import {
+  SetupEventsWorkflow,
+  SetupCronWorkflow,
+} from '#lib/workflow/workflows';
+
 @Module({
   imports: [DiscoveryModule],
-  providers: [WorkflowService, SetupCronWorkflow],
+  providers: [WorkflowService, SetupCronWorkflow, SetupEventsWorkflow],
   exports: [WorkflowService],
 })
 export class WorkflowModule {}

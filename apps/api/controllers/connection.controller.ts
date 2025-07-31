@@ -1,5 +1,5 @@
 import { TokenClientConnection, OAuth2Connection } from '#lib/hub/types';
-import { ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { ActivityService, PrismaService } from '#lib/core/services';
 import { Auth, Protected } from '#lib/auth/decorators';
 import type { AuthContext } from '#lib/auth/types';
@@ -13,8 +13,8 @@ import {
 } from '#lib/hub/exceptions';
 
 import {
+  ConnectionAuthorizationOutputSchema,
   ConnectionTestOutputSchema,
-  AuthorizationOutputSchema,
   ConnectionDetailSchema,
   ConnectionSchema,
 } from '../schema';
@@ -22,6 +22,7 @@ import {
 import {
   NotFoundException,
   Controller,
+  HttpCode,
   Param,
   Query,
   Post,
@@ -29,7 +30,7 @@ import {
   Req,
 } from '@nestjs/common';
 
-@Controller('api/hub/providers')
+@Controller('api/providers')
 export class ConnectionController {
   constructor(
     private readonly activityService: ActivityService,
@@ -40,21 +41,25 @@ export class ConnectionController {
   @Get('/:id/connections')
   @Protected('OBSERVER')
   @ApiOperation({
-    summary: 'List connections for a provider',
+    summary: 'List all connections for a provider',
     description:
-      'This endpoint retrieves a list of connections for a specific provider.',
+      'Returns a list of available connections configured for a given provider.',
   })
   @ApiParam({
     name: 'id',
-    description: 'The ID of the provider.',
+    description: 'The unique identifier of the provider.',
     type: String,
   })
   @ApiResponse({
     status: 200,
-    description: 'Returns the result of the connection test.',
+    description: 'An array of connection summaries.',
     type: [ConnectionSchema],
   })
-  connections(@Param('id') id: string): ConnectionSchema[] {
+  @ApiResponse({
+    status: 404,
+    description: 'Provider not found.',
+  })
+  list(@Param('id') id: string): ConnectionSchema[] {
     try {
       const provider = this.hubService.validateProvider(id);
 
@@ -69,33 +74,33 @@ export class ConnectionController {
       if (e instanceof NoProviderException) {
         throw new NotFoundException(e.message);
       }
-      throw e; // Re-throw other unexpected errors
+      throw e;
     }
   }
 
   @Get('/:id/connections/:connection')
   @Protected('OBSERVER')
   @ApiOperation({
-    summary: 'Get connection details',
+    summary: 'Fetch details of a single connection',
     description:
-      'This endpoint retrieves details for a specific connection of a provider.',
+      'Provides complete details about a specific connection under a provider.',
   })
-  @ApiParam({
-    name: 'id',
-    description: 'The ID of the provider.',
-    type: String,
-  })
+  @ApiParam({ name: 'id', description: 'The provider ID.', type: String })
   @ApiParam({
     name: 'connection',
-    description: 'The connection ID for the provider.',
+    description: 'The ID of the specific connection.',
     type: String,
   })
   @ApiResponse({
     status: 200,
-    description: 'Returns the details of the connection.',
-    type: [ConnectionDetailSchema],
+    description: 'Detailed connection info.',
+    type: ConnectionDetailSchema,
   })
-  async getConnection(
+  @ApiResponse({
+    status: 404,
+    description: 'Provider or connection not found.',
+  })
+  async single(
     @Param('id') id: string,
     @Param('connection') connection: string,
   ): Promise<ConnectionDetailSchema> {
@@ -107,7 +112,7 @@ export class ConnectionController {
 
       if (!conn) {
         throw new NotFoundException(
-          `Connection with ID "${id}" not found for provider "${id}".`,
+          `Connection with ID "${connection}" not found for provider "${id}".`,
         );
       }
 
@@ -120,15 +125,12 @@ export class ConnectionController {
         if (e instanceof NotConnectedException) {
           error = e.message;
         } else {
-          throw e; // Re-throw other unexpected errors
+          throw e;
         }
       }
 
-      const oauth2Token = await this.prisma.oAuth2Token.findFirst({
-        where: {
-          provider: id,
-          connection,
-        },
+      const { result: oauth2Token } = await this.prisma.oAuth2Token.findFirst({
+        where: { provider: id, connection },
         select: {
           access: true,
           scopes: true,
@@ -136,22 +138,13 @@ export class ConnectionController {
           createdAt: true,
         },
       });
-      const lastActivity = await this.prisma.activity.findFirst({
+
+      const { result: lastActivity } = await this.prisma.activity.findFirst({
         where: {
           resource: 'OAUTH2_TOKEN',
           AND: [
-            {
-              resourceId: {
-                path: ['provider'],
-                equals: id,
-              },
-            },
-            {
-              resourceId: {
-                path: ['connection'],
-                equals: connection,
-              },
-            },
+            { resourceId: { path: ['provider'], equals: id } },
+            { resourceId: { path: ['connection'], equals: connection } },
           ],
         },
         select: {
@@ -166,9 +159,7 @@ export class ConnectionController {
             },
           },
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: { createdAt: 'desc' },
       });
 
       let connectedUser: Record<string, any> | undefined = undefined;
@@ -178,9 +169,8 @@ export class ConnectionController {
           connectedUser = (await provider.client.getUserInfo(
             connection,
           )) as Record<string, any>;
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (e: unknown) {
-          // If getting user info fails, we can still return the connection details
+        } catch {
+          // Ignored - returning details even if user info fails
         }
       }
 
@@ -194,7 +184,7 @@ export class ConnectionController {
           ? (oauth2Token?.updatedAt ?? oauth2Token.createdAt).toISOString()
           : undefined,
         connectedAt: lastActivity?.createdAt.toISOString() ?? undefined,
-        connectedBy: lastActivity ? lastActivity.User : undefined,
+        connectedBy: lastActivity?.User,
         connectedUser,
       };
     } catch (e: unknown) {
@@ -204,36 +194,32 @@ export class ConnectionController {
       ) {
         throw new NotFoundException(e.message);
       }
-      throw e; // Re-throw other unexpected errors
+      throw e;
     }
   }
 
   @Post('/:id/connections/:connection/test')
   @Protected('OBSERVER')
   @ApiOperation({
-    summary: 'Test connection',
-    description: 'This endpoint tests the connection to a provider.',
+    summary: 'Test a provider connection',
+    description: 'Checks if a specific connection to a provider is working.',
   })
-  @ApiParam({
-    name: 'id',
-    description: 'The ID of the provider.',
-    type: String,
-  })
+  @ApiParam({ name: 'id', description: 'The provider ID.', type: String })
   @ApiParam({
     name: 'connection',
-    description: 'The connection ID for the provider.',
+    description: 'The connection ID.',
     type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Test result.',
+    type: ConnectionTestOutputSchema,
   })
   @ApiResponse({
     status: 404,
     description: 'Provider or connection not found.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns the result of the connection test.',
-    type: ConnectionTestOutputSchema,
-  })
-  async testConnection(
+  async test(
     @Param('id') id: string,
     @Param('connection') connection: string,
   ): Promise<ConnectionTestOutputSchema> {
@@ -248,46 +234,38 @@ export class ConnectionController {
       ) {
         throw new NotFoundException(e.message);
       }
-
       if (e instanceof NotConnectedException) {
-        // If the connection is not established, we can return false
         return {
           working: false,
           reason: e.message,
         };
       }
-
-      throw e; // Re-throw other unexpected errors
+      throw e;
     }
   }
 
   @Post('/:id/connections/:connection/authorize')
   @Protected('DEVELOPER')
   @ApiOperation({
-    summary: 'Authorize OAuth2 connection',
-    description:
-      'This endpoint initiates the OAuth2 authorization flow for a specific provider and connection.',
+    summary: 'Initiate OAuth2 authorization',
+    description: 'Begins the OAuth2 authorization process for a connection.',
   })
-  @ApiParam({
-    name: 'id',
-    description: 'The ID of the OAuth2 provider.',
-    type: String,
-  })
+  @ApiParam({ name: 'id', description: 'OAuth2 provider ID.', type: String })
   @ApiParam({
     name: 'connection',
-    description: 'The connection ID for the OAuth2 provider.',
+    description: 'OAuth2 connection ID.',
     type: String,
   })
-  @ApiParam({
+  @ApiQuery({
     name: 'scopes',
-    description: 'Optional scopes to request during authorization.',
-    type: String,
+    description: 'Optional comma-separated OAuth2 scopes.',
     required: false,
+    type: String,
   })
   @ApiResponse({
     status: 201,
-    description: 'Returns the authorization URL for the OAuth2 connection.',
-    type: AuthorizationOutputSchema,
+    description: 'Authorization URL returned.',
+    type: ConnectionAuthorizationOutputSchema,
   })
   @ApiResponse({
     status: 404,
@@ -326,8 +304,7 @@ export class ConnectionController {
       ) {
         throw new NotFoundException(e.message);
       }
-
-      throw e; // Re-throw other unexpected errors
+      throw e;
     }
   }
 }

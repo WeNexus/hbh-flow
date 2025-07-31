@@ -27,13 +27,15 @@ export class AuthService {
   ): Promise<LoginResult> {
     const user =
       typeof userOrId === 'number'
-        ? await this.prisma.user.findUnique({
-            where: { id: userOrId },
-            select: {
-              id: true,
-              role: true,
-            },
-          })
+        ? (
+            await this.prisma.user.findUnique({
+              where: { id: userOrId },
+              select: {
+                id: true,
+                role: true,
+              },
+            })
+          ).result
         : userOrId;
 
     // Check if user exists and password matches

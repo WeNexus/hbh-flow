@@ -1,9 +1,9 @@
 import { IsEmail, IsEnum, IsString, MinLength } from 'class-validator';
 import { Role as BaseRole } from '@prisma/client';
 import { ApiProperty } from '@nestjs/swagger';
-import _ from 'lodash';
+import { omit } from 'lodash-es';
 
-const Role = _.omit(BaseRole, 'SYSTEM');
+const Role = omit(BaseRole, 'SYSTEM');
 
 export class UserCreateInputSchema {
   @ApiProperty({ enum: Role, required: true })

@@ -1,13 +1,15 @@
 import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { RedisConfigService, RedisModule } from '#lib/core/redis';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { PrismaExtensionRedis } from '#lib/prisma-cache';
 import { EnvService } from '#lib/core/env/env.service';
 import { RUNTIME_ID, APP_TYPE } from '#lib/core/misc';
 import { ZohoModule } from '#lib/zoho/zoho.module';
 import { initSentry } from '#lib/core/misc/sentry';
 import { HubModule } from '../hub/hub.module';
-import { RedisModule } from '#lib/core/redis';
+import { PrismaClient } from '@prisma/client';
 import { AppType } from '#lib/core/types';
 import { JwtModule } from '@nestjs/jwt';
 
@@ -103,7 +105,26 @@ export async function bootstrap(
         useValue: runtimeId,
       },
       EnvService,
-      PrismaService,
+      {
+        provide: PrismaService,
+        inject: [EnvService, RedisConfigService],
+        useFactory(envService: EnvService, redisConfig: RedisConfigService) {
+          return new PrismaClient().$extends(
+            PrismaExtensionRedis({
+              client: {
+                ...redisConfig.get(),
+                db: envService.getNumber('PRISMA_REDIS_DB', 2),
+              },
+              config: {
+                auto: false,
+                type: 'JSON',
+                ttl: 60 * 60 * 6, // 6 hours
+                stale: 60 * 60, // 1 hour
+              },
+            }),
+          );
+        },
+      },
       (appType === AppType.API
         ? {
             provide: APP_FILTER,
@@ -136,6 +157,7 @@ export async function bootstrap(
       ? await NestFactory.createApplicationContext(WrapperModule)
       : await NestFactory.create<NestExpressApplication>(WrapperModule, {
           forceCloseConnections: true,
+          rawBody: true,
         });
 
   const envService = app.get(EnvService);
@@ -146,6 +168,8 @@ export async function bootstrap(
     const { default: cookieParser } = await import('cookie-parser');
     const helmet = (await import('helmet')).default;
     const _app = app as NestExpressApplication;
+
+    _app.set('trust proxy', true); // Trust the first proxy (for reverse proxies)
 
     // Security middlewares
     _app.use(
@@ -162,6 +186,7 @@ export async function bootstrap(
         },
       }),
     );
+
     _app.enableCors();
 
     // Validation and parsing

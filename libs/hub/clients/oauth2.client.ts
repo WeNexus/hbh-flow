@@ -176,7 +176,7 @@ export abstract class OAuth2Client {
     let token: OAuth2Token;
 
     if (!this.tokens.has(connection)) {
-      const _token = await this.moduleRef
+      const { result: _token } = await this.moduleRef
         .get(PrismaService, { strict: false })
         .oAuth2Token.findFirst({
           where: {
@@ -252,7 +252,7 @@ export abstract class OAuth2Client {
     const id = this.clientOptions.id;
     const arcticClient = this.validateConnection(connection);
 
-    let token = await this.moduleRef
+    let { result: token } = await this.moduleRef
       .get(PrismaService, { strict: false })
       .oAuth2Token.findFirst({
         where: {
@@ -287,21 +287,23 @@ export abstract class OAuth2Client {
     }
 
     // update the connection with the new tokens
-    token = await this.moduleRef
-      .get(PrismaService, { strict: false })
-      .oAuth2Token.update({
-        where: {
-          provider_connection: {
-            provider: id,
-            connection,
+    token = (
+      await this.moduleRef
+        .get(PrismaService, { strict: false })
+        .oAuth2Token.update({
+          where: {
+            provider_connection: {
+              provider: id,
+              connection,
+            },
           },
-        },
-        data: {
-          access: tokens.accessToken(),
-          refresh: tokens.refreshToken(),
-          expiresAt: tokens.accessTokenExpiresAt(),
-        },
-      });
+          data: {
+            access: tokens.accessToken(),
+            refresh: tokens.refreshToken(),
+            expiresAt: tokens.accessTokenExpiresAt(),
+          },
+        })
+    ).result;
 
     this.moduleRef
       .get(GlobalEventService, { strict: false })

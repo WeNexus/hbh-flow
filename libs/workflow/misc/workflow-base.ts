@@ -205,7 +205,7 @@ export abstract class WorkflowBase<P = any> {
    * @returns A promise that resolves to the result of the step.
    */
   async getResult<T = any>(step: string): Promise<T> {
-    const row = await this.moduleRef
+    const { result: row } = await this.moduleRef
       .get(PrismaService, { strict: false })
       .jobStep.findFirst({
         where: {

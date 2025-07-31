@@ -1,5 +1,5 @@
-import { ProviderSchema } from './provider.schema';
 import { ListOutputSchema } from '#lib/core/schema';
+import { ProviderSchema } from './provider.schema';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ProviderListOutputSchema extends ListOutputSchema {
