@@ -25,7 +25,7 @@ export async function listData<
             })),
           }
         : {},
-      input.filter ?? {},
+      input.filter ? JSON.parse(input.filter) : {},
     ],
   };
 

@@ -1,6 +1,6 @@
 import { PaginationSchema } from './pagination.schema';
+import { IsJSON, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional } from 'class-validator';
 
 export class ListInputSchema extends PaginationSchema {
   @ApiProperty({
@@ -48,5 +48,6 @@ export class ListInputSchema extends PaginationSchema {
     },
   })
   @IsOptional()
-  filter?: Record<string, any>;
+  @IsJSON()
+  filter?: string;
 }
