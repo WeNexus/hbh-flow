@@ -1,11 +1,11 @@
 import { ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
+import { listData, PrismaWhereExceptionFilter } from '#lib/core/misc';
 import { ActivityService, PrismaService } from '#lib/core/services';
 import { WorkflowService } from '#lib/workflow/workflow.service';
 import { JsonWebTokenError, JwtService } from '@nestjs/jwt';
 import { Auth, Protected } from '#lib/auth/decorators';
 import { ListInputSchema } from '#lib/core/schema';
 import type { AuthContext } from '#lib/auth/types';
-import { listData } from '#lib/core/misc';
 import { omit } from 'lodash-es';
 import express from 'express';
 import crypto from 'crypto';
@@ -23,6 +23,7 @@ import {
   type RawBodyRequest,
   NotFoundException,
   Controller,
+  UseFilters,
   HttpCode,
   Delete,
   Query,
@@ -45,6 +46,7 @@ export class WebhookController {
 
   @Get('/')
   @Protected('OBSERVER')
+  @UseFilters(PrismaWhereExceptionFilter)
   @ApiOperation({
     summary: 'List all webhooks',
     description: 'Retrieves a paginated list of all configured webhooks.',

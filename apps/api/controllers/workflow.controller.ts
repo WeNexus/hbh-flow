@@ -1,17 +1,18 @@
 import { ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
+import { listData, PrismaWhereExceptionFilter } from '#lib/core/misc';
 import { ActivityService, PrismaService } from '#lib/core/services';
 import { WorkflowService } from '#lib/workflow/workflow.service';
 import { TriggerMetaSchema } from '#lib/workflow/schema';
 import { Auth, Protected } from '#lib/auth/decorators';
 import type { AuthContext } from '#lib/auth/types';
 import { ListInputSchema } from '#lib/core/schema';
-import { listData } from '#lib/core/misc';
 import { Prisma } from '@prisma/client';
 import { omit } from 'lodash-es';
 import express from 'express';
 
 import {
   NotFoundException,
+  UseFilters,
   Controller,
   Param,
   Query,
@@ -38,6 +39,7 @@ export class WorkflowController {
 
   @Get('/')
   @Protected('OBSERVER')
+  @UseFilters(PrismaWhereExceptionFilter)
   @ApiOperation({
     summary: 'List all available workflows',
     description:

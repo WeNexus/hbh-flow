@@ -1,9 +1,9 @@
-import { ActivityService, PrismaService } from '#lib/core/services';
+import { listData, PrismaWhereExceptionFilter } from '#lib/core/misc';
 import { ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
+import { ActivityService, PrismaService } from '#lib/core/services';
 import { Auth, Protected } from '#lib/auth/decorators';
 import { ListInputSchema } from '#lib/core/schema';
 import type { AuthContext } from '#lib/auth/types';
-import { listData } from '#lib/core/misc';
 import { omit } from 'lodash-es';
 import express from 'express';
 
@@ -17,6 +17,7 @@ import {
 import {
   NotFoundException,
   Controller,
+  UseFilters,
   HttpCode,
   Delete,
   Query,
@@ -37,6 +38,7 @@ export class FolderController {
 
   @Get('/')
   @Protected('OBSERVER')
+  @UseFilters(PrismaWhereExceptionFilter)
   @ApiOperation({
     summary: 'List all folders',
     description: 'Fetches a list of all folders in the system.',

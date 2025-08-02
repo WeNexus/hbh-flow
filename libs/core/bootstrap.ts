@@ -227,7 +227,10 @@ export async function bootstrap(
         },
       }),
       {
-        raw: false,
+        raw: true,
+        ui: true,
+        yamlDocumentUrl: '/api/docs.yaml',
+        jsonDocumentUrl: '/api/docs.json',
         swaggerOptions: {
           persistAuthorization: true,
         },

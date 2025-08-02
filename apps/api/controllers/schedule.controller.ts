@@ -1,10 +1,10 @@
+import { listData, PrismaWhereExceptionFilter } from '#lib/core/misc';
+import { ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { ActivityService, PrismaService } from '#lib/core/services';
 import { WorkflowService } from '#lib/workflow/workflow.service';
-import { ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { Auth, Protected } from '#lib/auth/decorators';
 import { ListInputSchema } from '#lib/core/schema';
 import type { AuthContext } from '#lib/auth/types';
-import { listData } from '#lib/core/misc';
 import { omit } from 'lodash-es';
 import express from 'express';
 
@@ -19,6 +19,7 @@ import {
   BadRequestException,
   NotFoundException,
   Controller,
+  UseFilters,
   HttpCode,
   Delete,
   Query,
@@ -40,6 +41,7 @@ export class ScheduleController {
 
   @Get('/')
   @Protected('OBSERVER')
+  @UseFilters(PrismaWhereExceptionFilter)
   @ApiOperation({
     summary: 'List all schedules',
     description: 'Retrieves a paginated list of all registered schedules.',

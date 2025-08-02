@@ -1,9 +1,9 @@
 import { ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { ActivityService, PrismaService } from '#lib/core/services';
+import { listData, PrismaWhereExceptionFilter } from '#lib/core/misc';
 import { Auth, Protected } from '#lib/auth/decorators';
 import { ListInputSchema } from '#lib/core/schema';
 import type { AuthContext } from '#lib/auth/types';
-import { listData } from '#lib/core/misc';
 import type { Request } from 'express';
 import { omit } from 'lodash-es';
 import argon2 from 'argon2';
@@ -13,6 +13,7 @@ import {
   ForbiddenException,
   NotFoundException,
   Controller,
+  UseFilters,
   HttpCode,
   Delete,
   Param,
@@ -40,6 +41,7 @@ export class UserController {
 
   @Get('/')
   @Protected('OBSERVER')
+  @UseFilters(PrismaWhereExceptionFilter)
   @ApiOperation({
     summary: 'List users',
     description: 'Retrieves a paginated and optionally filtered list of users.',

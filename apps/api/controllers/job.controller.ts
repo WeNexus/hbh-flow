@@ -1,3 +1,4 @@
+import { listData, PrismaWhereExceptionFilter } from '#lib/core/misc';
 import { ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { ActivityService, PrismaService } from '#lib/core/services';
 import { WorkflowService } from '#lib/workflow/workflow.service';
@@ -5,7 +6,6 @@ import { Auth, Protected } from '#lib/auth/decorators';
 import type { AuthContext } from '#lib/auth/types';
 import { ListInputSchema } from '#lib/core/schema';
 import { JobStatus } from '@prisma/client';
-import { listData } from '#lib/core/misc';
 import type { Request } from 'express';
 import { omit } from 'lodash-es';
 
@@ -19,6 +19,7 @@ import {
   BadRequestException,
   NotFoundException,
   Controller,
+  UseFilters,
   Param,
   Query,
   Post,
@@ -43,6 +44,7 @@ export class JobController {
 
   @Get('/')
   @Protected('OBSERVER')
+  @UseFilters(PrismaWhereExceptionFilter)
   @ApiOperation({
     summary: 'List all jobs',
     description: 'Retrieves a list of all jobs in the system.',

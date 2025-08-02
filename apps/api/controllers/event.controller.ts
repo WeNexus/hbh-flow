@@ -1,9 +1,9 @@
+import { listData, PrismaWhereExceptionFilter } from '#lib/core/misc';
 import { ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { ActivityService, PrismaService } from '#lib/core/services';
 import { Auth, Protected } from '#lib/auth/decorators';
 import { ListInputSchema } from '#lib/core/schema';
 import type { AuthContext } from '#lib/auth/types';
-import { listData } from '#lib/core/misc';
 import { omit } from 'lodash-es';
 import express from 'express';
 
@@ -16,8 +16,9 @@ import {
 import {
   NotFoundException,
   Controller,
-  Query,
+  UseFilters,
   Param,
+  Query,
   Patch,
   Body,
   Req,
@@ -33,6 +34,7 @@ export class EventController {
 
   @Get('/')
   @Protected('OBSERVER')
+  @UseFilters(PrismaWhereExceptionFilter)
   @ApiOperation({
     summary: 'List all events',
     description: 'Fetch a list of all events available in the system.',
