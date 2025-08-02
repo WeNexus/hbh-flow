@@ -115,3 +115,48 @@ Key environment variables to configure in the `.env` file:
 - `API_PORT`, `UI_PORT`: Ports for the API and UI servers.
 
 Refer to the `.env.example` file for the full list of variables.
+
+## Postman
+
+### Importing the OpenAPI Specification
+
+1. Open Postman.
+2. Click on **File** > **Import**.
+3. Select the **Link** tab.
+4. Enter the following URL to import the OpenAPI specification:
+
+   ```
+   http://localhost:3001/api/docs.yaml
+   ```
+
+5. Click **Continue** and then **Import**. This will load all the API endpoints into Postman.
+
+### Logging in Using the Default SYSTEM User
+
+1. In Postman, locate the `POST /api/auth/login` endpoint.
+2. Set the request body to the following JSON:
+
+   ```json
+   {
+     "email": "flow@honeybeeherb.com",
+     "password": "hbh-admin-1234"
+   }
+   ```
+
+3. Send the request. If successful, the response will include a `csrfToken`.
+4. Add the following script to the **Tests** tab of the request to store the CSRF token in an environment variable:
+
+   ```javascript
+   pm.environment.set("CSRF_TOKEN", pm.response.json().csrfToken);
+   ```
+
+### Refreshing the Token
+
+1. Locate the `POST /api/auth/refresh` endpoint.
+2. In the **Headers** tab, add the following header:
+
+   ```
+   X-CSRF-Token: {{CSRF_TOKEN}}
+   ```
+
+3. Send the request. The response will include a new CSRF token, which will automatically update the `CSRF_TOKEN` variable if the same test script is used.
