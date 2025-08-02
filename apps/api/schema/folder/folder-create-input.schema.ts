@@ -3,20 +3,28 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class FolderCreateInputSchema {
   @ApiProperty({
-    description: 'Parent folder ID, if this folder is a subfolder',
+    description:
+      'The unique identifier of the parent folder, if this folder is a subfolder. Optional.',
+    example: 42,
+    required: false,
   })
   @IsOptional()
   parentId?: number | null;
 
   @ApiProperty({
-    description: 'The name of the folder',
+    description: 'The display name of the folder. This field is required.',
+    example: 'BigCommerce',
     required: true,
   })
   @IsNotEmpty()
   name: string;
 
   @ApiProperty({
-    description: 'A description of the folder',
+    description:
+      'An optional description providing more details about the folder.',
+    example:
+      'Contains all workflows related to BigCommerce and Zoho Integration.',
+    required: false,
   })
   @IsOptional()
   description?: string | null;

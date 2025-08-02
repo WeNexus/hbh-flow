@@ -3,56 +3,86 @@ import { ApiProperty } from '@nestjs/swagger';
 import { $Enums, Job } from '@prisma/client';
 
 export class JobSchema implements Omit<Job, 'sentryTrace' | 'sentryBaggage'> {
-  @ApiProperty({ description: 'Unique identifier for the job' })
+  @ApiProperty({
+    description: 'A unique numeric identifier for the job.',
+    example: 101,
+  })
   id: number;
 
-  @ApiProperty({ description: 'Parent job ID, if any' })
+  @ApiProperty({
+    description:
+      'The ID of the parent job, if this job is a replay of another job. Optional.',
+    example: 100,
+  })
   parentId: number | null;
 
-  @ApiProperty({ description: 'Unique identifier for the job in the queue' })
+  @ApiProperty({
+    description:
+      'The internal queue identifier assigned by Bull for this job. Optional.',
+    example: '#101',
+  })
   bullId: string | null;
 
-  @ApiProperty({ description: 'Unique identifier for deduplication purposes' })
+  @ApiProperty({
+    description: 'A unique string used to identify and deduplicate jobs.',
+    example: 'dedupe-abc-xyz',
+  })
   dedupeId: string | null;
 
-  @ApiProperty({ description: 'Workflow ID associated with the job' })
+  @ApiProperty({
+    description: 'The ID of the workflow associated with this job.',
+    example: 55,
+  })
   workflowId: number;
 
   @ApiProperty({
-    description: 'Status of the job',
+    description: 'The current status of the job.',
     enum: $Enums.JobStatus,
+    example: $Enums.JobStatus.WAITING,
   })
   status: $Enums.JobStatus;
 
   @ApiProperty({
-    description: 'Trigger type of the job',
+    description: 'The type of trigger that initiated the job.',
     enum: $Enums.Trigger,
+    example: $Enums.Trigger.EVENT,
   })
   trigger: $Enums.Trigger;
 
-  @ApiProperty({ description: 'ID of the trigger that initiated the job' })
+  @ApiProperty({
+    description: 'The ID of the trigger that initiated the job. Optional.',
+    example: 'event_456',
+  })
   triggerId: string | null;
 
   @ApiProperty({
-    description: 'Date and time when the job is scheduled to run',
+    description: 'The scheduled execution time for the job, if set.',
     format: 'date-time',
+    example: '2024-10-01T12:00:00Z',
   })
   scheduledAt: Date | null;
 
   @ApiProperty({
-    description: 'Payload data for the job',
+    description: 'The payload data passed to the job at runtime.',
+    example: {
+      userId: 123,
+      action: 'sync_data',
+    },
   })
   payload: JsonValue;
 
   @ApiProperty({
-    description: 'Date and time when the job was created',
+    description: 'The date and time when the job was created.',
     format: 'date-time',
+    example: '2024-09-30T10:30:00Z',
   })
   createdAt: Date;
 
   @ApiProperty({
-    description: 'Date and time when the job was last updated',
+    description:
+      'The date and time when the job was last updated, if applicable.',
     format: 'date-time',
+    example: '2024-10-01T14:45:00Z',
   })
   updatedAt: Date | null;
 }

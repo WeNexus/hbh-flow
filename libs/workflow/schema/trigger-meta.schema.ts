@@ -3,57 +3,58 @@ import { TriggerType } from '#lib/workflow/misc/trigger-type.enum.js';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class TriggerMetaSchema {
-  @ApiProperty({ enum: TriggerType })
+  @ApiProperty({
+    description:
+      'The type of trigger used to initiate the workflow (e.g., Event, Cron).',
+    enum: TriggerType,
+    example: TriggerType.Event,
+  })
   type: TriggerType;
 
   @ApiProperty({
     description:
-      'Event name that triggers the workflow. Can be a single event or an array of events.',
+      'The event name(s) that trigger the workflow. Can be a string or an array of strings.',
     required: false,
-    oneOf: [
-      {
-        type: 'string',
-      },
-      {
-        type: 'array',
-        items: {
-          type: 'string',
-        },
-      },
-    ],
+    oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+    example: ['order.created', 'order.updated'],
   })
   event?: string | string[];
 
   @ApiProperty({
     description:
-      'Provider name for the event trigger. This is useful when you have multiple providers for the same event.',
+      'The provider name associated with the event trigger. Useful when multiple providers emit similar events.',
     required: false,
+    example: 'shopify',
   })
   provider?: string;
 
   @ApiProperty({
     description:
-      'Connection name to use for the event trigger. This is useful when you have multiple connections to the same provider.',
+      'The connection identifier to use for the trigger. Helps distinguish between multiple connections to the same provider.',
     required: false,
+    example: 'shopify-main-store',
   })
   connection?: string;
 
   @ApiProperty({
     description:
-      'Cron expression for scheduling the workflow. This is used for Cron triggers.',
+      'Cron expression used to schedule workflow execution. Applicable only for CRON triggers.',
     required: false,
     example: '0 0 * * *', // Every day at midnight
   })
   pattern?: string;
 
-  oldPattern?: string; // Old cron expression for scheduling, used for updating existing schedules
-  immediate?: boolean; // If true, the job will be executed immediately after it is created.
+  // Internal fields not exposed via Swagger
+  oldPattern?: string;
+
+  immediate?: boolean;
 
   @ApiProperty({
     description:
-      'The timezone for the cron job. If not provided, defaults to UTC.',
-    required: false,
+      'The timezone used for the cron schedule. Defaults to UTC if not specified.',
     enum: timezones,
+    required: false,
+    example: 'America/New_York',
   })
-  timezone?: Timezone; // Timezone for the cron job
+  timezone?: Timezone;
 }

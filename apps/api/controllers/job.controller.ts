@@ -11,7 +11,6 @@ import type { Request } from 'express';
 import {
   JobReplayInputSchema,
   JobListOutputSchema,
-  JobDetailSchema,
   JobSchema,
 } from '../schema';
 
@@ -94,52 +93,6 @@ export class JobController {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       throw new NotFoundException(`Job with ID "${id}" was not found.`);
-    }
-  }
-
-  @Get('/:id/details')
-  @Protected('OBSERVER')
-  @ApiOperation({
-    summary: 'Get detailed information for a job',
-    description: 'Returns detailed job data, including step-level information.',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'The ID of the job to retrieve details for.',
-    type: Number,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Detailed job information retrieved successfully.',
-    type: JobDetailSchema,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Job not found.',
-  })
-  async details(@Param('id') id: number): Promise<JobDetailSchema> {
-    try {
-      const { result: job } = await this.prisma.job.findUniqueOrThrow({
-        where: { id },
-        omit: {
-          sentryTrace: true,
-          sentryBaggage: true,
-        },
-        include: {
-          Steps: {
-            omit: {
-              jobId: true,
-            },
-          },
-        },
-      });
-
-      return job;
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (e) {
-      throw new NotFoundException(
-        `Detailed info for job ID "${id}" was not found.`,
-      );
     }
   }
 

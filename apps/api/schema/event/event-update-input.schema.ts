@@ -3,7 +3,8 @@ import { IsBoolean } from 'class-validator';
 
 export class EventUpdateInputSchema {
   @ApiProperty({
-    description: 'Indicates if the event is active',
+    description: 'Specifies whether the event is currently active. Set to true to enable, or false to disable the event.',
+    example: true,
     required: true,
   })
   @IsBoolean()

@@ -1,19 +1,22 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty } from 'class-validator';
+import { IsNotEmpty, IsOptional } from 'class-validator';
 
 export class ScheduleUpdateInputSchema {
   @ApiProperty({
     description:
-      'Cron expression that defines the schedule, e.g., "0 0 * * *" for daily at midnight',
+      'A valid cron expression to update the schedule. For example, "0 0 * * *" runs daily at midnight.',
     example: '0 0 * * *',
     required: false,
   })
+  @IsOptional()
   @IsNotEmpty()
   cronExpression?: string;
 
   @ApiProperty({
-    description: 'Whether the schedule is active',
+    description: 'Indicates whether the schedule should be active.',
+    example: true,
     required: false,
   })
+  @IsOptional()
   active?: boolean;
 }

@@ -4,44 +4,54 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class WebhookUpdateInputSchema {
   @ApiProperty({
-    description:
-      'The name of the token to be generated, used for identification',
+    description: 'The updated name of the webhook, used for identification.',
     required: false,
+    example: 'Shopify Order Updated Webhook',
   })
   @IsOptional()
   name?: string;
 
   @ApiProperty({
-    description: 'A description of the token, used for explanation',
+    description: 'A new or updated description for the webhook.',
+    required: false,
+    example: 'Handles order update events from Shopify.',
   })
   @IsOptional()
   description?: string;
 
   @ApiProperty({
-    description: 'The secret key used to do HMAC verification',
+    description: 'Updated secret key used for HMAC verification.',
     required: false,
+    example: 'new-secret-key-456',
   })
   @IsOptional()
   secret?: string;
 
   @ApiProperty({
-    description: 'The location of the hash in the webhook payload',
+    description:
+      'Updated location where the hash is found in the webhook payload.',
     enum: WebhookHashLocation,
+    required: false,
+    example: WebhookHashLocation.HEADER,
   })
   @IsOptional()
   @IsEnum(WebhookHashLocation)
   hashLocation?: WebhookHashLocation;
 
   @ApiProperty({
-    description: 'The key used to extract the hash from the webhook payload',
+    description:
+      'Updated key used to extract the hash from the webhook payload.',
+    required: false,
     example: 'x-shopify-hmac-sha256',
   })
   @IsOptional()
   hashKey?: string;
 
   @ApiProperty({
-    description: 'The algorithm used for hashing the webhook payload',
+    description: 'Updated algorithm used for hashing the webhook payload.',
     enum: HashAlgorithm,
+    required: false,
+    example: HashAlgorithm.sha256,
   })
   @IsOptional()
   @IsEnum(HashAlgorithm)

@@ -3,7 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class LoginInputSchema {
   @ApiProperty({
-    description: 'User email address',
+    description: 'The email address of the user. Must be a valid email format.',
     example: 'example@honeybeeherb.com',
     format: 'email',
   })
@@ -11,7 +11,8 @@ export class LoginInputSchema {
   email: string;
 
   @ApiProperty({
-    description: 'User password',
+    description:
+      'The user’s login password. Must be at least 8 characters long.',
     example: 'password123',
     minLength: 8,
   })

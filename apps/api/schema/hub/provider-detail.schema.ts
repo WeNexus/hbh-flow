@@ -4,15 +4,25 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class ProviderDetailSchema extends ProviderSchema {
   @ApiProperty({
-    description: 'Scopes required for the provider in case of OAuth2',
+    description:
+      'A list of OAuth2 scopes required by the provider, if applicable.',
     type: [String],
+    example: ['read_orders', 'write_customers'],
     required: false,
   })
   scopes?: string[];
 
   @ApiProperty({
-    description: 'Connections available for the provider',
+    description:
+      'An array of connection objects associated with this provider.',
     type: [ConnectionSchema],
+    example: [
+      {
+        id: 'conn_abc123',
+        description: 'Primary Zoho integration',
+        scopes: ['read_leads', 'write_contacts'],
+      },
+    ],
   })
   connections: ConnectionSchema[];
 }

@@ -2,19 +2,24 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class ConnectionSchema {
   @ApiProperty({
-    description: 'A unique identifier within the provider for the connection',
+    description:
+      'A unique identifier assigned by the provider for this connection.',
+    example: 'conn_abc123',
   })
   id: string;
 
   @ApiProperty({
-    description: 'The description of the connection',
+    description: 'A brief description of the connection. Optional.',
+    example: 'Shopify main store integration',
     required: false,
   })
   description?: string;
 
   @ApiProperty({
-    description: 'Scopes required for the connection in case of OAuth2',
+    description:
+      'List of scopes required by the connection if using OAuth2. Optional.',
     type: [String],
+    example: ['read_orders', 'write_customers'],
     required: false,
   })
   scopes?: string[];

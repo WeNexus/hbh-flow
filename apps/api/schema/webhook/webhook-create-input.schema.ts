@@ -12,57 +12,70 @@ import {
 
 export class WebhookCreateInputSchema {
   @ApiProperty({
-    description: 'The id of the workflow for which to generate a token',
+    description:
+      'The ID of the workflow for which the webhook token is being created.',
+    example: 42,
   })
   @IsPositive()
   workflowId: number;
 
   @ApiProperty({
-    description:
-      'The name of the token to be generated, used for identification',
+    description: 'A descriptive name for the webhook token.',
     required: true,
+    example: 'Shopify Order Created Webhook',
   })
   @IsNotEmpty()
   name: string;
 
   @ApiProperty({
-    description: 'A description of the token, used for explanation',
+    description:
+      'An optional description of the webhook token and its purpose.',
+    required: false,
+    example: 'Used to validate order creation events from Shopify.',
   })
   @IsOptional()
   description?: string | null;
 
   @ApiProperty({
-    description: 'The secret key used to do HMAC verification',
+    description: 'An optional secret key used for HMAC verification.',
     required: false,
+    example: 'my-secret-key',
   })
   @IsOptional()
   secret?: string | null;
 
   @ApiProperty({
-    description: 'The location of the hash in the webhook payload',
+    description:
+      'Specifies where to locate the HMAC hash in the webhook payload.',
     enum: WebhookHashLocation,
+    required: false,
+    example: WebhookHashLocation.HEADER,
   })
   @IsOptional()
   @IsEnum(WebhookHashLocation)
   hashLocation?: WebhookHashLocation | null;
 
   @ApiProperty({
-    description: 'The key used to extract the hash from the webhook payload',
+    description: 'The key name used to retrieve the hash from the payload.',
+    required: false,
     example: 'x-shopify-hmac-sha256',
   })
   @IsOptional()
   hashKey?: string | null;
 
   @ApiProperty({
-    description: 'The algorithm used for hashing the webhook payload',
+    description: 'The algorithm used to compute the HMAC hash.',
     enum: HashAlgorithm,
+    required: false,
+    example: HashAlgorithm.sha256,
   })
   @IsOptional()
   @IsEnum(HashAlgorithm)
   hashAlgorithm?: HashAlgorithm | null;
 
   @ApiProperty({
-    description: 'The expiration date for the token in ISO 8601 format',
+    description:
+      'The ISO 8601 formatted expiration date and time for the webhook.',
     format: 'date-time',
     example: '2023-10-01T00:00:00Z',
   })

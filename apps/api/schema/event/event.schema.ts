@@ -3,51 +3,62 @@ import { Event } from '@prisma/client';
 
 export class EventSchema implements Event {
   @ApiProperty({
-    description: 'Unique identifier for the event',
+    description: 'Unique identifier for the event.',
+    example: 101,
   })
   id: number;
 
   @ApiProperty({
-    description: 'ID of the workflow the event is associated with',
+    description: 'Identifier of the workflow associated with this event.',
+    example: 15,
   })
   workflowId: number;
 
   @ApiProperty({
-    description: 'Name of the event',
+    description: 'Descriptive name of the event.',
+    example: 'Order Created',
   })
   name: string;
 
   @ApiProperty({
-    description: 'Provider of the event, such as "shopify", "zoho", etc.',
+    description:
+      'Name of the event provider, such as "shopify", "zoho", etc. Optional.',
+    example: 'shopify',
     required: false,
   })
   provider: string | null;
 
   @ApiProperty({
-    description: 'Connection ID that the event is associated with',
+    description: 'ID of the connection this event is linked to. Optional.',
+    example: 'conn_abc123',
     required: false,
   })
   connection: string | null;
 
   @ApiProperty({
-    description: 'Indicates if the event is active',
+    description: 'Indicates whether the event is currently active.',
+    example: true,
   })
   active: boolean;
 
   @ApiProperty({
     description:
-      'Indicates if the event is dangling (removed from the workflow but not deleted)',
+      'Indicates whether the event is dangling—i.e., removed from the workflow but not deleted.',
+    example: false,
   })
   dangling: boolean;
 
   @ApiProperty({
-    description: 'Timestamp when the event was created',
+    description: 'The timestamp when the event was created.',
+    example: '2023-10-01T12:00:00Z',
     required: false,
   })
   createdAt: Date;
 
   @ApiProperty({
-    description: 'Timestamp when the event was last updated',
+    description:
+      'The timestamp when the event was last updated. Can be null if never updated.',
+    example: '2023-10-02T15:30:00Z',
     required: false,
   })
   updatedAt: Date | null;

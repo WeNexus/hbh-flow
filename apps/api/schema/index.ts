@@ -28,7 +28,6 @@ export * from './workflow/workflow.schema';
 export * from './auth/login-output.schema';
 export * from './auth/login-input.schema';
 export * from './webhook/webhook.schema';
-export * from './job/job-detail.schema';
 export * from './folder/folder.schema';
 export * from './hub/provider.schema';
 export * from './event/event.schema';

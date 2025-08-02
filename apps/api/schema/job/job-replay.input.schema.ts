@@ -3,7 +3,8 @@ import { IsOptional } from 'class-validator';
 
 export class JobReplayInputSchema {
   @ApiProperty({
-    description: 'Some context data to be used during the job replay',
+    description:
+      'Optional contextual data to be passed when replaying the job. This can be used to modify behavior or provide additional information.',
     required: false,
   })
   @IsOptional()

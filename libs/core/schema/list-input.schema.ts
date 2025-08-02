@@ -4,7 +4,7 @@ import { IsOptional } from 'class-validator';
 
 export class ListInputSchema extends PaginationSchema {
   @ApiProperty({
-    description: 'Search term to filter results',
+    description: 'Search term used to filter results based on relevant fields.',
     type: String,
     example: 'example',
     required: false,
@@ -13,8 +13,8 @@ export class ListInputSchema extends PaginationSchema {
   search?: string;
 
   @ApiProperty({
-    description: 'Sort field for the results',
-    type: String,
+    description:
+      'Field name to sort the results by (e.g., "createdAt", "name").',
     example: 'createdAt',
     required: false,
   })
@@ -22,8 +22,7 @@ export class ListInputSchema extends PaginationSchema {
   sortField?: string;
 
   @ApiProperty({
-    description: 'Sort order for the results',
-    type: String,
+    description: 'Sort order direction: ascending (asc) or descending (desc).',
     enum: ['asc', 'desc'],
     example: 'asc',
     required: false,
@@ -33,7 +32,7 @@ export class ListInputSchema extends PaginationSchema {
 
   @ApiProperty({
     description:
-      'Please take a look at the Prisma documentation for more information on how to use filters and sorting.',
+      'Advanced filter object to apply Prisma-style filters to the results.',
     example: {
       category: 'general',
       status: {
@@ -44,7 +43,7 @@ export class ListInputSchema extends PaginationSchema {
     additionalProperties: true,
     externalDocs: {
       description:
-        'Additional filter criteria can be specified like Prisma filters.',
+        'Refer to the Prisma documentation for full guidance on filter syntax and capabilities.',
       url: 'https://www.prisma.io/docs/concepts/components/prisma-client/filtering',
     },
   })

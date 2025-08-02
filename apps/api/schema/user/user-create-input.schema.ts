@@ -6,19 +6,39 @@ import { omit } from 'lodash-es';
 const Role = omit(BaseRole, 'SYSTEM');
 
 export class UserCreateInputSchema {
-  @ApiProperty({ enum: Role, required: true })
+  @ApiProperty({
+    description: 'Role assigned to the user. SYSTEM role is excluded.',
+    enum: Role,
+    required: true,
+    example: 'ADMIN',
+  })
   @IsEnum(Role)
   role: keyof typeof BaseRole;
 
-  @ApiProperty({ format: 'email', required: true })
+  @ApiProperty({
+    description: 'Email address of the user.',
+    format: 'email',
+    required: true,
+    example: 'jane.doe@honeybeeherb.com',
+  })
   @IsEmail()
   email: string;
 
-  @ApiProperty({ required: true })
+  @ApiProperty({
+    description: 'Full name of the user.',
+    required: true,
+    example: 'Jane Doe',
+  })
   @IsString()
   name: string;
 
-  @ApiProperty({ required: true, minLength: 8 })
+  @ApiProperty({
+    description:
+      'Password for the user account. Must be at least 8 characters long.',
+    required: true,
+    minLength: 8,
+    example: 'securePassword123',
+  })
   @IsString()
   @MinLength(8)
   password: string;

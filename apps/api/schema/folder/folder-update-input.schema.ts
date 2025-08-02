@@ -3,21 +3,28 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class FolderUpdateInputSchema {
   @ApiProperty({
-    description: 'Parent folder ID, if this folder is a subfolder',
+    description:
+      'The ID of the parent folder, if this folder is a subfolder. Optional.',
+    example: 42,
+    required: false,
   })
   @IsOptional()
   parentId?: number | null;
 
   @ApiProperty({
-    description: 'The name of the folder',
-    required: true,
+    description:
+      'The updated name of the folder. Optional, but must not be empty if provided.',
+    example: 'Updated Folder Name',
+    required: false,
   })
-  @IsNotEmpty()
   @IsOptional()
+  @IsNotEmpty()
   name?: string;
 
   @ApiProperty({
-    description: 'A description of the folder',
+    description: 'An optional updated description of the folder.',
+    example: 'Updated description for a workflow folder.',
+    required: false,
   })
   @IsOptional()
   description?: string | null;

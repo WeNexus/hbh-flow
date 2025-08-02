@@ -1,45 +1,45 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export abstract class ListOutputSchema<D = any> {
-  abstract data: D; // Array of items in the list
+  /**
+   * An array containing the items returned in the current page.
+   * This field must be implemented in subclasses with appropriate typing.
+   */
+  abstract data: D;
 
   @ApiProperty({
-    description: 'Total number of items in the list',
-    type: Number,
+    description: 'The total number of items that match the query/filter.',
     example: 100,
   })
   count: number;
 
   @ApiProperty({
-    description: 'Total number of pages available',
-    type: Number,
+    description:
+      'Total number of pages available based on item count and limit.',
     example: 10,
   })
   pages: number;
 
   @ApiProperty({
-    description: 'Current page number',
-    type: Number,
+    description: 'The current page number being returned.',
     example: 1,
   })
   page: number;
 
   @ApiProperty({
-    description: 'Number of items per page',
-    type: Number,
+    description: 'The number of items returned per page.',
     example: 10,
   })
   limit: number;
 
   @ApiProperty({
-    description: 'Indicates if there are more items available on the next page',
-    type: Boolean,
-    example: false,
+    description: 'Indicates whether there is a next page of results.',
+    example: true,
   })
   hasNext: boolean;
 
   @ApiProperty({
-    description: 'Indicates if there are items available on the previous page',
+    description: 'Indicates whether there is a previous page of results.',
     type: Boolean,
     example: false,
   })

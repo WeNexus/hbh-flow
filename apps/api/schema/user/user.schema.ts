@@ -3,30 +3,33 @@ import { Role } from '@prisma/client';
 
 export class UserSchema {
   @ApiProperty({
-    description: 'A Unique identifier for the user',
+    description: 'A unique numeric identifier for the user.',
+    example: 1,
   })
   id: number;
 
   @ApiProperty({
-    description: 'Role of the user in the system',
+    description: 'Role assigned to the user in the system.',
+    enum: Role,
+    example: Role.ADMIN,
   })
-  @ApiProperty({ enum: Role })
   role: Role;
 
   @ApiProperty({
-    description: 'User email address',
+    description: 'Email address of the user.',
+    format: 'email',
+    example: 'john.doe@honeybeeherb.com',
   })
-  @ApiProperty({ format: 'email' })
   email: string;
 
   @ApiProperty({
-    description: 'User name',
+    description: 'Full name of the user.',
     example: 'John Doe',
   })
   name: string;
 
   @ApiProperty({
-    description: 'Timestamp when the user was created',
+    description: 'The date and time when the user account was created.',
     format: 'date-time',
     example: '2023-10-01T12:00:00Z',
   })

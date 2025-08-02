@@ -4,14 +4,18 @@ import { ApiProperty } from '@nestjs/swagger';
 export class WorkflowUpdateInputSchema {
   @ApiProperty({
     description:
-      'Whether the workflow is active or not. If true, the workflow will be executed when triggered.',
+      'Specifies whether the workflow should be active. If set to true, the workflow will execute when triggered.',
     required: false,
+    example: true,
   })
   @IsOptional()
   active?: boolean;
 
   @ApiProperty({
-    description: 'The ID of the folder to which the workflow belongs.',
+    description:
+      'The ID of the folder that the workflow should be assigned to.',
+    required: false,
+    example: 5,
   })
   @IsOptional()
   @IsPositive()

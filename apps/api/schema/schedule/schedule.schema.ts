@@ -3,36 +3,41 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class ScheduleSchema extends ScheduleCreateInputSchema {
   @ApiProperty({
-    description: 'Unique identifier for the schedule',
+    description: 'A unique numeric identifier for the schedule.',
+    example: 101,
   })
   id: number;
 
   @ApiProperty({
-    description: 'Whether the schedule is active',
+    description: 'Indicates whether the schedule is currently active.',
+    example: true,
   })
   active: boolean;
 
   @ApiProperty({
     description:
-      'Whether the schedule is dangling (not linked to any workflow)',
+      'Indicates whether the schedule is dangling, meaning it is not linked to any workflow.',
+    example: false,
   })
   dangling: boolean;
 
   @ApiProperty({
-    description: 'Whether the schedule is user-defined',
+    description: 'Specifies whether the schedule was created by the user.',
     default: true,
+    example: true,
   })
   userDefined: boolean;
 
   @ApiProperty({
-    description: 'Created at timestamp',
+    description: 'The date and time when the schedule was created.',
     format: 'date-time',
     example: '2023-10-01T12:00:00Z',
   })
   createdAt: Date;
 
   @ApiProperty({
-    description: 'Updated at timestamp',
+    description:
+      'The date and time when the schedule was last updated. May be null if never updated.',
     format: 'date-time',
     example: '2023-10-01T12:00:00Z',
   })
