@@ -7,6 +7,7 @@ import { ListInputSchema } from '#lib/core/schema';
 import { JobStatus } from '@prisma/client';
 import { listData } from '#lib/core/misc';
 import type { Request } from 'express';
+import { omit } from 'lodash-es';
 
 import {
   JobReplayInputSchema,
@@ -159,7 +160,7 @@ export class JobController {
       resourceId: dbJob.id,
       subAction: 'REPLAY',
       userId: auth.user.id,
-      updated: dbJob,
+      updated: omit(dbJob, 'updatedAt'),
     });
 
     return dbJob;

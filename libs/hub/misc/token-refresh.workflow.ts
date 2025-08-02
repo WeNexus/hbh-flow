@@ -1,6 +1,6 @@
-import { HubService } from '../hub.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { WorkflowBase } from '#lib/workflow/misc';
+import { HubService } from '../hub.service';
 import { ModuleRef } from '@nestjs/core';
 
 interface Payload {

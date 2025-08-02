@@ -190,18 +190,22 @@ export class ScheduleController {
     try {
       const { result: schedule } = await this.prisma.schedule.findUniqueOrThrow(
         {
-          where: {
-            id,
-            userDefined: true, // Only user-defined schedules can be modified
-          },
+          where: { id },
         },
       );
+
+      if (!schedule.userDefined && input.cronExpression) {
+        throw new BadRequestException(
+          'Only user-defined schedules can be updated with a cron expression.',
+        );
+      }
 
       const { result: updated } = await this.prisma.schedule.update({
         where: { id },
         data: {
           ...input,
           oldCronExpression:
+            input.cronExpression &&
             input.cronExpression !== schedule.cronExpression
               ? schedule.cronExpression
               : undefined,

@@ -1,4 +1,8 @@
-import { GlobalEventService, PrismaService } from '#lib/core/services';
+import {
+  ActivityService,
+  GlobalEventService,
+  PrismaService,
+} from '#lib/core/services';
 import { WorkflowService } from '#lib/workflow/workflow.service';
 import { OAuth2Client as ArcticClient } from 'arctic';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -15,6 +19,7 @@ import {
   NoConnectionException,
   NotConnectedException,
 } from '../exceptions';
+import { omit } from 'lodash-es';
 
 type Options = SetRequired<
   OAuth2ClientOptions,
@@ -287,27 +292,51 @@ export abstract class OAuth2Client {
     }
 
     // update the connection with the new tokens
+    const prisma = this.moduleRef.get(PrismaService, { strict: false });
+    const activityService = this.moduleRef.get(ActivityService, {
+      strict: false,
+    });
+    const eventService = this.moduleRef.get(GlobalEventService, {
+      strict: false,
+    });
+
+    const { result: tokenOld } = await prisma.oAuth2Token.findFirst({
+      where: {
+        provider: id,
+        connection,
+      },
+    });
+
     token = (
-      await this.moduleRef
-        .get(PrismaService, { strict: false })
-        .oAuth2Token.update({
-          where: {
-            provider_connection: {
-              provider: id,
-              connection,
-            },
+      await prisma.oAuth2Token.update({
+        where: {
+          provider_connection: {
+            provider: id,
+            connection,
           },
-          data: {
-            access: tokens.accessToken(),
-            refresh: tokens.refreshToken(),
-            expiresAt: tokens.accessTokenExpiresAt(),
-          },
-        })
+        },
+        data: {
+          access: tokens.accessToken(),
+          refresh: tokens.refreshToken(),
+          expiresAt: tokens.accessTokenExpiresAt(),
+        },
+      })
     ).result;
 
-    this.moduleRef
-      .get(GlobalEventService, { strict: false })
-      .emit<OAuth2Token>('global.hub.refresh', token);
+    eventService.emit<OAuth2Token>('global.hub.refresh', token);
+
+    await activityService.recordActivity({
+      userId: 1, // System user ID
+      action: 'UPDATE',
+      resource: 'OAUTH2_TOKEN',
+      resourceId: {
+        provider: id,
+        connection,
+      },
+      subAction: 'REFRESH_TOKEN',
+      data: omit(tokenOld, 'updatedAt'),
+      updated: omit(token, 'updatedAt'),
+    });
 
     return token;
   }

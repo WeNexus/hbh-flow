@@ -1,5 +1,5 @@
-import { TokenClientConnection, OAuth2Connection } from '#lib/hub/types';
 import { ApiOperation, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
+import { TokenClientConnection, OAuth2Connection } from '#lib/hub/types';
 import { ActivityService, PrismaService } from '#lib/core/services';
 import { Auth, Protected } from '#lib/auth/decorators';
 import type { AuthContext } from '#lib/auth/types';
@@ -22,7 +22,6 @@ import {
 import {
   NotFoundException,
   Controller,
-  HttpCode,
   Param,
   Query,
   Post,

@@ -14,7 +14,7 @@ import { REDIS_PUB } from '#lib/core/redis';
 import { EnvService } from '#lib/core/env';
 import { APP_TYPE } from '#lib/core/misc';
 import { AppType } from '#lib/core/types';
-import { merge } from 'lodash-es';
+import { merge, omit } from 'lodash-es';
 import { Redis } from 'ioredis';
 
 import {
@@ -1052,13 +1052,22 @@ export class WorkflowService implements OnApplicationBootstrap {
     const config = await this.getConfig(flow);
     const key = config?.key ?? flow.name;
 
-    return (
-      await this.prisma.workflow.upsert({
-        where: { key },
-        create: { key, folderId: config?.internal ? 1 : null },
-        update: { key },
-      })
-    ).result;
+    const { result } = await this.prisma.workflow.upsert({
+      where: { key },
+      create: { key, folderId: config?.internal ? 1 : null },
+      update: { key },
+    });
+
+    await this.activityService.recordActivity({
+      userId: 1, // System user ID
+      action: 'OTHER',
+      resource: 'WORKFLOW',
+      resourceId: result.id,
+      subAction: 'UPSERT',
+      updated: omit(result, 'updatedAt'),
+    });
+
+    return result;
   }
 
   /**
@@ -1092,24 +1101,33 @@ export class WorkflowService implements OnApplicationBootstrap {
       return dbEvent.result;
     }
 
-    return (
-      await this.prisma.event.upsert({
-        where: {
-          id: 0,
-        },
-        update: {
-          workflowId: dbFlow.id,
-          name,
-          provider,
-          connection,
-        },
-        create: {
-          workflowId: dbFlow.id,
-          name,
-          provider,
-          connection,
-        },
-      })
-    ).result;
+    const { result } = await this.prisma.event.upsert({
+      where: {
+        id: 0,
+      },
+      update: {
+        workflowId: dbFlow.id,
+        name,
+        provider,
+        connection,
+      },
+      create: {
+        workflowId: dbFlow.id,
+        name,
+        provider,
+        connection,
+      },
+    });
+
+    await this.activityService.recordActivity({
+      userId: 1, // System user ID
+      action: 'OTHER',
+      resource: 'EVENT',
+      resourceId: result.id,
+      subAction: 'UPSERT',
+      updated: omit(result, 'updatedAt'),
+    });
+
+    return result;
   }
 }
