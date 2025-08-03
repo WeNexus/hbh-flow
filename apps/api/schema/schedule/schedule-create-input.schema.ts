@@ -1,4 +1,4 @@
-import { IsPositive, IsNotEmpty } from 'class-validator';
+import { IsPositive, IsNotEmpty, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ScheduleCreateInputSchema {
@@ -16,6 +16,7 @@ export class ScheduleCreateInputSchema {
     example: '0 0 * * *',
     required: true,
   })
+  @IsString()
   @IsNotEmpty()
   cronExpression: string;
 }

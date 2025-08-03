@@ -6,9 +6,10 @@ import {
   IsPositive,
   IsNotEmpty,
   IsOptional,
+  IsBoolean,
+  IsString,
   IsEnum,
   IsDate,
-  IsBoolean,
 } from 'class-validator';
 
 export class WebhookCreateInputSchema {
@@ -26,6 +27,7 @@ export class WebhookCreateInputSchema {
     example: 'Shopify Order Created Webhook',
   })
   @IsNotEmpty()
+  @IsString()
   name: string;
 
   @ApiProperty({
@@ -35,6 +37,7 @@ export class WebhookCreateInputSchema {
     example: 'Used to validate order creation events from Shopify.',
   })
   @IsOptional()
+  @IsString()
   description?: string | null;
 
   @ApiProperty({
@@ -43,6 +46,8 @@ export class WebhookCreateInputSchema {
     example: 'my-secret-key',
   })
   @IsOptional()
+  @IsString()
+  @IsNotEmpty()
   secret?: string | null;
 
   @ApiProperty({
@@ -62,6 +67,8 @@ export class WebhookCreateInputSchema {
     example: 'x-shopify-hmac-sha256',
   })
   @IsOptional()
+  @IsString()
+  @IsNotEmpty()
   hashKey?: string | null;
 
   @ApiProperty({

@@ -1,6 +1,13 @@
 import { HashAlgorithm, WebhookHashLocation } from '@prisma/client';
-import { IsOptional, IsEnum, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsBoolean,
+  IsString,
+  IsEnum,
+} from 'class-validator';
 
 export class WebhookUpdateInputSchema {
   @ApiProperty({
@@ -9,6 +16,8 @@ export class WebhookUpdateInputSchema {
     example: 'Shopify Order Updated Webhook',
   })
   @IsOptional()
+  @IsString()
+  @IsNotEmpty()
   name?: string;
 
   @ApiProperty({
@@ -17,6 +26,7 @@ export class WebhookUpdateInputSchema {
     example: 'Handles order update events from Shopify.',
   })
   @IsOptional()
+  @IsString()
   description?: string;
 
   @ApiProperty({
@@ -25,6 +35,8 @@ export class WebhookUpdateInputSchema {
     example: 'new-secret-key-456',
   })
   @IsOptional()
+  @IsString()
+  @IsNotEmpty()
   secret?: string;
 
   @ApiProperty({
@@ -45,6 +57,8 @@ export class WebhookUpdateInputSchema {
     example: 'x-shopify-hmac-sha256',
   })
   @IsOptional()
+  @IsString()
+  @IsNotEmpty()
   hashKey?: string;
 
   @ApiProperty({

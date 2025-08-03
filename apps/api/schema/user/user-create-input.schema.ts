@@ -1,7 +1,14 @@
-import { IsEmail, IsEnum, IsString, MinLength } from 'class-validator';
 import { Role as BaseRole } from '@prisma/client';
 import { ApiProperty } from '@nestjs/swagger';
 import { omit } from 'lodash-es';
+
+import {
+  IsNotEmpty,
+  MinLength,
+  IsString,
+  IsEmail,
+  IsEnum,
+} from 'class-validator';
 
 const Role = omit(BaseRole, 'SYSTEM');
 
@@ -30,6 +37,7 @@ export class UserCreateInputSchema {
     example: 'Jane Doe',
   })
   @IsString()
+  @IsNotEmpty()
   name: string;
 
   @ApiProperty({

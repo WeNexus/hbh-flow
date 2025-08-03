@@ -1,4 +1,4 @@
-import { IsOptional, IsPositive } from 'class-validator';
+import { IsBoolean, IsOptional, IsPositive } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class WorkflowUpdateInputSchema {
@@ -9,6 +9,7 @@ export class WorkflowUpdateInputSchema {
     example: true,
   })
   @IsOptional()
+  @IsBoolean()
   active?: boolean;
 
   @ApiProperty({

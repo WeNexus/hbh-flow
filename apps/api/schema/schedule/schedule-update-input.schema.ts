@@ -1,5 +1,5 @@
+import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional } from 'class-validator';
 
 export class ScheduleUpdateInputSchema {
   @ApiProperty({
@@ -9,6 +9,7 @@ export class ScheduleUpdateInputSchema {
     required: false,
   })
   @IsOptional()
+  @IsString()
   @IsNotEmpty()
   cronExpression?: string;
 
@@ -18,5 +19,6 @@ export class ScheduleUpdateInputSchema {
     required: false,
   })
   @IsOptional()
+  @IsBoolean()
   active?: boolean;
 }

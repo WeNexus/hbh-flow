@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsPositive, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class FolderUpdateInputSchema {
@@ -9,6 +9,7 @@ export class FolderUpdateInputSchema {
     required: false,
   })
   @IsOptional()
+  @IsPositive()
   parentId?: number | null;
 
   @ApiProperty({
@@ -18,6 +19,7 @@ export class FolderUpdateInputSchema {
     required: false,
   })
   @IsOptional()
+  @IsString()
   @IsNotEmpty()
   name?: string;
 
@@ -27,5 +29,7 @@ export class FolderUpdateInputSchema {
     required: false,
   })
   @IsOptional()
+  @IsString()
+  @IsNotEmpty()
   description?: string | null;
 }

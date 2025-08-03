@@ -145,7 +145,9 @@ export class JobController {
 
     const { dbJob } = await this.workflowService.run(flow, {
       parentId: job.id,
-      context: input.context,
+      context: input.context
+        ? (JSON.parse(input.context) as Record<string, any>)
+        : undefined,
       payload: job.payload,
       maxRetries: 1,
       trigger: 'MANUAL',

@@ -1,5 +1,5 @@
+import { IsJSON, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional } from 'class-validator';
 
 export class JobReplayInputSchema {
   @ApiProperty({
@@ -8,5 +8,8 @@ export class JobReplayInputSchema {
     required: false,
   })
   @IsOptional()
-  context?: Record<string, any>;
+  @IsString()
+  @IsNotEmpty()
+  @IsJSON()
+  context?: string;
 }

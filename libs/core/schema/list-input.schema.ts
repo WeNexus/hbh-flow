@@ -1,5 +1,5 @@
+import { IsEnum, IsJSON, IsOptional, IsString } from 'class-validator';
 import { PaginationSchema } from './pagination.schema';
-import { IsJSON, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ListInputSchema extends PaginationSchema {
@@ -10,6 +10,7 @@ export class ListInputSchema extends PaginationSchema {
     required: false,
   })
   @IsOptional()
+  @IsString()
   search?: string;
 
   @ApiProperty({
@@ -19,6 +20,7 @@ export class ListInputSchema extends PaginationSchema {
     required: false,
   })
   @IsOptional()
+  @IsString()
   sortField?: string;
 
   @ApiProperty({
@@ -28,6 +30,7 @@ export class ListInputSchema extends PaginationSchema {
     required: false,
   })
   @IsOptional()
+  @IsEnum(['asc', 'desc'])
   sortOrder?: 'asc' | 'desc';
 
   @ApiProperty({
