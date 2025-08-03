@@ -1,4 +1,4 @@
-import { PrismaExtensionRedis } from '#lib/prisma-cache';
+import { PrismaExtensionRedis } from '#lib/core/misc/prisma-cache';
 import { PrismaClient } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { RedisOptions } from 'ioredis';

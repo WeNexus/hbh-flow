@@ -1,9 +1,9 @@
 import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
+import { PrismaExtensionRedis } from '#lib/core/misc/prisma-cache';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { REDIS_SUB, RedisModule } from '#lib/core/redis';
-import { PrismaExtensionRedis } from '#lib/prisma-cache';
 import { EnvService } from '#lib/core/env/env.service';
 import { RUNTIME_ID, APP_TYPE } from '#lib/core/misc';
 import { ZohoModule } from '#lib/zoho/zoho.module';
