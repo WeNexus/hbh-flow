@@ -119,6 +119,12 @@ export class WorkflowController {
         id: workflow.id,
       },
       data: input,
+      uncache: {
+        uncacheKeys: [
+          `workflow:id:${workflow.id}`,
+          `workflow:key:${workflow.key}`,
+        ],
+      },
     });
 
     if (updated.active !== workflow.active) {

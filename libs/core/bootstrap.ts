@@ -1,8 +1,8 @@
 import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { RedisConfigService, RedisModule } from '#lib/core/redis';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { REDIS_SUB, RedisModule } from '#lib/core/redis';
 import { PrismaExtensionRedis } from '#lib/prisma-cache';
 import { EnvService } from '#lib/core/env/env.service';
 import { RUNTIME_ID, APP_TYPE } from '#lib/core/misc';
@@ -27,6 +27,7 @@ import {
   Module,
   Global,
 } from '@nestjs/common';
+import { Redis } from 'ioredis';
 
 /**
  * Bootstraps the NestJS application with the provided metadata.
@@ -107,14 +108,18 @@ export async function bootstrap(
       EnvService,
       {
         provide: PrismaService,
-        inject: [EnvService, RedisConfigService],
-        useFactory(envService: EnvService, redisConfig: RedisConfigService) {
+        inject: [EnvService, REDIS_SUB],
+        async useFactory(envService: EnvService, redis: Redis) {
+          const redisClone = redis.duplicate({
+            db: envService.getNumber('PRISMA_REDIS_DB', 2),
+            maxRetriesPerRequest: null,
+          });
+
+          await redisClone.connect();
+
           return new PrismaClient().$extends(
             PrismaExtensionRedis({
-              client: {
-                ...redisConfig.get(),
-                db: envService.getNumber('PRISMA_REDIS_DB', 2),
-              },
+              redis: redisClone,
               config: {
                 auto: false,
                 type: 'JSON',

@@ -121,6 +121,11 @@ export class EventController {
         data: {
           active: input.active,
         },
+        uncache: {
+          uncacheKeys: [
+            `event:${event.workflowId}:${event.provider ?? ''}:${event.connection ?? ''}:${event.name}`,
+          ],
+        },
       });
 
       // Record the update activity for auditing purposes

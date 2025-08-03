@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsEnum,
   IsDate,
+  IsBoolean,
 } from 'class-validator';
 
 export class WebhookCreateInputSchema {
@@ -82,4 +83,15 @@ export class WebhookCreateInputSchema {
   @Type(() => Date)
   @IsDate()
   expiresAt: Date;
+
+  @ApiProperty({
+    description:
+      'Specifies whether the webhook is currently active. Set to true to enable, or false to disable the webhook.',
+    default: true,
+    required: false,
+    example: true,
+  })
+  @IsBoolean()
+  @IsOptional()
+  active?: boolean;
 }

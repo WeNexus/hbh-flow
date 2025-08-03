@@ -2,6 +2,11 @@ import { DeduplicationOptions } from 'bullmq';
 import { Trigger } from '@prisma/client';
 
 export interface RunOptions<P = any> {
+  /**
+   * The ID of the user that initiated the workflow run.
+   * If not provided, the run will be associated with the system user.
+   */
+  userId?: number;
   // Sentry
   sentry?: {
     trace?: string;

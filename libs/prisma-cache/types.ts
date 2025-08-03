@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client/extension';
-import type { Redis, RedisOptions } from 'ioredis';
 import type { CacheCase } from './cache-key';
+import type { Redis } from 'ioredis';
 
 import type {
   ModelQueryOptionsCbArgs,
@@ -322,7 +322,7 @@ export interface PrismaExtensionRedisOptions {
   /**
    * Redis client config (ioredis)
    */
-  client: RedisOptions;
+  redis: Redis;
 }
 
 export type DeletePatterns = {

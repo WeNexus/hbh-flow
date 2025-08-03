@@ -1,6 +1,5 @@
 import { getAutoKeyGen, getKeyGen, getKeyPatternGen } from './cache-key';
 import { Prisma } from '@prisma/client/extension';
-import Redis from 'ioredis';
 
 import {
   isCustomUncacheEnabled,
@@ -17,12 +16,10 @@ export const PrismaExtensionRedis = (options: PrismaExtensionRedisOptions) => {
   const {
     config,
     config: { auto, cacheKey },
-    client: redisOptions,
+    redis,
   } = options;
 
   const { delimiter, case: cacheCase, prefix } = cacheKey ?? {};
-
-  const redis = new Redis(redisOptions);
 
   const getKey = getKeyGen(delimiter, cacheCase, prefix);
   const getAutoKey = getAutoKeyGen(getKey);

@@ -61,6 +61,9 @@ export class SetupEventsWorkflow extends WorkflowBase {
               provider: trigger.provider,
               connection: trigger.connection,
             },
+            cache: {
+              key: `event:${dbWorkflow.id}:${trigger.provider ?? ''}:${trigger.connection ?? ''}:${event}`,
+            },
           });
 
           const { result: updated } = await this.prisma.event.upsert({
@@ -76,6 +79,11 @@ export class SetupEventsWorkflow extends WorkflowBase {
             update: {
               provider: trigger.provider,
               connection: trigger.connection,
+            },
+            uncache: {
+              uncacheKeys: [
+                `event:${dbWorkflow.id}:${trigger.provider ?? ''}:${trigger.connection ?? ''}:${event}`,
+              ],
             },
           });
           eventIds.push(updated.id);

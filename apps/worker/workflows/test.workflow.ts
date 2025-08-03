@@ -5,7 +5,11 @@ import { Step } from '#lib/workflow/decorators';
 import { ModuleRef } from '@nestjs/core';
 
 @Workflow({
-  triggers: [event('Order.Created', 'HBH'), cron('0 0 * * *')],
+  triggers: [
+    event('Order.Created', 'HBH'),
+    // every 5 seconds
+    cron('*/5 * * * * *', { oldPattern: '0 0 * * *' }),
+  ],
   webhook: true,
   concurrency: 1,
 })

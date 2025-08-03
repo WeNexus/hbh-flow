@@ -246,6 +246,15 @@ export class WorkflowService implements OnApplicationBootstrap {
             );
           }
 
+          await this.activityService.recordActivity({
+            userId: 1, // System user ID
+            action: 'UPDATE',
+            resource: 'JOB',
+            resourceId: dbJob.id,
+            subAction: 'EXECUTE',
+            updated: omit(dbJob, 'updatedAt'),
+          });
+
           instance.bullJob = job;
           instance.dbJob = dbJob;
           instance.queue = queue;
@@ -282,22 +291,12 @@ export class WorkflowService implements OnApplicationBootstrap {
           id: 'SetupEventsWorkflow',
           ttl: this.env.isProd ? 30000 : undefined, // 30 seconds
         },
-      })
-        .then(({ dbJob }) =>
-          this.activityService.recordActivity({
-            userId: 1,
-            action: 'CREATE',
-            resource: 'JOB',
-            resourceId: dbJob.id,
-            subAction: 'RUN_WORKFLOW',
-          }),
-        )
-        .catch((err) => {
-          this.logger.error(
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-            `Failed to run setup events workflow: ${err.message}`,
-          );
-        });
+      }).catch((err) => {
+        this.logger.error(
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          `Failed to run setup events workflow: ${err.message}`,
+        );
+      });
 
       this.setupCronSchedules();
     }
@@ -570,6 +569,15 @@ export class WorkflowService implements OnApplicationBootstrap {
       if (jobStatus !== 'RUNNING') {
         // Job status is already set to RUNNING at the beginning of the method. so we only update it if it has changed
         await this.updateDBJob(instance, { status: jobStatus });
+
+        await this.activityService.recordActivity({
+          userId: 1, // System user ID
+          action: 'UPDATE',
+          resource: 'JOB',
+          resourceId: dbJob.id,
+          subAction: jobStatus === 'SUCCEEDED' ? 'FINISH' : jobStatus,
+          updated: omit(dbJob, 'updatedAt'),
+        });
       }
 
       dbStep = (
@@ -620,22 +628,12 @@ export class WorkflowService implements OnApplicationBootstrap {
         ttl: this.env.isProd ? 30000 : undefined, // 30 seconds
       },
       scheduledAt: this.env.isProd ? new Date(Date.now() + 5000) : undefined, // 5 seconds from now
-    })
-      .then(({ dbJob }) =>
-        this.activityService.recordActivity({
-          userId: 1,
-          action: 'CREATE',
-          resource: 'JOB',
-          resourceId: dbJob.id,
-          subAction: 'RUN_WORKFLOW',
-        }),
-      )
-      .catch((err) => {
-        this.logger.error(
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          `Failed to run setup cron workflow: ${err.message}`,
-        );
-      });
+    }).catch((err) => {
+      this.logger.error(
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        `Failed to run setup cron workflow: ${err.message}`,
+      );
+    });
   }
 
   /**
@@ -732,6 +730,15 @@ export class WorkflowService implements OnApplicationBootstrap {
           },
         })
       ).result;
+
+      await this.activityService.recordActivity({
+        userId: options?.userId ?? 1, // Fallback to the system user
+        action: 'CREATE',
+        resource: 'JOB',
+        resourceId: dbJob.id,
+        subAction: 'RUN',
+        updated: omit(dbJob, 'updatedAt'),
+      });
     }
 
     if (options?.draft) {
@@ -828,6 +835,25 @@ export class WorkflowService implements OnApplicationBootstrap {
           },
         })
       ).result;
+    }
+
+    await this.activityService.recordActivity({
+      userId: 1, // System user ID
+      action: 'OTHER',
+      resource: 'SCHEDULE',
+      resourceId: schedule.id,
+      subAction: 'UPSERT',
+      updated: omit(schedule, 'updatedAt'),
+    });
+
+    if (!schedule.active) {
+      // The schedule is not active, so we remove it from the queue if it exists
+      await queue.removeJobScheduler(`#${schedule.id}`);
+
+      return {
+        bullJob: null,
+        schedule,
+      };
     }
 
     const bullJob = await queue.upsertJobScheduler(
@@ -1035,7 +1061,9 @@ export class WorkflowService implements OnApplicationBootstrap {
       const dbFlow = (
         await this.prisma.workflow.findUnique({
           where: { id: identifier },
-          // cache: true,
+          cache: {
+            key: `workflow:id:${identifier}`,
+          },
         })
       ).result;
 
@@ -1052,22 +1080,37 @@ export class WorkflowService implements OnApplicationBootstrap {
     const config = await this.getConfig(flow);
     const key = config?.key ?? flow.name;
 
-    const { result } = await this.prisma.workflow.upsert({
-      where: { key },
-      create: { key, folderId: config?.internal ? 1 : null },
-      update: { key },
-    });
+    try {
+      const { result: dbFlow } = await this.prisma.workflow.findUniqueOrThrow({
+        where: { key },
+        cache: {
+          key: `workflow:key:${key}`,
+        },
+      });
 
-    await this.activityService.recordActivity({
-      userId: 1, // System user ID
-      action: 'OTHER',
-      resource: 'WORKFLOW',
-      resourceId: result.id,
-      subAction: 'UPSERT',
-      updated: omit(result, 'updatedAt'),
-    });
+      return dbFlow;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (e) {
+      const { result: dbFlow } = await this.prisma.workflow.upsert({
+        where: { key },
+        create: { key, folderId: config?.internal ? 1 : null },
+        update: { key },
+        uncache: {
+          uncacheKeys: [`workflow:key:${key}`],
+        },
+      });
 
-    return result;
+      await this.activityService.recordActivity({
+        userId: 1, // System user ID
+        action: 'OTHER',
+        resource: 'WORKFLOW',
+        resourceId: dbFlow.id,
+        subAction: 'UPSERT',
+        updated: omit(dbFlow, 'updatedAt'),
+      });
+
+      return dbFlow;
+    }
   }
 
   /**
@@ -1095,6 +1138,9 @@ export class WorkflowService implements OnApplicationBootstrap {
         provider,
         name,
       },
+      cache: {
+        key: `event:${dbFlow.id}:${provider ?? ''}:${connection ?? ''}:${name}`,
+      },
     });
 
     if (dbEvent.result) {
@@ -1116,6 +1162,11 @@ export class WorkflowService implements OnApplicationBootstrap {
         name,
         provider,
         connection,
+      },
+      uncache: {
+        uncacheKeys: [
+          `event:${dbFlow.id}:${provider ?? ''}:${connection ?? ''}:${name}`,
+        ],
       },
     });
 

@@ -103,6 +103,9 @@ export class WebhookController {
         omit: {
           secret: !auth.isPowerUser,
         },
+        cache: {
+          key: `webhook:${id}`,
+        },
       });
 
       return webhook;
@@ -159,6 +162,7 @@ export class WebhookController {
         hashAlgorithm: input.hashAlgorithm,
         hashKey: input.hashKey,
         expiresAt: input.expiresAt,
+        active: input.active ?? true, // Default to active if not specified,
       },
     });
 
@@ -231,6 +235,10 @@ export class WebhookController {
           hashLocation: input.hashLocation,
           hashAlgorithm: input.hashAlgorithm,
           hashKey: input.hashKey,
+          active: input.active,
+        },
+        uncache: {
+          uncacheKeys: [`webhook:${id}`],
         },
       });
 
@@ -244,7 +252,7 @@ export class WebhookController {
         updated: omit(updated, 'updatedAt'),
       });
 
-      return webhook;
+      return updated;
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       throw new NotFoundException('Webhook not found.');
@@ -274,6 +282,9 @@ export class WebhookController {
     try {
       const { result: webhook } = await this.prisma.webhook.delete({
         where: { id },
+        uncache: {
+          uncacheKeys: [`webhook:${id}`],
+        },
       });
 
       await this.activityService.recordActivity({
@@ -336,6 +347,9 @@ export class WebhookController {
 
       const { result: webhook } = await this.prisma.webhook.findUnique({
         where: { id: jwt.wid },
+        cache: {
+          key: `webhook:${jwt.wid}`,
+        },
       });
 
       if (!webhook) {
@@ -365,7 +379,7 @@ export class WebhookController {
           hash = req.query[hashKey] as string;
         }
 
-        if (!hash || false) {
+        if (!hash) {
           throw new BadRequestException(
             `Missing hash in ${hashLocation.toLowerCase()} (${hashKey}).`,
           );

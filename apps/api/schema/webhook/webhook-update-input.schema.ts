@@ -1,5 +1,5 @@
 import { HashAlgorithm, WebhookHashLocation } from '@prisma/client';
-import { IsOptional, IsEnum } from 'class-validator';
+import { IsOptional, IsEnum, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class WebhookUpdateInputSchema {
@@ -56,4 +56,13 @@ export class WebhookUpdateInputSchema {
   @IsOptional()
   @IsEnum(HashAlgorithm)
   hashAlgorithm?: HashAlgorithm;
+
+  @ApiProperty({
+    description: 'Indicates whether the webhook is enabled or disabled.',
+    required: false,
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
 }
