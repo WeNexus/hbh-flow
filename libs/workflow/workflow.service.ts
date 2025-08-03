@@ -14,6 +14,7 @@ import { REDIS_PUB } from '#lib/core/redis';
 import { EnvService } from '#lib/core/env';
 import { APP_TYPE } from '#lib/core/misc';
 import { AppType } from '#lib/core/types';
+import * as Sentry from '@sentry/nestjs';
 import { merge, omit } from 'lodash-es';
 import { Redis } from 'ioredis';
 
@@ -260,6 +261,16 @@ export class WorkflowService implements OnApplicationBootstrap {
           instance.queue = queue;
           instance.worker = flow.worker;
 
+          if (dbJob.sentryTrace && dbJob.sentryBaggage) {
+            return Sentry.continueTrace(
+              {
+                sentryTrace: dbJob.sentryTrace,
+                baggage: dbJob.sentryBaggage,
+              },
+              () => this.execute(instance, config?.maxRetries ?? 3, token),
+            );
+          }
+
           return this.execute(instance, config?.maxRetries ?? 3, token);
         },
         {
@@ -445,173 +456,198 @@ export class WorkflowService implements OnApplicationBootstrap {
     const flow = await this.resolveClass(instance, true);
     const { bullJob, dbJob } = instance;
 
-    const steps = flow.steps;
-    const totalSteps = steps.length;
-    // Get the step to execute
-    const currentStep =
-      steps.find((s) => s.index === bullJob.data.stepIndex) ?? steps[0];
-
-    for (let i = 0; i < totalSteps; i++) {
-      const stepInfo = steps[i];
-
-      if (stepInfo.index < currentStep.index) {
-        // Skip steps that have already been executed
-        continue;
-      }
-
-      const isLastStep = i === steps.length - 1;
-      const isFirstStep = i === 0;
-
-      // Create or update the job step in the database
-      // This will create a new job step if it doesn't exist, or update the existing one
-      // to set the status to RUNNING and increment the attempts
-      let { result: dbStep } = await this.prisma.jobStep.upsert({
-        where: {
-          jobId_name: {
-            jobId: dbJob.id,
-            name: stepInfo.method,
-          },
-        },
-        create: {
-          jobId: dbJob.id,
-          name: stepInfo.method,
-          status: 'RUNNING',
-        },
-        update: {
-          status: 'RUNNING',
-          runs: {
-            increment: 1,
-          },
-        },
-        omit: {
-          result: true,
-        },
-      });
-
-      if (isFirstStep && dbStep.runs === 1) {
-        // This is the first step and the first attempt
-        this.emitter.emit('workflow.started', {
-          instance,
-          dbJob,
-          bullJob,
-          stepInfo,
-          dbStep,
+    return Sentry.startSpan(
+      {
+        name: flow.name,
+        op: 'workflow.execute',
+      },
+      async (span) => {
+        Sentry.setContext('Workflow', {
+          id: dbJob.id,
+          bullId: bullJob.id,
         });
-      }
 
-      this.emitter.emit('workflow.step.started', {
-        instance,
-        dbJob,
-        bullJob,
-        stepInfo,
-        dbStep,
-      });
+        const steps = flow.steps;
+        const totalSteps = steps.length;
+        // Get the step to execute
+        const currentStep =
+          steps.find((s) => s.index === bullJob.data.stepIndex) ?? steps[0];
 
-      let result: unknown;
-      let error: unknown;
+        for (let i = 0; i < totalSteps; i++) {
+          const stepInfo = steps[i];
 
-      try {
-        result = await (instance[stepInfo.method] as () => Promise<unknown>)();
-      } catch (e: unknown) {
-        if (e instanceof Error) {
-          this.logger.error(e.message, e.stack);
-          error = {
-            name: e.name,
-            message: e.message,
-            cause: e.cause,
-            stack: e.stack,
-          };
-        } else {
-          this.logger.error(
-            `Unknown error in step ${stepInfo.method}: ${e as any}`,
-          );
-          error = e;
-        }
-      }
+          if (stepInfo.index < currentStep.index) {
+            // Skip steps that have already been executed
+            continue;
+          }
 
-      // @ts-expect-error private properties
-      const { needsRerun, paused, delayed, cancelled } = instance;
-
-      const maxRetriesReached = dbStep.retries <= maxRetries;
-      const canRetry = error && !maxRetriesReached;
-      const shouldRerun = needsRerun || canRetry;
-
-      const nextStep = shouldRerun ? steps[i] : steps[i + 1];
-
-      if (nextStep !== currentStep) {
-        await bullJob.updateData({
-          ...bullJob.data,
-          stepIndex: nextStep?.index,
-        });
-      }
-
-      const jobStatus: JobStatus =
-        error && !canRetry
-          ? 'FAILED'
-          : paused
-            ? 'PAUSED'
-            : needsRerun
-              ? 'WAITING_RERUN'
-              : delayed > 0
-                ? 'DELAYED'
-                : isLastStep
-                  ? 'SUCCEEDED'
-                  : cancelled
-                    ? 'CANCELLED'
-                    : 'RUNNING';
-
-      const stepStatus: JobStepStatus = shouldRerun
-        ? 'WAITING_RERUN'
-        : error
-          ? 'FAILED'
-          : 'SUCCEEDED';
-
-      if (jobStatus !== 'RUNNING') {
-        // Job status is already set to RUNNING at the beginning of the method. so we only update it if it has changed
-        await this.updateDBJob(instance, { status: jobStatus });
-
-        await this.activityService.recordActivity({
-          userId: 1, // System user ID
-          action: 'UPDATE',
-          resource: 'JOB',
-          resourceId: dbJob.id,
-          subAction: jobStatus === 'SUCCEEDED' ? 'FINISH' : jobStatus,
-          updated: omit(dbJob, 'updatedAt'),
-        });
-      }
-
-      dbStep = (
-        await this.prisma.jobStep.update({
-          where: {
-            jobId_name: {
-              jobId: dbJob.id,
+          await Sentry.startSpan(
+            {
               name: stepInfo.method,
+              forceTransaction: true,
+              op: 'workflow.step',
+              parentSpan: span,
             },
-          },
-          data: {
-            status: stepStatus,
-            result: (error ?? result) as InputJsonValue,
-          },
-          omit: {
-            result: true,
-          },
-        })
-      ).result;
+            async () => {
+              const isLastStep = i === steps.length - 1;
+              const isFirstStep = i === 0;
 
-      this.emitter.emit('workflow.step.finished', {
-        instance,
-        dbJob,
-        bullJob,
-        stepInfo,
-        dbStep,
-      });
+              // Create or update the job step in the database
+              // This will create a new job step if it doesn't exist, or update the existing one
+              // to set the status to RUNNING and increment the attempts
+              let { result: dbStep } = await this.prisma.jobStep.upsert({
+                where: {
+                  jobId_name: {
+                    jobId: dbJob.id,
+                    name: stepInfo.method,
+                  },
+                },
+                create: {
+                  jobId: dbJob.id,
+                  name: stepInfo.method,
+                  status: 'RUNNING',
+                },
+                update: {
+                  status: 'RUNNING',
+                  runs: {
+                    increment: 1,
+                  },
+                },
+                omit: {
+                  result: true,
+                },
+              });
 
-      if (delayed > 0 && nextStep) {
-        // Last step can't be delayed unless it's a rerun, that's why we check for nextStep, which is undefined for the last step
-        await bullJob.moveToDelayed(Date.now() + delayed, token);
-        throw new DelayedError();
-      }
-    }
+              if (isFirstStep && dbStep.runs === 1) {
+                // This is the first step and the first attempt
+                this.emitter.emit('workflow.started', {
+                  instance,
+                  dbJob,
+                  bullJob,
+                  stepInfo,
+                  dbStep,
+                });
+              }
+
+              this.emitter.emit('workflow.step.started', {
+                instance,
+                dbJob,
+                bullJob,
+                stepInfo,
+                dbStep,
+              });
+
+              let result: unknown;
+              let error: unknown;
+
+              try {
+                result = await (
+                  instance[stepInfo.method] as () => Promise<unknown>
+                )();
+              } catch (e: unknown) {
+                if (e instanceof Error) {
+                  this.logger.error(e.message, e.stack);
+                  error = {
+                    name: e.name,
+                    message: e.message,
+                    cause: e.cause,
+                    stack: e.stack,
+                  };
+                } else {
+                  this.logger.error(
+                    `Unknown error in step ${stepInfo.method}: ${e as any}`,
+                  );
+                  error = e;
+                }
+              }
+
+              // @ts-expect-error private properties
+              const { needsRerun, paused, delayed, cancelled } = instance;
+
+              const maxRetriesReached = dbStep.retries <= maxRetries;
+              const canRetry = error && !maxRetriesReached;
+              const shouldRerun = needsRerun || canRetry;
+
+              const nextStep = shouldRerun ? steps[i] : steps[i + 1];
+
+              if (nextStep !== currentStep) {
+                await bullJob.updateData({
+                  ...bullJob.data,
+                  stepIndex: nextStep?.index,
+                });
+              }
+
+              const jobStatus: JobStatus =
+                error && !canRetry
+                  ? 'FAILED'
+                  : paused
+                    ? 'PAUSED'
+                    : needsRerun
+                      ? 'WAITING_RERUN'
+                      : delayed > 0
+                        ? 'DELAYED'
+                        : isLastStep
+                          ? 'SUCCEEDED'
+                          : cancelled
+                            ? 'CANCELLED'
+                            : 'RUNNING';
+
+              const stepStatus: JobStepStatus = shouldRerun
+                ? 'WAITING_RERUN'
+                : error
+                  ? 'FAILED'
+                  : 'SUCCEEDED';
+
+              if (jobStatus !== 'RUNNING') {
+                // Job status is already set to RUNNING at the beginning of the method. so we only update it if it has changed
+                await this.updateDBJob(instance, { status: jobStatus });
+
+                await this.activityService.recordActivity({
+                  userId: 1, // System user ID
+                  action: 'UPDATE',
+                  resource: 'JOB',
+                  resourceId: dbJob.id,
+                  subAction: jobStatus === 'SUCCEEDED' ? 'FINISH' : jobStatus,
+                  updated: omit(dbJob, 'updatedAt'),
+                });
+              }
+
+              dbStep = (
+                await this.prisma.jobStep.update({
+                  where: {
+                    jobId_name: {
+                      jobId: dbJob.id,
+                      name: stepInfo.method,
+                    },
+                  },
+                  data: {
+                    status: stepStatus,
+                    result: (error ?? result) as InputJsonValue,
+                  },
+                  omit: {
+                    result: true,
+                  },
+                })
+              ).result;
+
+              this.emitter.emit('workflow.step.finished', {
+                instance,
+                dbJob,
+                bullJob,
+                stepInfo,
+                dbStep,
+              });
+
+              if (delayed > 0 && nextStep) {
+                // Last step can't be delayed unless it's a rerun, that's why we check for nextStep, which is undefined for the last step
+                await bullJob.moveToDelayed(Date.now() + delayed, token);
+                throw new DelayedError();
+              }
+            },
+          );
+        }
+      },
+    );
   }
 
   // ---------------------- Public methods ----------------------

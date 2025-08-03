@@ -1,25 +1,28 @@
-import {
-  ActivityService,
-  GlobalEventService,
-  PrismaService,
-} from '#lib/core/services';
 import { WorkflowService } from '#lib/workflow/workflow.service';
 import { OAuth2Client as ArcticClient } from 'arctic';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { GlobalEventPayload } from '#lib/core/types';
 import { Jsonify, SetRequired } from 'type-fest';
 import { TokenRefreshWorkflow } from '../misc';
 import { OAuth2ClientOptions } from '../types';
 import { OAuth2Token } from '@prisma/client';
 import { EnvService } from '#lib/core/env';
+import * as Sentry from '@sentry/nestjs';
 import { ModuleRef } from '@nestjs/core';
 import * as arctic from 'arctic';
+import { omit } from 'lodash-es';
+
+import {
+  GlobalEventService,
+  ActivityService,
+  PrismaService,
+} from '#lib/core/services';
 
 import {
   TokenRefreshFailedException,
   NoConnectionException,
   NotConnectedException,
 } from '../exceptions';
-import { omit } from 'lodash-es';
 
 type Options = SetRequired<
   OAuth2ClientOptions,
@@ -211,9 +214,11 @@ export abstract class OAuth2Client {
       return token;
     }
 
+    const traceData = Sentry.getTraceData();
+
     return new Promise<OAuth2Token>((resolve, reject) => {
-      const listener = (data: Jsonify<OAuth2Token>) => {
-        const token = this.deSerializeToken(data);
+      const listener = (payload: GlobalEventPayload<OAuth2Token>) => {
+        const token = this.deSerializeToken(payload.data);
 
         this.tokens.set(connection, token);
         resolve(token);
@@ -241,6 +246,10 @@ export abstract class OAuth2Client {
           payload: {
             provider: this.clientOptions.id,
             connection,
+          },
+          sentry: {
+            trace: traceData['sentry-trace'],
+            baggage: traceData.baggage,
           },
         })
         .catch(failedListener);

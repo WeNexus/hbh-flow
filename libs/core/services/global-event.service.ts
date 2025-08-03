@@ -1,8 +1,9 @@
 import { REDIS_PUB, REDIS_SUB } from '#lib/core/redis/redis.symbol';
+import { EmitOptions, GlobalEventPayload } from '#lib/core/types';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { GlobalEventPayload } from '#lib/core/types';
 import { RUNTIME_ID } from '#lib/core/misc/symbols';
+import * as Sentry from '@sentry/nestjs';
 import { Redis } from 'ioredis';
 
 /**
@@ -60,7 +61,7 @@ export class GlobalEventService {
     // Emit the event with the global prefix if it doesn't already have it
     this.emitter.emit(
       !data.event.startsWith('global.') ? `global.${data.event}` : data.event,
-      data.data,
+      data,
     );
   }
 
@@ -68,20 +69,29 @@ export class GlobalEventService {
    * Emit a global event to all instances of the application.
    * @param event The name of the event to emit.
    * @param data The data to send with the event.
-   * @param broadcast Whether to broadcast the event to all instances (default: false).
+   * @param options Optional options for the event emission.
    * If true, the sending instance will not receive the event.
    */
   emit<D extends object = object>(
     event: string,
     data: D,
-    broadcast?: boolean,
+    options?: EmitOptions,
   ): void {
     const payload: GlobalEventPayload = {
       runtimeId: this.runtimeId,
       event,
       data,
-      broadcast,
+      broadcast: options?.broadcast,
+      sentryTrace: options?.sentry?.trace,
+      sentryBaggage: options?.sentry?.baggage,
     };
+
+    const traceData = Sentry.getTraceData();
+
+    if (traceData) {
+      payload.sentryTrace = traceData['sentry-trace'];
+      payload.sentryBaggage = traceData.baggage;
+    }
 
     this.redisPub
       .publish('global-events', JSON.stringify(payload))

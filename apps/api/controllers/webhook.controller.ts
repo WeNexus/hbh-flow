@@ -6,6 +6,7 @@ import { JsonWebTokenError, JwtService } from '@nestjs/jwt';
 import { Auth, Protected } from '#lib/auth/decorators';
 import { ListInputSchema } from '#lib/core/schema';
 import type { AuthContext } from '#lib/auth/types';
+import * as Sentry from '@sentry/nestjs';
 import { omit } from 'lodash-es';
 import express from 'express';
 import crypto from 'crypto';
@@ -402,12 +403,17 @@ export class WebhookController {
         }
       }
 
+      const trace = Sentry.getTraceData();
+
       this.workflowService.run(flow, {
         draft: !webhook.active,
         trigger: 'WEBHOOK',
         triggerId: webhook.id.toString(),
         payload: req.body as unknown,
-        // TODO: Add Sentry context
+        sentry: {
+          trace: trace['sentry-trace'],
+          baggage: trace.baggage,
+        },
       });
     } catch (e: any) {
       if (e instanceof JsonWebTokenError) {

@@ -1,5 +1,6 @@
 import { AppType } from '#lib/core/types/app-type';
 import * as Sentry from '@sentry/nestjs';
+import { DelayedError } from 'bullmq';
 import process from 'node:process';
 
 /**
@@ -17,5 +18,12 @@ export function initSentry(appType: AppType) {
     // Setting this option to true will send default PII data to Sentry.
     // For example, automatic IP address collection on events
     sendDefaultPii: true,
+    beforeSend(event, hint) {
+      if (hint.originalException instanceof DelayedError) {
+        return null;
+      }
+
+      return event;
+    },
   });
 }
