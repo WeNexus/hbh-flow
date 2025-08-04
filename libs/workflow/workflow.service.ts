@@ -465,6 +465,7 @@ export class WorkflowService implements OnApplicationBootstrap {
         Sentry.setContext('Workflow', {
           id: dbJob.id,
           bullId: bullJob.id,
+          isRetry: bullJob.data.isRetry ?? false,
         });
 
         const steps = flow.steps;
@@ -512,6 +513,9 @@ export class WorkflowService implements OnApplicationBootstrap {
                   runs: {
                     increment: 1,
                   },
+                  retries: {
+                    increment: bullJob.data.isRetry ? 1 : 0,
+                  },
                 },
                 omit: {
                   result: true,
@@ -547,7 +551,8 @@ export class WorkflowService implements OnApplicationBootstrap {
               } catch (e: unknown) {
                 if (e instanceof Error) {
                   this.logger.error(e.message, e.stack);
-                  error = {
+                  error = e;
+                  result = {
                     name: e.name,
                     message: e.message,
                     cause: e.cause,
@@ -564,25 +569,31 @@ export class WorkflowService implements OnApplicationBootstrap {
               // @ts-expect-error private properties
               const { needsRerun, paused, delayed, cancelled } = instance;
 
-              const maxRetriesReached = dbStep.retries <= maxRetries;
+              const maxRetriesReached = dbStep.retries >= maxRetries;
               const canRetry = error && !maxRetriesReached;
               const shouldRerun = needsRerun || canRetry;
 
               const nextStep = shouldRerun ? steps[i] : steps[i + 1];
 
-              if (nextStep !== currentStep) {
+              if (!shouldRerun && !isLastStep) {
                 await bullJob.updateData({
                   ...bullJob.data,
                   stepIndex: nextStep?.index,
+                  isRetry: false,
+                });
+              } else if (canRetry && !bullJob.data.isRetry) {
+                await bullJob.updateData({
+                  ...bullJob.data,
+                  isRetry: true,
                 });
               }
 
               const jobStatus: JobStatus =
-                error && !canRetry
+                error && !canRetry // There is an error, and we can't retry, so the job is failed
                   ? 'FAILED'
                   : paused
                     ? 'PAUSED'
-                    : needsRerun
+                    : shouldRerun
                       ? 'WAITING_RERUN'
                       : delayed > 0
                         ? 'DELAYED'
@@ -622,7 +633,7 @@ export class WorkflowService implements OnApplicationBootstrap {
                   },
                   data: {
                     status: stepStatus,
-                    result: (error ?? result) as InputJsonValue,
+                    result: result as InputJsonValue,
                   },
                   omit: {
                     result: true,
@@ -638,7 +649,9 @@ export class WorkflowService implements OnApplicationBootstrap {
                 dbStep,
               });
 
-              if (delayed > 0 && nextStep) {
+              if (error instanceof Error) {
+                throw error;
+              } else if (delayed > 0 && nextStep) {
                 // Last step can't be delayed unless it's a rerun, that's why we check for nextStep, which is undefined for the last step
                 await bullJob.moveToDelayed(Date.now() + delayed, token);
                 throw new DelayedError();
@@ -721,6 +734,7 @@ export class WorkflowService implements OnApplicationBootstrap {
   }> {
     const dbFlow = await this.getDBFlow(identifier);
     const flow = await this.resolveClass(identifier, true);
+    const config = await this.getConfig(flow, true);
     const queue = flow.queue;
 
     if (!queue) {
@@ -796,7 +810,7 @@ export class WorkflowService implements OnApplicationBootstrap {
         delay: options?.scheduledAt
           ? options.scheduledAt.getTime() - Date.now()
           : 0,
-        attempts: options?.maxRetries,
+        attempts: (options?.maxRetries ?? config.maxRetries ?? 0) + 1, // +1 because the first attempt is not counted as a retry
         jobId: id,
         deduplication: options?.deduplication,
       },

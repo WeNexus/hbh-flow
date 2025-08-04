@@ -3,4 +3,5 @@ export interface JobPayload {
   scheduleId?: number;
   stepIndex?: number;
   context?: any;
+  isRetry?: boolean;
 }
