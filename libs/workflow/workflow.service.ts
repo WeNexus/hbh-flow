@@ -15,7 +15,7 @@ import { EnvService } from '#lib/core/env';
 import { APP_TYPE } from '#lib/core/misc';
 import { AppType } from '#lib/core/types';
 import * as Sentry from '@sentry/nestjs';
-import { merge, omit } from 'lodash-es';
+import { isEmpty, merge, omit } from 'lodash-es';
 import { Redis } from 'ioredis';
 
 import {
@@ -690,16 +690,43 @@ export class WorkflowService implements OnApplicationBootstrap {
    * Can be a workflow name or an instance of WorkflowBase or a class extending it.
    *
    * @param jobId - The ID of the job to resume.
+   * @param data - Optional data to pass to the step when resuming.
    */
-  async resume(jobId: number) {
+  async resume(jobId: number, data?: InputJsonValue) {
     try {
       const { bullJob, queue, job } = await this.getJob(jobId);
+
+      if (job.status !== 'PAUSED') {
+        throw new Error(`Job with ID ${jobId} is not paused.`);
+      }
+
+      if (
+        ['number', 'bigint', 'boolean'].includes(typeof data) ||
+        !isEmpty(data)
+      ) {
+        const { result: step } = await this.prisma.jobStep.findFirst({
+          where: { jobId },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        // If the step exists, update its resume data
+
+        if (step) {
+          await this.prisma.jobStep.update({
+            where: {
+              jobId_name: {
+                jobId,
+                name: step.name,
+              },
+            },
+            data: { resume: data },
+          });
+        }
+      }
 
       if (await bullJob.isDelayed()) {
         await bullJob.changeDelay(0);
       }
-
-      await bullJob.promote();
 
       const dbFlow = await this.getDBFlow(job.workflowId);
 
@@ -953,7 +980,7 @@ export class WorkflowService implements OnApplicationBootstrap {
     }
 
     const queue = await this.getQueue(job.workflowId);
-    const bullJob = await queue.getJob(`#${job.bullId}`);
+    const bullJob = job.bullId ? await queue.getJob(job.bullId) : null;
 
     if (!bullJob) {
       throw new Error(`Bull job with ID #${job.bullId} not found`);

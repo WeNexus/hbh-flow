@@ -172,6 +172,7 @@ CREATE TABLE "public"."JobStep"
     "name"      TEXT                     NOT NULL,
     "status"    "public"."JobStepStatus" NOT NULL DEFAULT 'RUNNING',
     "result"    JSONB,
+    "resume"    JSONB,
     "retries"   INTEGER                  NOT NULL DEFAULT 0,
     "runs"      INTEGER                  NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMPTZ              NOT NULL DEFAULT CURRENT_TIMESTAMP,

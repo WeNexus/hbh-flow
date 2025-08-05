@@ -23,7 +23,8 @@ import {
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  private readonly rolesSorted: Role[] = [
+  private readonly rolesSorted: (Role | 'ANONYMOUS')[] = [
+    'ANONYMOUS',
     'OBSERVER',
     'DATA_ENTRY',
     'DEVELOPER',
@@ -39,10 +40,15 @@ export class AuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext) {
     const req = context.switchToHttp().getRequest<Request>();
-    const role = this.reflector.get<Role>(
+    const role = this.reflector.get<Role | 'ANONYMOUS'>(
       'HBH_USER_ROLE',
       context.getHandler(),
     );
+
+    if (role === 'ANONYMOUS' && req.cookies?.access_token !== 'string') {
+      // If the route is accessible to anonymous users, we don't need to check the token
+      return true;
+    }
 
     if (typeof req.cookies?.access_token !== 'string') {
       // Access token is missing
@@ -114,7 +120,7 @@ export class AuthGuard implements CanActivate {
 
   private hasPermission(
     userRole: Role,
-    requiredRole: Role | undefined,
+    requiredRole: Role | 'ANONYMOUS' | undefined,
   ): boolean {
     if (!requiredRole) {
       return true; // No specific role required, allow access

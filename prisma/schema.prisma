@@ -243,6 +243,7 @@ model JobStep {
 
   status  JobStepStatus @default(RUNNING)
   result  Json?
+  resume  Json?
   retries Int           @default(0) // Number of retries for this step
   runs    Int           @default(1) // Number of runs for this step, both retries and reruns combined
 

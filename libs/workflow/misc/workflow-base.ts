@@ -2,6 +2,7 @@ import { StepInfoSchema } from '#lib/workflow/schema';
 import { PrismaService } from '#lib/core/services';
 import { JobPayload } from '#lib/workflow/types';
 import { Job as DBJob } from '@prisma/client';
+import { JwtService } from '@nestjs/jwt';
 import { ModuleRef } from '@nestjs/core';
 
 import {
@@ -18,7 +19,7 @@ import {
  * This class provides methods to control the workflow execution, such as pausing, delaying, rerunning, and cancelling the workflow.
  */
 
-export abstract class WorkflowBase<P = any> {
+export abstract class WorkflowBase<P = any, C = any> {
   protected constructor(private readonly moduleRef: ModuleRef) {}
 
   // We're keeping queue, worker, bullJob and dbJob private to prevent direct access from outside the class.
@@ -80,7 +81,7 @@ export abstract class WorkflowBase<P = any> {
    *  The context of the workflow, which can be used to store and retrieve data during the workflow execution.
    *  Avoid using this for large data, as it is stored in Redis and can affect performance.
    */
-  get context(): any {
+  get context(): C {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return this.bullJob.data.context;
   }
@@ -90,10 +91,9 @@ export abstract class WorkflowBase<P = any> {
    *
    * @param value - The value to set as the context.
    */
-  setContext(value: any): Promise<void> {
+  setContext(value: C): Promise<void> {
     return this.bullJob.updateData({
       dbJobId: this.bullJob.data.dbJobId,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       context: value,
     });
   }
@@ -105,8 +105,9 @@ export abstract class WorkflowBase<P = any> {
    * Note: This method does not actually pause the execution in BullMQ, it adds very long delay so the workflow is basically paused.
    *
    * @param block If true, no other jobs will be processed until the workflow is resumed.
+   * @returns A JWT token that can be used to resume the workflow later.
    */
-  async pause(block?: boolean): Promise<void> {
+  async pause(block?: boolean): Promise<string> {
     if (this.delayed > 0) {
       throw new Error("Can't pause a workflow that is already delayed.");
     }
@@ -119,12 +120,26 @@ export abstract class WorkflowBase<P = any> {
       throw new Error("Can't pause a workflow, after a rerun was scheduled.");
     }
 
+    const jwtService = this.moduleRef.get(JwtService, { strict: false });
+
     if (block) {
       await this.queue.pause();
     }
 
     this.delayed = 1000 * 60 * 60 * 24 * 365 * 10; // 10 years
     this.paused = true;
+
+    return jwtService.signAsync(
+      {
+        jid: this.dbJob.id,
+      },
+      {
+        expiresIn: '7d',
+        subject: 'job-resume',
+        issuer: 'job',
+        audience: 'job',
+      },
+    );
   }
 
   /**
@@ -204,7 +219,7 @@ export abstract class WorkflowBase<P = any> {
    * @param step The name of the step whose result is to be retrieved.
    * @returns A promise that resolves to the result of the step.
    */
-  async getResult<T = any>(step: string): Promise<T> {
+  async getResult<T = any>(step: string): Promise<T | null> {
     const { result: row } = await this.moduleRef
       .get(PrismaService, { strict: false })
       .jobStep.findFirst({
@@ -217,6 +232,6 @@ export abstract class WorkflowBase<P = any> {
         },
       });
 
-    return row?.result as T;
+    return (row?.result as T) ?? null;
   }
 }

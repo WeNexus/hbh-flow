@@ -1,7 +1,8 @@
+import { ApiOperation, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { listData, PrismaWhereExceptionFilter } from '#lib/core/misc';
-import { ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { ActivityService, PrismaService } from '#lib/core/services';
 import { WorkflowService } from '#lib/workflow/workflow.service';
+import { JsonWebTokenError, JwtService } from '@nestjs/jwt';
 import { Auth, Protected } from '#lib/auth/decorators';
 import type { AuthContext } from '#lib/auth/types';
 import { ListInputSchema } from '#lib/core/schema';
@@ -26,6 +27,7 @@ import {
   Get,
   Body,
   Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 
 @Controller('api/jobs')
@@ -33,6 +35,7 @@ export class JobController {
   constructor(
     private readonly workflowService: WorkflowService,
     private readonly activityService: ActivityService,
+    private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -168,5 +171,101 @@ export class JobController {
     });
 
     return dbJob;
+  }
+
+  @Post('/:id/resume')
+  @Protected('ANONYMOUS')
+  @ApiOperation({
+    summary: 'Resume a paused job by ID',
+    description: 'Resumes a job that is currently paused.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'The ID of the job to resume.',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'token',
+    description: 'Optional token to resume the job.',
+    required: false,
+    type: String,
+  })
+  @ApiResponse({
+    status: 204,
+    description: 'Job resumed successfully.',
+  })
+  async resume(
+    @Param('id') id: number,
+    @Req() req: Request,
+    @Auth() auth?: AuthContext,
+    @Query('token') token?: string,
+  ): Promise<void> {
+    if (!auth && !token) {
+      throw new UnauthorizedException(
+        'You must be authenticated or provide a token to resume a job.',
+      );
+    }
+
+    if (token) {
+      // Token provided, verify it
+      try {
+        const jwtPayload = await this.jwtService.verifyAsync<{ jid: number }>(
+          token,
+          {
+            issuer: 'job',
+            audience: 'job',
+            subject: 'job-resume',
+          },
+        );
+
+        if (jwtPayload.jid !== id) {
+          throw new UnauthorizedException(
+            `Token does not match job ID "${id}".`,
+          );
+        }
+      } catch (e: unknown) {
+        if (e instanceof JsonWebTokenError) {
+          throw new UnauthorizedException(
+            `Invalid token provided for job ID "${id}": ${e.message}`,
+          );
+        }
+
+        throw e;
+      }
+    }
+
+    const { result: job } = await this.prisma.job.findUnique({
+      where: { id },
+    });
+
+    if (!job) {
+      throw new NotFoundException(`Job with ID "${id}" was not found.`);
+    }
+
+    if (job.status !== 'PAUSED') {
+      throw new BadRequestException(
+        `Job with ID "${id}" is not paused and cannot be resumed.`,
+      );
+    }
+
+    const flow = await this.workflowService.resolveClass(job.workflowId);
+
+    if (!flow) {
+      throw new NotFoundException(
+        `Workflow with ID "${job.workflowId}" was not found.`,
+      );
+    }
+
+    await this.workflowService.resume(job.id, req.body);
+
+    // Log the job replay activity
+    await this.activityService.recordActivity({
+      req,
+      userId: 1, // System user ID
+      action: 'OTHER',
+      resource: 'JOB',
+      resourceId: job.id,
+      subAction: 'RESUME',
+    });
   }
 }
