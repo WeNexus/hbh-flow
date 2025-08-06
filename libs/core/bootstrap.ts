@@ -124,7 +124,7 @@ export async function bootstrap(
                 auto: false,
                 type: 'JSON',
                 ttl: 60 * 60 * 6, // 6 hours
-                stale: 60 * 60, // 1 hour
+                stale: 0,
               },
             }),
           );
