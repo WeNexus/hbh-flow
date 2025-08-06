@@ -1,5 +1,13 @@
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsBoolean,
+  IsString,
+  IsInt,
+  Min,
+} from 'class-validator';
 
 export class ScheduleUpdateInputSchema {
   @ApiProperty({
@@ -21,4 +29,14 @@ export class ScheduleUpdateInputSchema {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @ApiProperty({
+    description: 'How many next runs to skip. Default is 0.',
+    example: 1,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  skipNextRun?: number;
 }

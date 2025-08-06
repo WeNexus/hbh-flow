@@ -204,6 +204,7 @@ model Schedule {
   active            Boolean @default(true)
   dangling          Boolean @default(false)
   userDefined       Boolean @default(false) // Indicates if the schedule was created by the user
+  skipNextRun       Int     @default(0) // Number of times to skip the next run
 
   createdAt DateTime  @default(now()) @db.Timestamptz()
   updatedAt DateTime? @updatedAt @db.Timestamptz()
@@ -223,6 +224,7 @@ model Job {
   triggerId   String? // Identifier for the trigger (e.g., webhook ID, event, schedule ID)
   scheduledAt DateTime? @db.Timestamptz()
   payload     Json?
+  options     Json?
 
   sentryTrace   String?
   sentryBaggage String?

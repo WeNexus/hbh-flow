@@ -138,6 +138,7 @@ CREATE TABLE "public"."Schedule"
     "active"            BOOLEAN     NOT NULL DEFAULT true,
     "dangling"          BOOLEAN     NOT NULL DEFAULT false,
     "userDefined"       BOOLEAN     NOT NULL DEFAULT false,
+    "skipNextRun"       INTEGER     NOT NULL DEFAULT 0,
     "createdAt"         TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt"         TIMESTAMPTZ,
 
@@ -157,6 +158,7 @@ CREATE TABLE "public"."Job"
     "triggerId"     TEXT,
     "scheduledAt"   TIMESTAMPTZ,
     "payload"       JSONB,
+    "options"       JSONB,
     "sentryTrace"   TEXT,
     "sentryBaggage" TEXT,
     "createdAt"     TIMESTAMPTZ          NOT NULL DEFAULT CURRENT_TIMESTAMP,

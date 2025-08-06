@@ -12,11 +12,14 @@ import { WorkflowNotFoundException } from './exceptions';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { REDIS_PUB } from '#lib/core/redis';
 import { EnvService } from '#lib/core/env';
+import { isEmpty, merge } from 'lodash-es';
 import { APP_TYPE } from '#lib/core/misc';
 import { AppType } from '#lib/core/types';
+import { JwtService } from '@nestjs/jwt';
 import * as Sentry from '@sentry/nestjs';
-import { isEmpty, merge, omit } from 'lodash-es';
+import { Jsonify } from 'type-fest';
 import { Redis } from 'ioredis';
+import express from 'express';
 
 import {
   ContextIdFactory,
@@ -47,6 +50,7 @@ export class WorkflowService implements OnApplicationBootstrap {
     @Inject(APP_TYPE) private readonly appType: AppType,
     private readonly activityService: ActivityService,
     @Inject(REDIS_PUB) private readonly redis: Redis,
+    private readonly jwtService: JwtService,
     private readonly emitter: EventEmitter2,
     private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
@@ -224,6 +228,32 @@ export class WorkflowService implements OnApplicationBootstrap {
                 where: { id: job.data.scheduleId },
               });
 
+            if (schedule.skipNextRun > 0) {
+              await this.prisma.schedule.update({
+                where: { id: schedule.id },
+                data: {
+                  skipNextRun: {
+                    decrement: 1, // Decrement the skipNextRun counter
+                  },
+                },
+              });
+
+              await this.activityService.recordActivity({
+                userId: 1, // System user ID
+                action: 'UPDATE',
+                resource: 'SCHEDULE',
+                resourceId: schedule.id,
+                subAction: 'SKIP_NEXT_RUN',
+                updated: schedule,
+              });
+
+              // If the schedule is set to skip the next run, we skip the job execution
+              this.logger.warn(
+                `Skipping job ${job.id} for schedule ${schedule.id} due to skipNextRun > 0`,
+              );
+              return;
+            }
+
             dbJob = (
               await this.prisma.job.upsert({
                 where: {
@@ -253,7 +283,7 @@ export class WorkflowService implements OnApplicationBootstrap {
             resource: 'JOB',
             resourceId: dbJob.id,
             subAction: 'EXECUTE',
-            updated: omit(dbJob, 'updatedAt'),
+            updated: dbJob,
           });
 
           instance.bullJob = job;
@@ -482,6 +512,17 @@ export class WorkflowService implements OnApplicationBootstrap {
             continue;
           }
 
+          await this.activityService.recordActivity({
+            userId: 1, // System user ID
+            action: 'OTHER',
+            resource: 'JOB',
+            resourceId: dbJob.id,
+            subAction: 'STEP',
+            details: {
+              step: stepInfo.method,
+            },
+          });
+
           await Sentry.startSpan(
             {
               name: stepInfo.method,
@@ -519,6 +560,7 @@ export class WorkflowService implements OnApplicationBootstrap {
                 },
                 omit: {
                   result: true,
+                  resume: true,
                 },
               });
 
@@ -618,8 +660,8 @@ export class WorkflowService implements OnApplicationBootstrap {
                   action: 'UPDATE',
                   resource: 'JOB',
                   resourceId: dbJob.id,
-                  subAction: jobStatus === 'SUCCEEDED' ? 'FINISH' : jobStatus,
-                  updated: omit(dbJob, 'updatedAt'),
+                  subAction: jobStatus,
+                  updated: dbJob,
                 });
               }
 
@@ -637,6 +679,7 @@ export class WorkflowService implements OnApplicationBootstrap {
                   },
                   omit: {
                     result: true,
+                    resume: true,
                   },
                 })
               ).result;
@@ -687,12 +730,18 @@ export class WorkflowService implements OnApplicationBootstrap {
 
   /**
    * Resumes a paused job in the workflow.
-   * Can be a workflow name or an instance of WorkflowBase or a class extending it.
    *
    * @param jobId - The ID of the job to resume.
    * @param data - Optional data to pass to the step when resuming.
+   * @param userId - The ID of the user requesting the resume, defaults to 1 (system user).
+   * @param req - The express request object, if available.
    */
-  async resume(jobId: number, data?: InputJsonValue) {
+  async resume(
+    jobId: number,
+    data?: InputJsonValue,
+    userId = 1,
+    req?: express.Request,
+  ) {
     try {
       const { bullJob, queue, job } = await this.getJob(jobId);
 
@@ -707,6 +756,9 @@ export class WorkflowService implements OnApplicationBootstrap {
         const { result: step } = await this.prisma.jobStep.findFirst({
           where: { jobId },
           orderBy: { createdAt: 'desc' },
+          select: {
+            name: true, // Get the name of the last step
+          },
         });
 
         // If the step exists, update its resume data
@@ -720,6 +772,9 @@ export class WorkflowService implements OnApplicationBootstrap {
               },
             },
             data: { resume: data },
+            select: {
+              name: true,
+            },
           });
         }
       }
@@ -730,18 +785,125 @@ export class WorkflowService implements OnApplicationBootstrap {
 
       const dbFlow = await this.getDBFlow(job.workflowId);
 
-      if (!dbFlow.active) {
-        return;
-      }
-
-      if (await queue.isPaused()) {
+      if (dbFlow.active && (await queue.isPaused())) {
         await queue.resume();
       }
+
+      await this.activityService.recordActivity({
+        req,
+        userId,
+        action: 'OTHER',
+        resource: 'JOB',
+        resourceId: job.id,
+        subAction: 'RESUME',
+      });
+
+      return {
+        bullJob,
+        job,
+      };
     } catch (e: unknown) {
       if (e instanceof Error) {
         this.logger.error(e.message, e.stack);
       }
     }
+  }
+
+  /**
+   * Cancels a paused or delayed job in the workflow.
+   *
+   * @param jobId - The ID of the job to cancel.
+   * @param userId - The ID of the user requesting the cancellation, defaults to 1 (system user).
+   * @param req - The express request object, if available.
+   */
+  async cancel(jobId: number, userId = 1, req?: express.Request) {
+    const { bullJob, queue, job } = await this.getJob(jobId);
+
+    if (
+      job.status !== 'PAUSED' &&
+      job.status !== 'DELAYED' &&
+      job.status !== 'WAITING_RERUN'
+    ) {
+      throw new Error(`Job with ID ${jobId} is not paused or delayed.`);
+    }
+
+    // Remove the job from the queue
+    await bullJob.remove();
+
+    // Update the job status in the database
+    const updated = await this.prisma.job.update({
+      where: { id: jobId },
+      data: {
+        status: 'CANCELLED',
+        bullId: null, // Clear the Bull ID since the job is canceled
+      },
+      omit: {
+        payload: true,
+        sentryBaggage: true,
+        sentryTrace: true,
+      },
+    });
+
+    await this.activityService.recordActivity({
+      userId,
+      req,
+      action: 'UPDATE',
+      resource: 'JOB',
+      resourceId: jobId,
+      subAction: 'CANCEL',
+      data: job,
+      updated,
+    });
+
+    const dbFlow = await this.getDBFlow(job.workflowId);
+
+    if (dbFlow.active && (await queue.isPaused())) {
+      await queue.resume();
+    }
+
+    return {
+      bullJob,
+      job: updated,
+    };
+  }
+
+  /**
+   * Executes a draft job by its ID.
+   * @param jobId - The ID of the job to execute.
+   */
+  async executeDraft(jobId: number) {
+    const { job } = await this.getJob(jobId);
+
+    if (job.status !== 'DRAFT') {
+      throw new Error(`Job with ID ${jobId} is not a draft.`);
+    }
+
+    const flow = await this.resolveClass(job.workflowId, true);
+    const config = await this.getConfig(flow, true);
+    const options = job.options as Jsonify<RunOptions>;
+
+    const id = `#${job.id}`;
+
+    const bullJob = await flow.queue.add(
+      flow.name,
+      {
+        dbJobId: job.id,
+        context: options?.context as unknown,
+      },
+      {
+        delay: options?.scheduledAt
+          ? new Date(options.scheduledAt).getTime() - Date.now()
+          : 0,
+        attempts: (options?.maxRetries ?? config.maxRetries ?? 0) + 1, // +1 because the first attempt is not counted as a retry
+        jobId: id,
+        deduplication: options?.deduplication,
+      },
+    );
+
+    return {
+      bullJob,
+      job,
+    };
   }
 
   /**
@@ -757,7 +919,7 @@ export class WorkflowService implements OnApplicationBootstrap {
     options?: RunOptions,
   ): Promise<{
     bullJob: BullJob | null;
-    dbJob: DBJob;
+    job: Omit<DBJob, 'payload' | 'sentryBaggage' | 'sentryTrace'>;
   }> {
     const dbFlow = await this.getDBFlow(identifier);
     const flow = await this.resolveClass(identifier, true);
@@ -768,7 +930,8 @@ export class WorkflowService implements OnApplicationBootstrap {
       throw new Error(`Queue not found for workflow: ${flow.name}`);
     }
 
-    let dbJob: DBJob | null = null;
+    let dbJob: Omit<DBJob, 'payload' | 'sentryBaggage' | 'sentryTrace'> | null =
+      null;
 
     if (options?.deduplication?.id) {
       dbJob = (
@@ -801,9 +964,15 @@ export class WorkflowService implements OnApplicationBootstrap {
             trigger: options?.trigger ?? 'MANUAL',
             triggerId: options?.triggerId ?? null,
             payload: options?.payload as InputJsonValue,
+            options: options?.draft ? undefined : (options as InputJsonValue),
             sentryBaggage: options?.sentry?.baggage,
             sentryTrace: options?.sentry?.trace,
             dedupeId: options?.deduplication?.id,
+          },
+          omit: {
+            payload: true,
+            sentryBaggage: true,
+            sentryTrace: true,
           },
         })
       ).result;
@@ -814,14 +983,14 @@ export class WorkflowService implements OnApplicationBootstrap {
         resource: 'JOB',
         resourceId: dbJob.id,
         subAction: 'RUN',
-        updated: omit(dbJob, 'updatedAt'),
+        updated: dbJob,
       });
     }
 
     if (options?.draft) {
       return {
         bullJob: null,
-        dbJob,
+        job: dbJob,
       };
     }
 
@@ -845,7 +1014,7 @@ export class WorkflowService implements OnApplicationBootstrap {
 
     return {
       bullJob,
-      dbJob,
+      job: dbJob,
     };
   }
 
@@ -920,7 +1089,7 @@ export class WorkflowService implements OnApplicationBootstrap {
       resource: 'SCHEDULE',
       resourceId: schedule.id,
       subAction: 'UPSERT',
-      updated: omit(schedule, 'updatedAt'),
+      updated: schedule,
     });
 
     if (!schedule.active) {
@@ -1012,6 +1181,68 @@ export class WorkflowService implements OnApplicationBootstrap {
     });
 
     return (row?.result ?? null) as R;
+  }
+
+  /**
+   * Retrieves the resume data of a specific step in a job.
+   *
+   * @param jobId - The ID of the job to retrieve the resume data from.
+   * @param step - The name of the step whose resume data is to be retrieved.
+   * @returns A promise that resolves to the resume data of the step, or null if
+   */
+  async getResumeData(
+    jobId: number,
+    step: string,
+  ): Promise<InputJsonValue | null> {
+    const { result: row } = await this.prisma.jobStep.findFirst({
+      where: {
+        jobId,
+        name: step,
+      },
+      select: {
+        resume: true,
+      },
+    });
+
+    return (row?.resume ?? null) as InputJsonValue;
+  }
+
+  /**
+   * Generates a JWT token for a job.
+   *
+   * @param jobId - The ID of the job to generate the token for.
+   * @param expiresIn - Optional expiration time for the token.
+   * @returns A promise that resolves to the generated JWT token.
+   */
+  async getJobToken(
+    jobId: number,
+    expiresIn?: string | number,
+  ): Promise<string> {
+    return this.jwtService.signAsync(
+      {
+        jid: jobId,
+      },
+      {
+        expiresIn: expiresIn ?? '1y', // Default to 1 year
+        subject: 'job',
+        issuer: 'job',
+        audience: 'job',
+      },
+    );
+  }
+
+  /**
+   * Verifies a JWT token for a job.
+   *
+   * @param token - The JWT token to verify.
+   * @returns A promise that resolves to the decoded token payload.
+   */
+  async verifyJobToken(token: string): Promise<{ jid: number }> {
+    return await this.jwtService.verifyAsync<{ jid: number }>(token, {
+      subject: 'job',
+      issuer: 'job',
+      audience: 'job',
+    });
   }
 
   /**
@@ -1183,7 +1414,7 @@ export class WorkflowService implements OnApplicationBootstrap {
         resource: 'WORKFLOW',
         resourceId: dbFlow.id,
         subAction: 'UPSERT',
-        updated: omit(dbFlow, 'updatedAt'),
+        updated: dbFlow,
       });
 
       return dbFlow;
@@ -1253,7 +1484,7 @@ export class WorkflowService implements OnApplicationBootstrap {
       resource: 'EVENT',
       resourceId: result.id,
       subAction: 'UPSERT',
-      updated: omit(result, 'updatedAt'),
+      updated: result,
     });
 
     return result;

@@ -45,7 +45,7 @@ export class AuthGuard implements CanActivate {
       context.getHandler(),
     );
 
-    if (role === 'ANONYMOUS' && req.cookies?.access_token !== 'string') {
+    if (role === 'ANONYMOUS' && typeof req.cookies?.access_token !== 'string') {
       // If the route is accessible to anonymous users, we don't need to check the token
       return true;
     }
@@ -109,6 +109,7 @@ export class AuthGuard implements CanActivate {
     req.auth = {
       user,
       payload: jwtPayload,
+      canWrite: this.hasPermission(user.role, 'DATA_ENTRY'),
       isPowerUser:
         user.role === 'DEVELOPER' ||
         user.role === 'ADMIN' ||

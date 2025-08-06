@@ -5,4 +5,5 @@ export interface AuthContext {
   payload: JwtPayload;
   user: Omit<User, 'password'>;
   isPowerUser: boolean;
+  canWrite: boolean;
 }

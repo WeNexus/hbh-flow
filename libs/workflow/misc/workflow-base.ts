@@ -2,7 +2,6 @@ import { StepInfoSchema } from '#lib/workflow/schema';
 import { PrismaService } from '#lib/core/services';
 import { JobPayload } from '#lib/workflow/types';
 import { Job as DBJob } from '@prisma/client';
-import { JwtService } from '@nestjs/jwt';
 import { ModuleRef } from '@nestjs/core';
 
 import {
@@ -107,7 +106,7 @@ export abstract class WorkflowBase<P = any, C = any> {
    * @param block If true, no other jobs will be processed until the workflow is resumed.
    * @returns A JWT token that can be used to resume the workflow later.
    */
-  async pause(block?: boolean): Promise<string> {
+  async pause(block?: boolean): Promise<void> {
     if (this.delayed > 0) {
       throw new Error("Can't pause a workflow that is already delayed.");
     }
@@ -120,26 +119,12 @@ export abstract class WorkflowBase<P = any, C = any> {
       throw new Error("Can't pause a workflow, after a rerun was scheduled.");
     }
 
-    const jwtService = this.moduleRef.get(JwtService, { strict: false });
-
     if (block) {
       await this.queue.pause();
     }
 
     this.delayed = 1000 * 60 * 60 * 24 * 365 * 10; // 10 years
     this.paused = true;
-
-    return jwtService.signAsync(
-      {
-        jid: this.dbJob.id,
-      },
-      {
-        expiresIn: '7d',
-        subject: 'job-resume',
-        issuer: 'job',
-        audience: 'job',
-      },
-    );
   }
 
   /**
@@ -233,5 +218,28 @@ export abstract class WorkflowBase<P = any, C = any> {
       });
 
     return (row?.result as T) ?? null;
+  }
+
+  /**
+   * Retrieves the resume data of a specific step in the workflow.
+   * This method queries the database for the resume data of the step with the given name.
+   *
+   * @param step The name of the step whose resume data is to be retrieved.
+   * @returns A promise that resolves to the resume data of the step.
+   */
+  async getResumeData<T = any>(step: string): Promise<T | null> {
+    const { result: row } = await this.moduleRef
+      .get(PrismaService, { strict: false })
+      .jobStep.findFirst({
+        where: {
+          jobId: this.dbJob.id,
+          name: step,
+        },
+        select: {
+          resume: true,
+        },
+      });
+
+    return (row?.resume as T) ?? null;
   }
 }

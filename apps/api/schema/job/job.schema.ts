@@ -1,8 +1,9 @@
-import type { JsonValue } from '@prisma/client/runtime/library';
 import { ApiProperty } from '@nestjs/swagger';
 import { $Enums, Job } from '@prisma/client';
 
-export class JobSchema implements Omit<Job, 'sentryTrace' | 'sentryBaggage'> {
+export class JobSchema
+  implements Omit<Job, 'sentryTrace' | 'sentryBaggage' | 'payload' | 'options'>
+{
   @ApiProperty({
     description: 'A unique numeric identifier for the job.',
     example: 101,
@@ -61,15 +62,6 @@ export class JobSchema implements Omit<Job, 'sentryTrace' | 'sentryBaggage'> {
     example: '2024-10-01T12:00:00Z',
   })
   scheduledAt: Date | null;
-
-  @ApiProperty({
-    description: 'The payload data passed to the job at runtime.',
-    example: {
-      userId: 123,
-      action: 'sync_data',
-    },
-  })
-  payload: JsonValue;
 
   @ApiProperty({
     description: 'The date and time when the job was created.',
