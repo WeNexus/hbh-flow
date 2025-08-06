@@ -36,12 +36,12 @@ export class ListInputSchema extends PaginationSchema {
   @ApiProperty({
     description:
       'Advanced filter object to apply Prisma-style filters to the results.',
-    example: {
+    example: JSON.stringify({
       category: 'general',
       status: {
         in: ['active', 'inactive'],
       },
-    },
+    }),
     required: false,
     additionalProperties: true,
     externalDocs: {
