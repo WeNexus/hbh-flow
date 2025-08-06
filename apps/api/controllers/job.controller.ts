@@ -122,6 +122,13 @@ export class JobController {
     try {
       const { result: job } = await this.prisma.job.findUniqueOrThrow({
         where: { id },
+        include: {
+          Steps: {
+            omit: {
+              jobId: true,
+            },
+          },
+        },
         omit: {
           sentryTrace: true,
           sentryBaggage: true,
