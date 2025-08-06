@@ -1,13 +1,13 @@
 import { PrismaExtensionRedis } from '#lib/core/misc/prisma-cache';
 import { PrismaClient } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
-import { RedisOptions } from 'ioredis';
+import { Redis } from 'ioredis';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function extension() {
   return new PrismaClient().$extends(
     PrismaExtensionRedis({
-      client: {} as RedisOptions,
+      redis: {} as Redis,
       config: {
         auto: false,
         type: 'JSON',
