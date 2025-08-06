@@ -12,6 +12,7 @@ import { ModuleRef } from '@nestjs/core';
   ],
   webhook: true,
   concurrency: 1,
+  maxRetries: 3,
 })
 export class TestWorkflow extends WorkflowBase {
   constructor(moduleRef: ModuleRef) {
@@ -28,5 +29,18 @@ export class TestWorkflow extends WorkflowBase {
   step2() {
     // This is the second step of the workflow
     console.log('Step 2 executed');
+    return this.pause();
+  }
+
+  @Step(3)
+  step3() {
+    // This is the second step of the workflow
+    console.log('Step 3 executed');
+  }
+
+  @Step(4)
+  step4() {
+    // This is the second step of the workflow
+    console.log('Step 4 executed');
   }
 }

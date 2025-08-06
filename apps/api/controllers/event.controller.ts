@@ -4,7 +4,6 @@ import { ActivityService, PrismaService } from '#lib/core/services';
 import { Auth, Protected } from '#lib/auth/decorators';
 import { ListInputSchema } from '#lib/core/schema';
 import type { AuthContext } from '#lib/auth/types';
-import { omit } from 'lodash-es';
 import express from 'express';
 
 import {
@@ -135,8 +134,8 @@ export class EventController {
         resource: 'EVENT',
         resourceId: event.id,
         action: 'UPDATE',
-        data: omit(event, 'updatedAt'),
-        updated: omit(updated, 'updatedAt'),
+        data: event,
+        updated,
       });
 
       return event;

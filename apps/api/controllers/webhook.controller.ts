@@ -7,7 +7,6 @@ import { Auth, Protected } from '#lib/auth/decorators';
 import { ListInputSchema } from '#lib/core/schema';
 import type { AuthContext } from '#lib/auth/types';
 import * as Sentry from '@sentry/nestjs';
-import { omit } from 'lodash-es';
 import express from 'express';
 import crypto from 'crypto';
 
@@ -190,7 +189,7 @@ export class WebhookController {
       resource: 'WEBHOOK',
       resourceId: webhook.id,
       action: 'CREATE',
-      updated: omit(updated, 'updatedAt'),
+      updated,
     });
 
     return updated;
@@ -249,8 +248,8 @@ export class WebhookController {
         resource: 'WEBHOOK',
         resourceId: webhook.id,
         action: 'UPDATE',
-        data: omit(webhook, 'updatedAt'),
-        updated: omit(updated, 'updatedAt'),
+        data: webhook,
+        updated,
       });
 
       return updated;
@@ -294,7 +293,7 @@ export class WebhookController {
         resource: 'WEBHOOK',
         resourceId: id,
         action: 'DELETE',
-        data: omit(webhook, 'updatedAt'),
+        data: webhook,
       });
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {

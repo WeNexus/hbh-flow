@@ -152,7 +152,7 @@ export class UserController {
       action: 'CREATE',
       resource: 'USER',
       resourceId: user.id,
-      updated: omit(user, 'updatedAt'),
+      updated: user,
     });
 
     return omit(user, 'password', 'updatedAt');
@@ -234,8 +234,8 @@ export class UserController {
       resource: 'USER',
       resourceId: id,
       subAction: isSelfUpdate ? 'SELF_UPDATE' : undefined,
-      data: omit(user, 'updatedAt'),
-      updated: omit(updated, 'updatedAt'),
+      data: user,
+      updated,
     });
 
     return omit(updated, 'password', 'updatedAt');
@@ -293,7 +293,7 @@ export class UserController {
       action: 'DELETE',
       resource: 'USER',
       resourceId: id,
-      data: omit(user, 'updatedAt'),
+      data: user,
     });
   }
 }

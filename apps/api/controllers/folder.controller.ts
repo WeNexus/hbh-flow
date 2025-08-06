@@ -4,7 +4,6 @@ import { ActivityService, PrismaService } from '#lib/core/services';
 import { Auth, Protected } from '#lib/auth/decorators';
 import { ListInputSchema } from '#lib/core/schema';
 import type { AuthContext } from '#lib/auth/types';
-import { omit } from 'lodash-es';
 import express from 'express';
 
 import {
@@ -112,7 +111,7 @@ export class FolderController {
       resource: 'FOLDER',
       resourceId: folder.id,
       action: 'CREATE',
-      updated: omit(folder, 'updatedAt'),
+      updated: folder,
     });
 
     return folder;
@@ -161,8 +160,8 @@ export class FolderController {
         resource: 'FOLDER',
         resourceId: folder.id,
         action: 'UPDATE',
-        data: omit(folder, 'updatedAt'),
-        updated: omit(updated, 'updatedAt'),
+        data: folder,
+        updated,
       });
 
       return folder;
@@ -211,7 +210,7 @@ export class FolderController {
         resource: 'FOLDER',
         resourceId: id,
         action: 'DELETE',
-        data: omit(folder, 'updatedAt'),
+        data: folder,
       });
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {

@@ -9,6 +9,7 @@ import { JsonWebTokenError } from '@nestjs/jwt';
 import { JobStatus } from '@prisma/client';
 import * as Sentry from '@sentry/nestjs';
 import type { Request } from 'express';
+import { omit } from 'lodash-es';
 
 import {
   JobReplayInputSchema,
@@ -30,7 +31,6 @@ import {
   Body,
   Req,
 } from '@nestjs/common';
-import { omit } from 'lodash-es';
 
 @Controller('api/jobs')
 export class JobController {

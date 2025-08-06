@@ -5,7 +5,6 @@ import { WorkflowService } from '#lib/workflow/workflow.service';
 import { Auth, Protected } from '#lib/auth/decorators';
 import { ListInputSchema } from '#lib/core/schema';
 import type { AuthContext } from '#lib/auth/types';
-import { omit } from 'lodash-es';
 import express from 'express';
 
 import {
@@ -157,7 +156,7 @@ export class ScheduleController {
       resource: 'SCHEDULE',
       resourceId: schedule.id,
       action: 'CREATE',
-      updated: omit(schedule, 'updatedAt'),
+      updated: schedule,
     });
 
     return schedule;
@@ -221,8 +220,8 @@ export class ScheduleController {
         resource: 'SCHEDULE',
         resourceId: schedule.id,
         action: 'UPDATE',
-        data: omit(schedule, 'updatedAt'),
-        updated: omit(updated, 'updatedAt'),
+        data: schedule,
+        updated,
       });
 
       this.workflowService.setupCronSchedules();
@@ -277,7 +276,7 @@ export class ScheduleController {
         resource: 'SCHEDULE',
         resourceId: id,
         action: 'DELETE',
-        data: omit(schedule, 'updatedAt'),
+        data: schedule,
       });
 
       this.workflowService.setupCronSchedules();

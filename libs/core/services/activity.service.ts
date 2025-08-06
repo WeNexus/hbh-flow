@@ -1,13 +1,24 @@
 import type { InputJsonValue } from '@prisma/client/runtime/library';
+import { Activity, type Resource, Revision } from '@prisma/client';
 import type { RecordActivityConfig } from '#lib/core/types';
-import { Activity, Revision } from '@prisma/client';
 import { PrismaService } from './prisma.service';
 import * as jsondiffpatch from 'jsondiffpatch';
 import { Injectable } from '@nestjs/common';
+import { omit } from 'lodash-es';
 
 @Injectable()
 export class ActivityService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private omitKeys: Partial<Record<Resource, string[]>> = {
+    JOB: ['sentryTrace', 'sentryBaggage', 'payload', 'options'],
+    SCHEDULE: ['userDefined'],
+  };
+  private sensitiveKeys: Partial<Record<Resource, string[]>> = {
+    USER: ['password'],
+    OAUTH2_TOKEN: ['access', 'refresh'],
+    WEBHOOK: ['token', 'secret'],
+  };
 
   /**
    * Records an activity in the database.
@@ -42,8 +53,37 @@ export class ActivityService {
         );
       }
 
-      const updated = (config.updated ?? {}) as InputJsonValue;
-      const data = (config.data ?? {}) as InputJsonValue;
+      const sensitiveKeys = this.sensitiveKeys[config.resource];
+      const omitKeys = this.omitKeys[config.resource];
+
+      if (sensitiveKeys?.length) {
+        // Redact sensitive keys from data and updated
+        for (const key of sensitiveKeys) {
+          if (
+            config.data &&
+            Object.prototype.hasOwnProperty.call(config.data, key)
+          ) {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            config.data[key] = '********';
+          }
+
+          if (
+            config.updated &&
+            Object.prototype.hasOwnProperty.call(config.updated, key)
+          ) {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            config.updated[key] = '********';
+          }
+        }
+      }
+
+      const updated = (
+        omitKeys ? omit(config.updated ?? {}, omitKeys) : (config.updated ?? {})
+      ) as InputJsonValue;
+
+      const data = (
+        omitKeys ? omit(config.data ?? {}, omitKeys) : (config.data ?? {})
+      ) as InputJsonValue;
 
       revision = (
         await this.prisma.revision.create({

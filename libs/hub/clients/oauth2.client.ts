@@ -10,7 +10,6 @@ import { EnvService } from '#lib/core/env';
 import * as Sentry from '@sentry/nestjs';
 import { ModuleRef } from '@nestjs/core';
 import * as arctic from 'arctic';
-import { omit } from 'lodash-es';
 
 import {
   GlobalEventService,
@@ -343,8 +342,8 @@ export abstract class OAuth2Client {
         connection,
       },
       subAction: 'REFRESH_TOKEN',
-      data: omit(tokenOld, 'updatedAt'),
-      updated: omit(token, 'updatedAt'),
+      data: tokenOld,
+      updated: token,
     });
 
     return token;

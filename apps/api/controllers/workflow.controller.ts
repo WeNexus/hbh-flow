@@ -144,8 +144,8 @@ export class WorkflowController {
       resource: 'WORKFLOW',
       resourceId: updated.id,
       userId: auth.user.id,
-      data: omit(workflow, 'updatedAt'),
-      updated: omit(updated, 'updatedAt'),
+      data: workflow,
+      updated,
     });
 
     return updated;

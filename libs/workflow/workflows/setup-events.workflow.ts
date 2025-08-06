@@ -5,7 +5,6 @@ import { Workflow, Step } from '#lib/workflow/decorators';
 import { TriggerType } from '#lib/workflow/misc';
 import { ModuleRef } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
-import { omit } from 'lodash-es';
 
 /**
  * This is an internal workflow, which should run every time the app starts up.
@@ -137,8 +136,8 @@ export class SetupEventsWorkflow extends WorkflowBase {
             resource: 'EVENT',
             resourceId: e.id,
             subAction: 'DANGLING',
-            data: omit({ ...e }, 'updatedAt'), // Previous state before marking as dangling
-            updated: omit(updated, 'updatedAt'),
+            data: { ...e }, // Previous state before marking as dangling
+            updated,
           };
         }),
       );
