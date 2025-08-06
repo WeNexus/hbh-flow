@@ -882,9 +882,27 @@ export class WorkflowService implements OnApplicationBootstrap {
   /**
    * Executes a draft job by its ID.
    * @param jobId - The ID of the job to execute.
+   * @param userId - The ID of the user executing the job, defaults to 1 (system user).
+   * @param req - The express request object, if available.
+   * @returns A promise that resolves to the Bull job and the corresponding database job.
    */
-  async executeDraft(jobId: number) {
-    const { job } = await this.getJob(jobId);
+  async executeDraft(jobId: number, userId = 1, req?: express.Request) {
+    const { result: job } = await this.prisma.job.findUnique({
+      where: {
+        id: jobId,
+        status: 'DRAFT',
+      },
+      select: {
+        id: true,
+        workflowId: true,
+        status: true,
+        options: true, // Options may contain context, scheduledAt, etc.
+      },
+    });
+
+    if (!job) {
+      throw new Error(`Job with ID ${jobId} not found or is not a draft.`);
+    }
 
     if (job.status !== 'DRAFT') {
       throw new Error(`Job with ID ${jobId} is not a draft.`);
@@ -911,6 +929,15 @@ export class WorkflowService implements OnApplicationBootstrap {
         deduplication: options?.deduplication,
       },
     );
+
+    await this.activityService.recordActivity({
+      req,
+      userId: userId,
+      action: 'OTHER',
+      resource: 'JOB',
+      resourceId: job.id,
+      subAction: 'EXECUTE_DRAFT',
+    });
 
     return {
       bullJob,

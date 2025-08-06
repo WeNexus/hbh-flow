@@ -368,42 +368,12 @@ export class JobController {
     @Req() req: Request,
     @Auth() auth: AuthContext,
   ): Promise<void> {
-    const { result: job } = await this.prisma.job.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        status: true,
-        workflowId: true,
-      },
-    });
-
-    if (!job) {
-      throw new NotFoundException(`Job with ID "${id}" was not found.`);
+    try {
+      await this.workflowService.executeDraft(id, auth.user.id, req);
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        throw new NotFoundException(e.message);
+      }
     }
-
-    if (job.status !== 'DRAFT') {
-      throw new BadRequestException(
-        `Job with ID "${id}" is not in a DRAFT state and cannot be executed.`,
-      );
-    }
-
-    const flow = await this.workflowService.resolveClass(job.workflowId);
-
-    if (!flow) {
-      throw new NotFoundException(
-        `Workflow with ID "${job.workflowId}" was not found.`,
-      );
-    }
-
-    await this.workflowService.executeDraft(job.id);
-
-    await this.activityService.recordActivity({
-      req,
-      userId: auth.user.id,
-      action: 'OTHER',
-      resource: 'JOB',
-      resourceId: job.id,
-      subAction: 'EXECUTE_DRAFT',
-    });
   }
 }
