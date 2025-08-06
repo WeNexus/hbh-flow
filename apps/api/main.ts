@@ -1,6 +1,8 @@
 import { ConnectionController } from './controllers/connection.controller';
+import { ActivityController } from './controllers/activity.controller';
 import { ProviderController } from './controllers/provider.controller';
 import { ScheduleController } from './controllers/schedule.controller';
+import { RevisionController } from './controllers/revision.controller';
 import { WorkflowController } from './controllers/workflow.controller';
 import { WebhookController } from './controllers/webhook.controller';
 import { FolderController } from './controllers/folder.controller';
@@ -32,5 +34,7 @@ await bootstrap({
     WebhookController,
     EventController,
     ScheduleController,
+    ActivityController,
+    RevisionController,
   ],
 });

@@ -54,8 +54,7 @@ CREATE TABLE "public"."Activity"
 -- CreateTable
 CREATE TABLE "public"."Revision"
 (
-    "id"         SERIAL              NOT NULL,
-    "activityId" INTEGER             NOT NULL,
+    "id"         INTEGER             NOT NULL,
     "resource"   "public"."Resource" NOT NULL,
     "resourceId" JSONB               NOT NULL,
     "action"     "public"."Action"   NOT NULL,
@@ -223,9 +222,6 @@ CREATE INDEX "Activity_resource_resourceId_idx" ON "public"."Activity" ("resourc
 CREATE INDEX "Revision_resource_resourceId_idx" ON "public"."Revision" ("resource", "resourceId");
 
 -- CreateIndex
-CREATE INDEX "Revision_activityId_idx" ON "public"."Revision" ("activityId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Workflow_key_key" ON "public"."Workflow" ("key");
 
 -- CreateIndex
@@ -249,7 +245,7 @@ ALTER TABLE "public"."Activity"
 
 -- AddForeignKey
 ALTER TABLE "public"."Revision"
-    ADD CONSTRAINT "Revision_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "public"."Activity" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    ADD CONSTRAINT "Revision_id_fkey" FOREIGN KEY ("id") REFERENCES "public"."Activity" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."Folder"

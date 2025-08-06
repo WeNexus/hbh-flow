@@ -88,7 +88,7 @@ export class ActivityService {
       revision = (
         await this.prisma.revision.create({
           data: {
-            activityId: activity.id,
+            id: activity.id,
             action: config.action,
             resource: config.resource,
             resourceId: config.resourceId,

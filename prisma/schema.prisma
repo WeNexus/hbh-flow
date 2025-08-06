@@ -100,16 +100,15 @@ model Activity {
 
   createdAt DateTime @default(now()) @db.Timestamptz()
 
-  User      User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  Revisions Revision[]
+  User     User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  Revision Revision?
 
   @@index([userId])
   @@index([resource, resourceId])
 }
 
 model Revision {
-  id         Int @id @default(autoincrement())
-  activityId Int
+  id Int @id
 
   resource   Resource
   resourceId Json // ID of the target resource (e.g., Product ID)
@@ -120,10 +119,9 @@ model Revision {
 
   createdAt DateTime @default(now()) @db.Timestamptz()
 
-  Activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  Activity Activity @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([resource, resourceId])
-  @@index([activityId])
 }
 
 model Folder {
