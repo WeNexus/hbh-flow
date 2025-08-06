@@ -220,6 +220,9 @@ export class WorkflowService implements OnApplicationBootstrap {
                   bullId: job.id,
                   status: 'RUNNING',
                 },
+                uncache: {
+                  uncacheKeys: [`job:${job.data.dbJobId}`],
+                },
               })
             ).result;
           } else if (job.data.scheduleId) {
@@ -268,6 +271,9 @@ export class WorkflowService implements OnApplicationBootstrap {
                 },
                 update: {
                   status: 'RUNNING',
+                },
+                uncache: {
+                  uncacheKeys: [`job:${job.id}`],
                 },
               })
             ).result;
@@ -473,6 +479,9 @@ export class WorkflowService implements OnApplicationBootstrap {
       where: { id: instance.dbJob.id },
       data,
       select,
+      uncache: {
+        uncacheKeys: [`job:${instance.dbJob.id}`],
+      },
     });
 
     merge(instance.dbJob, result);
@@ -842,6 +851,9 @@ export class WorkflowService implements OnApplicationBootstrap {
         sentryBaggage: true,
         sentryTrace: true,
       },
+      uncache: {
+        uncacheKeys: [`job:${jobId}`],
+      },
     });
 
     await this.activityService.recordActivity({
@@ -1141,6 +1153,10 @@ export class WorkflowService implements OnApplicationBootstrap {
         payload: true,
         sentryBaggage: true,
         sentryTrace: true,
+      },
+      cache: {
+        key: `job:${jobId}`,
+        ttl: /* 5 minute */ 1000 * 60 * 5,
       },
     });
 
