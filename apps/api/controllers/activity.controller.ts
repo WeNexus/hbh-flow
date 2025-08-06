@@ -31,11 +31,7 @@ export class ActivityController {
     type: ActivityListOutputSchema,
   })
   list(@Query() input: ListInputSchema): Promise<ActivityListOutputSchema> {
-    return listData(this.prisma, 'activity', input, [
-      'resource',
-      'action',
-      'subAction',
-    ]);
+    return listData(this.prisma, 'activity', input);
   }
 
   @Get('/:id')

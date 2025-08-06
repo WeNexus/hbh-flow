@@ -37,21 +37,15 @@ export class RevisionController {
   async list(
     @Query() input: ListInputSchema,
   ): Promise<RevisionListOutputSchema> {
-    const output = await listData(
-      this.prisma,
-      'revision',
-      input,
-      ['resource', 'action'],
-      {
-        include: {
-          Activity: {
-            select: {
-              userId: true,
-            },
+    const output = await listData(this.prisma, 'revision', input, undefined, {
+      include: {
+        Activity: {
+          select: {
+            userId: true,
           },
         },
       },
-    );
+    });
 
     for (const r of output.data) {
       (r as Record<string, any>).userId = r.Activity.userId;
