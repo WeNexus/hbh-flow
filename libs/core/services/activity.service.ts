@@ -56,34 +56,34 @@ export class ActivityService {
       const sensitiveKeys = this.sensitiveKeys[config.resource];
       const omitKeys = this.omitKeys[config.resource];
 
-      if (sensitiveKeys?.length) {
-        // Redact sensitive keys from data and updated
-        for (const key of sensitiveKeys) {
-          if (
-            config.data &&
-            Object.prototype.hasOwnProperty.call(config.data, key)
-          ) {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-            config.data[key] = '********';
-          }
-
-          if (
-            config.updated &&
-            Object.prototype.hasOwnProperty.call(config.updated, key)
-          ) {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-            config.updated[key] = '********';
-          }
-        }
-      }
-
       const updated = (
-        omitKeys ? omit(config.updated ?? {}, omitKeys) : (config.updated ?? {})
+        omitKeys
+          ? omit(config.updated ?? {}, omitKeys)
+          : config.updated
+            ? { ...config.updated }
+            : {}
       ) as InputJsonValue;
 
       const data = (
-        omitKeys ? omit(config.data ?? {}, omitKeys) : (config.data ?? {})
+        omitKeys
+          ? omit(config.data ?? {}, omitKeys)
+          : config.data
+            ? { ...config.data }
+            : {}
       ) as InputJsonValue;
+
+      if (sensitiveKeys?.length) {
+        // Redact sensitive keys from data and updated
+        for (const key of sensitiveKeys) {
+          if (Object.prototype.hasOwnProperty.call(data, key)) {
+            data[key] = '********';
+          }
+
+          if (Object.prototype.hasOwnProperty.call(updated, key)) {
+            updated[key] = '********';
+          }
+        }
+      }
 
       revision = (
         await this.prisma.revision.create({
