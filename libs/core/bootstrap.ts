@@ -1,33 +1,33 @@
 import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
+import { APP_TYPE, RedisIoAdapter, RUNTIME_ID } from '#lib/core/misc';
 import { PrismaExtensionRedis } from '#lib/core/misc/prisma-cache';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { REDIS_SUB, RedisModule } from '#lib/core/redis';
 import { EnvService } from '#lib/core/env/env.service';
-import { RUNTIME_ID, APP_TYPE } from '#lib/core/misc';
 import { ZohoModule } from '#lib/zoho/zoho.module';
 import { initSentry } from '#lib/core/misc/sentry';
 import { HubModule } from '../hub/hub.module';
 import { PrismaClient } from '@prisma/client';
 import { AppType } from '#lib/core/types';
 import { JwtModule } from '@nestjs/jwt';
+import { Redis } from 'ioredis';
 
 import {
-  GlobalEventService,
   ActivityService,
+  GlobalEventService,
   PrismaService,
 } from '#lib/core/services';
 
 import {
+  Global,
   INestApplicationContext,
-  ValidationPipe,
+  Module,
   ModuleMetadata,
   Provider,
-  Module,
-  Global,
+  ValidationPipe,
 } from '@nestjs/common';
-import { Redis } from 'ioredis';
 
 /**
  * Bootstraps the NestJS application with the provided metadata.
@@ -157,27 +157,22 @@ export async function bootstrap(
   })
   class WrapperModule {}
 
-  const app =
-    appType === AppType.Worker
-      ? await NestFactory.createApplicationContext(WrapperModule)
-      : await NestFactory.create<NestExpressApplication>(WrapperModule, {
-          forceCloseConnections: true,
-          rawBody: true,
-        });
+  const app = await NestFactory.create<NestExpressApplication>(WrapperModule, {
+    forceCloseConnections: true,
+    rawBody: appType === AppType.API,
+  });
 
   const envService = app.get(EnvService);
 
   if (appType === AppType.API) {
     const { SwaggerModule, DocumentBuilder } = await import('@nestjs/swagger');
-    const { RedisIoAdapter } = await import('./misc/redis-io.adapter.js');
     const { default: cookieParser } = await import('cookie-parser');
     const helmet = (await import('helmet')).default;
-    const _app = app as NestExpressApplication;
 
-    _app.set('trust proxy', true); // Trust the first proxy (for reverse proxies)
+    app.set('trust proxy', true); // Trust the first proxy (for reverse proxies)
 
     // Security middlewares
-    _app.use(
+    app.use(
       helmet({
         contentSecurityPolicy: {
           directives: {
@@ -192,10 +187,10 @@ export async function bootstrap(
       }),
     );
 
-    _app.enableCors();
+    app.enableCors();
 
     // Validation and parsing
-    _app.useGlobalPipes(
+    app.useGlobalPipes(
       new ValidationPipe({
         transform: true,
         whitelist: true,
@@ -207,7 +202,7 @@ export async function bootstrap(
       }),
     );
 
-    _app.use(cookieParser());
+    app.use(cookieParser());
 
     // OpenAPI/Swagger setup
     const config = new DocumentBuilder()
@@ -225,8 +220,8 @@ export async function bootstrap(
 
     SwaggerModule.setup(
       'api',
-      _app,
-      SwaggerModule.createDocument(_app, config, {
+      app,
+      SwaggerModule.createDocument(app, config, {
         operationIdFactory(_, methodKey: string) {
           return methodKey;
         },
@@ -241,14 +236,19 @@ export async function bootstrap(
         },
       },
     );
-
-    // Socket.IO setup
-    const redisIoAdapter = new RedisIoAdapter(_app);
-    await redisIoAdapter.connectToRedis();
-
-    // Start the server
-    await _app.listen(envService.getNumber('API_PORT', 3001));
   }
+
+  // Socket.IO setup
+  const redisIoAdapter = new RedisIoAdapter(app);
+  await redisIoAdapter.connectToRedis();
+  app.useWebSocketAdapter(redisIoAdapter);
+
+  // Start the server
+  const port =
+    appType === AppType.API
+      ? envService.getNumber('API_PORT', 3001)
+      : envService.getNumber('WORKER_PORT', 3002);
+  await app.listen(port);
 
   return app;
 }
