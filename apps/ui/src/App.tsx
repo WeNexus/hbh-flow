@@ -1,10 +1,20 @@
-import { useState } from 'react';
 import reactLogo from './assets/react.svg';
+import { useEffect, useState } from 'react';
+import { Api } from '@/modules/api';
 import viteLogo from '/vite.svg';
 import './App.css';
 
 function App() {
   const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const api = new Api();
+    const sock = api.io.socket('/activities');
+
+    sock.emit('subscribe', { room: 'test' });
+
+    sock.on('activity', console.log);
+  }, []);
 
   return (
     <>
