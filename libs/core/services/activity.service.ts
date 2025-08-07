@@ -1,3 +1,4 @@
+import { ActivityGateway } from '#app/api/gateways/activity.gateway';
 import type { InputJsonValue } from '@prisma/client/runtime/library';
 import { Activity, type Resource, Revision } from '@prisma/client';
 import type { RecordActivityConfig } from '#lib/core/types';
@@ -8,7 +9,10 @@ import { omit } from 'lodash-es';
 
 @Injectable()
 export class ActivityService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly activityGateway: ActivityGateway,
+    private readonly prisma: PrismaService,
+  ) {}
 
   private omitKeys: Partial<Record<Resource, string[]>> = {
     JOB: ['sentryTrace', 'sentryBaggage', 'payload', 'options'],
@@ -101,6 +105,8 @@ export class ActivityService {
         })
       ).result;
     }
+
+    this.activityGateway.notifyActivity(activity, revision);
 
     return { activity, revision };
   }

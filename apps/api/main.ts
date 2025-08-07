@@ -17,11 +17,13 @@ import { workflows } from '../worker/workflows';
 import { bootstrap } from '#lib/core/bootstrap';
 import { UIModule } from './ui/ui.module.js';
 import { AppType } from '#lib/core/types';
+import { gateways } from './gateways';
 
 await bootstrap({
   appType: AppType.API,
   imports: [AuthModule, UIModule, WorkflowModule],
-  providers: [...workflows],
+  providers: [...workflows, ...gateways],
+  exports: [...gateways],
   controllers: [
     AuthController,
     UserController,

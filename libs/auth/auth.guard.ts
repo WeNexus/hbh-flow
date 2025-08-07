@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { Role } from '@prisma/client';
+import { Socket } from 'socket.io';
 import argon2 from 'argon2';
 
 import {
@@ -39,6 +40,13 @@ export class AuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext) {
+    const type = context.getType<'http' | 'ws'>();
+
+    if (type === 'ws') {
+      // Does not support WebSocket connections
+      return false;
+    }
+
     const req = context.switchToHttp().getRequest<Request>();
     const role = this.reflector.get<Role | 'ANONYMOUS'>(
       'HBH_USER_ROLE',
@@ -108,7 +116,12 @@ export class AuthGuard implements CanActivate {
 
     req.auth = {
       user,
-      payload: jwtPayload,
+      payload: {
+        cst: jwtPayload.cst,
+        uid: jwtPayload.uid,
+        rol: jwtPayload.rol,
+      },
+      expiresAt: new Date((jwtPayload as Record<string, any>).exp * 1000),
       canWrite: this.hasPermission(user.role, 'DATA_ENTRY'),
       isPowerUser:
         user.role === 'DEVELOPER' ||
@@ -117,6 +130,65 @@ export class AuthGuard implements CanActivate {
     };
 
     return true;
+  }
+
+  async authenticateSocket(
+    socket: Socket,
+    role: Role = 'OBSERVER',
+  ): Promise<void> {
+    const token = this.getTokenFromSocket(socket);
+
+    if (!token) {
+      throw new UnauthorizedException('Access token is required');
+    }
+
+    let jwtPayload: JwtPayload | null = null;
+
+    try {
+      jwtPayload = await this.jwtService.verifyAsync<JwtPayload>(token, {
+        subject: 'access',
+        audience: 'user',
+        issuer: 'auth',
+      });
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (e) {
+      // Token verification failed
+      throw new UnauthorizedException('Invalid access token');
+    }
+
+    const { result: user } = await this.prisma.user.findUnique({
+      where: {
+        id: Number(jwtPayload.uid),
+      },
+      omit: {
+        password: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!this.hasPermission(user.role, role)) {
+      throw new ForbiddenException(
+        'You do not have permission to access this resource',
+      );
+    }
+
+    socket.auth = {
+      user,
+      payload: {
+        cst: jwtPayload.cst,
+        uid: jwtPayload.uid,
+        rol: jwtPayload.rol,
+      },
+      expiresAt: new Date((jwtPayload as Record<string, any>).exp * 1000),
+      canWrite: this.hasPermission(user.role, 'DATA_ENTRY'),
+      isPowerUser:
+        user.role === 'DEVELOPER' ||
+        user.role === 'ADMIN' ||
+        user.role === 'SYSTEM',
+    };
   }
 
   private hasPermission(
@@ -137,5 +209,20 @@ export class AuthGuard implements CanActivate {
 
     // Allow if the user's role is equal to or higher than the required role
     return userRoleIndex >= requiredRoleIndex;
+  }
+
+  private getTokenFromSocket(socket: Socket, name = 'access_token') {
+    const cookie = socket.handshake.headers['cookie'];
+
+    if (!cookie) {
+      return null;
+    }
+
+    return (
+      cookie
+        .split(';')
+        .filter((c) => c.trim().startsWith(`${name}=`))?.[0]
+        ?.split('=')[1] || null
+    );
   }
 }
