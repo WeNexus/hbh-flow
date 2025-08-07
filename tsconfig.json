@@ -58,6 +58,18 @@
       ],
       "#lib/prisma-cache/*": [
         "libs/prisma-cache/*"
+      ],
+      "#app/api": [
+        "apps/api"
+      ],
+      "#app/api/*": [
+        "apps/api/*"
+      ],
+      "#app/worker": [
+        "apps/worker"
+      ],
+      "#app/worker/*": [
+        "apps/worker/*"
       ]
     }
   },
