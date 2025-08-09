@@ -9,9 +9,10 @@ export class LoginEvent extends CustomEvent<UserSchema> {
   }
 }
 
-export class LogoutEvent extends CustomEvent<void> {
+export class LogoutEvent extends CustomEvent<null> {
   constructor() {
     super('logout', {
+      detail: null,
       bubbles: true,
     });
   }

@@ -1,5 +1,6 @@
 import type { LoginOutputSchema, UserSchema } from '@/types/schema.ts';
 import { Manager } from 'socket.io-client';
+import { isEqual } from 'lodash-es';
 import { Axios } from 'axios';
 
 import {
@@ -217,10 +218,14 @@ export class Api extends Axios {
         } as UserSchema),
     );
 
+    const oldUser = this._user;
+
     this.loadUser()
       .then((user) => {
         // Notify the UI that the user has been loaded or updated.
-        this.events.dispatchEvent(new UserUpdatedEvent(user));
+        if (!isEqual(user, oldUser)) {
+          this.events.dispatchEvent(new UserUpdatedEvent(user));
+        }
       })
       .catch(() => this.logout(true));
 
