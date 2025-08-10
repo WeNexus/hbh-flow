@@ -1,8 +1,14 @@
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router';
 import * as Sentry from '@sentry/react';
 import { StrictMode } from 'react';
-import App from './App.tsx';
-import './index.css';
+
+import '@fontsource/roboto/300.css';
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@fontsource/roboto/700.css';
+import './styles/index.css';
+import App from '@/app.tsx';
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
@@ -29,6 +35,8 @@ Sentry.init({
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
   </StrictMode>,
 );
