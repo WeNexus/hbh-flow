@@ -1,7 +1,7 @@
 import type { LoginOutputSchema, UserSchema } from '@/types/schema.ts';
+import axios, { type AxiosInstance } from 'axios';
 import { Manager } from 'socket.io-client';
 import { isEqual } from 'lodash-es';
-import { Axios } from 'axios';
 
 import {
   UserUpdatedEvent,
@@ -9,34 +9,42 @@ import {
   LoginEvent,
 } from '@/modules/api/events.ts';
 
+const axiosInstance = axios.create({
+  baseURL: location.origin + '/api',
+  headers: {
+    'Content-Type': 'application/json',
+    accept: 'application/json',
+  },
+  validateStatus(status) {
+    // Accept all 2xx and 3xx responses, and treat 401 as an error.
+    return status >= 200 && status < 400;
+  },
+});
+
 /**
  * Singleton class for managing API requests with session persistence, CSRF token handling,
  * and automatic session refresh.
  *
- * This class extends Axios and provides authentication methods and session management features.
+ * This class uses Axios and provides authentication methods and session management features.
  * All requests are scoped under the `/api` base path.
  *
  * @remarks
  * - Dispatches custom `LoginEvent`, `UserUpdatedEvent`, and native `LogOutEvent()`.
  * - Automatically refreshes login if session expiry is within the next hour.
  */
-export class Api extends Axios {
+
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
+export class Api {
   constructor() {
     if (Api.instance) {
       return Api.instance;
     }
 
-    super({
-      baseURL: location.origin + '/api',
-      headers: {
-        'Content-Type': 'application/json',
-        accept: 'application/json',
-      },
-    });
+    Api.instance = this;
 
     this.initialize();
 
-    this.interceptors.request.use((config) => {
+    this.axios.interceptors.request.use((config) => {
       // Attach CSRF token to headers if available.
       if (this.csrfToken) {
         config.headers['X-CSRF-Token'] = this.csrfToken;
@@ -44,7 +52,7 @@ export class Api extends Axios {
       return config;
     });
 
-    this.interceptors.response.use((response) => {
+    this.axios.interceptors.response.use((response) => {
       if (response.status === 401) {
         // If the response status is 401, it means the session has expired or is invalid.
         void this.logout(true);
@@ -52,8 +60,6 @@ export class Api extends Axios {
 
       return response;
     });
-
-    Api.instance = this;
   }
 
   private static instance: Api | null = null;
@@ -97,6 +103,16 @@ export class Api extends Axios {
   });
 
   /**
+   * Axios instance configured for API requests.
+   * Automatically includes CSRF token in headers and handles session expiration.
+   *
+   * @remarks
+   * - Base URL is set to `/api` relative to the current origin.
+   * - Accepts all 2xx and 3xx responses, treating 401 as an error.
+   */
+  private axios = axiosInstance;
+
+  /**
    * Returns the currently authenticated user object.
    * Returns `null` if no session is active or the session is invalid.
    */
@@ -118,10 +134,13 @@ export class Api extends Axios {
    * - Dispatches a `LoginEvent` on successful login.
    */
   async login(email: string, password: string): Promise<UserSchema> {
-    const { data: result } = await this.post<LoginOutputSchema>('/auth/login', {
-      email,
-      password,
-    });
+    const { data: result } = await this.axios.post<LoginOutputSchema>(
+      '/auth/login',
+      {
+        email,
+        password,
+      },
+    );
 
     // Store session data in localStorage for persistence across page reloads.
     this.storeSessionData(result);
@@ -144,7 +163,12 @@ export class Api extends Axios {
    */
   async logout(justCleanup = false): Promise<void> {
     if (!justCleanup) {
-      await this.post('/auth/logout');
+      try {
+        await this.axios.post('/auth/logout');
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (e) {
+        // Ignore errors during logout request.
+      }
     }
 
     this.events.dispatchEvent(new LogoutEvent());
@@ -155,18 +179,18 @@ export class Api extends Axios {
 
   private async refreshLogin(): Promise<void> {
     const { data: result } =
-      await this.post<LoginOutputSchema>('/auth/refresh');
+      await this.axios.post<LoginOutputSchema>('/auth/refresh');
 
     // Update session data in localStorage.
     this.storeSessionData(result);
   }
 
   private async loadUser(): Promise<UserSchema> {
-    const { data: user } = await this.get<UserSchema>('/auth/whoami');
-    localStorage.setItem('user', JSON.stringify(user));
-    this._user = user;
+    const r = await this.axios.get<UserSchema>('/auth/whoami');
+    localStorage.setItem('user', JSON.stringify(r.data));
+    this._user = r.data;
 
-    return user;
+    return r.data;
   }
 
   private storeSessionData(loginOutput: LoginOutputSchema): void {
@@ -250,3 +274,21 @@ export class Api extends Axios {
     ); // Check every 5 minutes to refresh the session if needed.
   }
 }
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type,@typescript-eslint/no-unsafe-declaration-merging
+export interface Api extends AxiosInstance {}
+
+export const api = new Api();
+
+for (const key of Object.keys(axiosInstance)) {
+  // @ts-expect-error - We are extending AxiosInstance with custom properties.
+  if (typeof axiosInstance[key] === 'function') {
+    // @ts-expect-error - We are extending AxiosInstance with custom properties.
+    api[key] = axiosInstance[key].bind(axiosInstance);
+  } else {
+    // @ts-expect-error - We are extending AxiosInstance with custom properties.
+    api[key] = axiosInstance[key];
+  }
+}
+
+

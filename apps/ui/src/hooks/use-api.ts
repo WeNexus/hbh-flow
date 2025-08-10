@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { UserSchema } from '@/types/schema.ts';
-import { Api } from '@/modules/api';
+import { api } from '@/modules/api';
 
 import type {
   UserUpdatedEvent,
@@ -11,10 +11,9 @@ import type {
 /**
  * Custom hook to manage API instance and user state.
  *
- * @returns {Object} An object containing the API instance and the current user.
+ * @returns An object containing the API instance and the current user.
  */
 export function useApi() {
-  const api = useMemo(() => new Api(), []);
   const [user, setUser] = useState<UserSchema | null>(api.user);
   const handleUserUpdate = useCallback(
     (event: LoginEvent | UserUpdatedEvent | LogoutEvent) => {
@@ -37,7 +36,7 @@ export function useApi() {
         handleUserUpdate as EventListener,
       );
     };
-  }, [api, handleUserUpdate]);
+  }, [handleUserUpdate]);
 
   return {
     user,
