@@ -1,11 +1,12 @@
 import { Outlet, useNavigate } from 'react-router';
-import AppNavbar from '@/components/app-navbar';
-import SideMenu from '@/components/side-menu';
+import HeaderMobile from './header-mobile.tsx';
 import { alpha } from '@mui/material/styles';
 import { useApi } from '@/hooks/use-api.ts';
 import Stack from '@mui/material/Stack';
+import Sidebar from './sidebar.tsx';
 import Box from '@mui/material/Box';
 import { useEffect } from 'react';
+import Header from './header.tsx';
 
 export function PrivateLayout() {
   const navigate = useNavigate();
@@ -24,9 +25,9 @@ export function PrivateLayout() {
 
   return (
     <Box sx={{ display: 'flex' }}>
-      <SideMenu />
-      <AppNavbar />
-      {/* Main content */}
+      <Sidebar />
+      <HeaderMobile />
+
       <Box
         component="main"
         sx={(theme) => ({
@@ -46,6 +47,8 @@ export function PrivateLayout() {
             mt: { xs: 8, md: 0 },
           }}
         >
+          <Header />
+
           <Outlet />
         </Stack>
       </Box>

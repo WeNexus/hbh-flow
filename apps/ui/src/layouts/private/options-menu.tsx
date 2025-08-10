@@ -1,14 +1,14 @@
 import ListItemIcon, { listItemIconClasses } from '@mui/material/ListItemIcon';
-import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
+import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import Divider, { dividerClasses } from '@mui/material/Divider';
 import ListItemText from '@mui/material/ListItemText';
+import MenuButton from '@/components/menu-button.tsx';
 import { paperClasses } from '@mui/material/Paper';
 import { listClasses } from '@mui/material/List';
 import MuiMenuItem from '@mui/material/MenuItem';
 import { styled } from '@mui/material/styles';
 import { useApi } from '@/hooks/use-api.ts';
-import MenuButton from './menu-button.tsx';
 import Menu from '@mui/material/Menu';
 import * as React from 'react';
 

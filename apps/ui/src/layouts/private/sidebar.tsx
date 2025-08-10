@@ -1,8 +1,8 @@
 import MuiDrawer, { drawerClasses } from '@mui/material/Drawer';
+import SidebarMenuContent from './sidebar-menu-content.tsx';
 import Typography from '@mui/material/Typography';
 import { styled } from '@mui/material/styles';
 import OptionsMenu from './options-menu.tsx';
-import MenuContent from './menu-content.tsx';
 import Divider from '@mui/material/Divider';
 import { useApi } from '@/hooks/use-api.ts';
 import Avatar from '@mui/material/Avatar';
@@ -22,7 +22,7 @@ const Drawer = styled(MuiDrawer)({
   },
 });
 
-export default function SideMenu() {
+export default function Sidebar() {
   const { user } = useApi();
 
   return (
@@ -56,7 +56,7 @@ export default function SideMenu() {
           flexDirection: 'column',
         }}
       >
-        <MenuContent />
+        <SidebarMenuContent />
       </Box>
       <Stack
         direction="row"

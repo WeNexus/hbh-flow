@@ -1,10 +1,11 @@
-import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
+// import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import Drawer, { drawerClasses } from '@mui/material/Drawer';
+import SidebarMenuContent from './sidebar-menu-content.tsx';
 import Typography from '@mui/material/Typography';
-import MenuContent from './menu-content.tsx';
 import Divider from '@mui/material/Divider';
-import MenuButton from './menu-button.tsx';
+import { useApi } from '@/hooks/use-api.ts';
+// import MenuButton from './menu-button.tsx';
 import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
@@ -14,7 +15,9 @@ interface SideMenuMobileProps {
   toggleDrawer: (newOpen: boolean) => () => void;
 }
 
-export default function SideMenuMobile({ open, toggleDrawer }: SideMenuMobileProps) {
+export default function SidebarMobile({ open, toggleDrawer }: SideMenuMobileProps) {
+  const { user } = useApi();
+
   return (
     <Drawer
       anchor="right"
@@ -41,21 +44,21 @@ export default function SideMenuMobile({ open, toggleDrawer }: SideMenuMobilePro
           >
             <Avatar
               sizes="small"
-              alt="Riley Carter"
-              src="/static/images/avatar/7.jpg"
+              src={`/api/users/${user?.id}/avatar`}
+              alt={user?.name || 'Anonymous'}
               sx={{ width: 24, height: 24 }}
             />
             <Typography component="p" variant="h6">
-              Riley Carter
+              {user?.name || 'User Name'}
             </Typography>
           </Stack>
-          <MenuButton showBadge>
+          {/*<MenuButton showBadge>
             <NotificationsRoundedIcon />
-          </MenuButton>
+          </MenuButton>*/}
         </Stack>
         <Divider />
         <Stack sx={{ flexGrow: 1 }}>
-          <MenuContent />
+          <SidebarMenuContent />
           <Divider />
         </Stack>
         <Stack sx={{ p: 2 }}>

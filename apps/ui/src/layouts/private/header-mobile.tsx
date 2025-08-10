@@ -1,12 +1,12 @@
 import ColorModeIconDropdown from '@/components/theme/color-mode-icon-dropdown.tsx';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
-import SideMenuMobile from './side-menu-mobile.tsx';
+import MenuButton from '@/components/menu-button.tsx';
 import Typography from '@mui/material/Typography';
+import SidebarMobile from './sidebar-mobile.tsx';
 import { tabsClasses } from '@mui/material/Tabs';
 import MuiToolbar from '@mui/material/Toolbar';
 import { styled } from '@mui/material/styles';
-import MenuButton from './menu-button.tsx';
 import AppBar from '@mui/material/AppBar';
 import Stack from '@mui/material/Stack';
 import Box from '@mui/material/Box';
@@ -21,14 +21,14 @@ const Toolbar = styled(MuiToolbar)({
   justifyContent: 'center',
   gap: '12px',
   flexShrink: 0,
-  [`& ${tabsClasses.flexContainer}`]: {
+  [`& ${tabsClasses.list}`]: {
     gap: '8px',
     p: '8px',
     pb: 0,
   },
 });
 
-export default function AppNavbar() {
+export default function HeaderMobile() {
   const [open, setOpen] = React.useState(false);
 
   const toggleDrawer = (newOpen: boolean) => () => {
@@ -64,6 +64,7 @@ export default function AppNavbar() {
             sx={{ justifyContent: 'center', mr: 'auto' }}
           >
             <CustomIcon />
+
             <Typography variant="h4" component="h1" sx={{ color: 'text.primary' }}>
               Dashboard
             </Typography>
@@ -72,7 +73,7 @@ export default function AppNavbar() {
           <MenuButton aria-label="menu" onClick={toggleDrawer(true)}>
             <MenuRoundedIcon />
           </MenuButton>
-          <SideMenuMobile open={open} toggleDrawer={toggleDrawer} />
+          <SidebarMobile open={open} toggleDrawer={toggleDrawer} />
         </Stack>
       </Toolbar>
     </AppBar>

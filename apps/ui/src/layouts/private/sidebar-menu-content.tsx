@@ -8,30 +8,37 @@ import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
+import { Link, useLocation } from 'react-router';
 import ListItem from '@mui/material/ListItem';
 import Stack from '@mui/material/Stack';
 import List from '@mui/material/List';
 
 const mainListItems = [
-  { text: 'Home', icon: <HomeRoundedIcon /> },
-  { text: 'Workflows', icon: <AccountTreeRoundedIcon /> },
-  { text: 'Connections', icon: <CableRoundedIcon /> },
-  { text: 'Analytics', icon: <AnalyticsRoundedIcon /> },
-  { text: 'Products', icon: <Inventory2RoundedIcon /> },
+  { text: 'Home', icon: <HomeRoundedIcon />, href: '/' },
+  { text: 'Workflows', icon: <AccountTreeRoundedIcon />, href: '/workflows' },
+  { text: 'Connections', icon: <CableRoundedIcon />, href: '/connections' },
+  { text: 'Analytics', icon: <AnalyticsRoundedIcon />, href: '/analytics' },
+  { text: 'Products', icon: <Inventory2RoundedIcon />, href: '/products' },
 ];
 
 const secondaryListItems = [
-  { text: 'Users', icon: <PeopleRoundedIcon /> },
-  { text: 'Activities', icon: <HistoryRoundedIcon /> },
+  { text: 'Users', icon: <PeopleRoundedIcon />, href: '/users' },
+  { text: 'Activities', icon: <HistoryRoundedIcon />, href: '/activities' },
 ];
 
-export default function MenuContent() {
+export default function SidebarMenuContent() {
+  const route = useLocation();
+
   return (
     <Stack sx={{ flexGrow: 1, p: 1, justifyContent: 'space-between' }}>
       <List dense>
         {mainListItems.map((item, index) => (
           <ListItem key={index} disablePadding sx={{ display: 'block' }}>
-            <ListItemButton selected={index === 0}>
+            <ListItemButton
+              selected={route.pathname === item.href}
+              component={Link}
+              to={item.href}
+            >
               <ListItemIcon>{item.icon}</ListItemIcon>
               <ListItemText primary={item.text} />
             </ListItemButton>
@@ -41,7 +48,11 @@ export default function MenuContent() {
       <List dense>
         {secondaryListItems.map((item, index) => (
           <ListItem key={index} disablePadding sx={{ display: 'block' }}>
-            <ListItemButton>
+            <ListItemButton
+              selected={route.pathname === item.href}
+              component={Link}
+              to={item.href}
+            >
               <ListItemIcon>{item.icon}</ListItemIcon>
               <ListItemText primary={item.text} />
             </ListItemButton>

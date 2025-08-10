@@ -14,7 +14,7 @@ const StyledBreadcrumbs = styled(Breadcrumbs)(({ theme }) => ({
   },
 }));
 
-export default function NavbarBreadcrumbs() {
+export default function HeaderBreadcrumbs() {
   return (
     <StyledBreadcrumbs
       aria-label="breadcrumb"

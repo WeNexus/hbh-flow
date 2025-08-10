@@ -1,7 +1,9 @@
+import { PrivateLayout } from '@/layouts/private/layout.tsx';
 import AppTheme from '@/components/theme/app-theme.tsx';
-import { PrivateLayout } from '@/layouts/private.tsx';
+import { Connections } from '@/pages/connections.tsx';
 import CssBaseline from '@mui/material/CssBaseline';
 import { PublicLayout } from '@/layouts/public.tsx';
+import { NotFound } from '@/pages/not-found.tsx';
 import Dashboard from '@/pages/dashboard.tsx';
 import { Route, Routes } from 'react-router';
 import Login from '@/pages/login.tsx';
@@ -17,8 +19,11 @@ export default function App(props: { disableCustomTheme?: boolean }) {
         </Route>
 
         <Route element={<PrivateLayout />}>
-          <Route index path="/" element={<Dashboard />} />
+          <Route element={<Dashboard />} path="/" index />
+          <Route element={<Connections />} path="/connections" />
         </Route>
+
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </AppTheme>
   );
