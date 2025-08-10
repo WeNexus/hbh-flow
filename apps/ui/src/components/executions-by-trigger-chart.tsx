@@ -46,7 +46,7 @@ export default function ExecutionsByTriggerChart() {
     <Card variant="outlined" sx={{ width: '100%' }}>
       <CardContent>
         <Typography component="h2" variant="subtitle2" gutterBottom>
-          Executions by trigger
+          Executions by Trigger Type
         </Typography>
         <Stack sx={{ justifyContent: 'space-between' }}>
           <Stack

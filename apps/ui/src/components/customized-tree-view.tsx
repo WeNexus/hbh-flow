@@ -197,7 +197,7 @@ export default function CustomizedTreeView() {
     >
       <CardContent>
         <Typography component="h2" variant="subtitle2">
-          Workflow tree
+          Workflow Tree
         </Typography>
         <RichTreeView
           items={ITEMS}

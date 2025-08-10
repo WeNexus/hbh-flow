@@ -16,7 +16,7 @@ export default function ExecutionsByStatusChart() {
     <Card variant="outlined" sx={{ width: '100%' }}>
       <CardContent>
         <Typography component="h2" variant="subtitle2" gutterBottom>
-          Executions by status
+          Executions by Status
         </Typography>
         <Stack sx={{ justifyContent: 'space-between' }}>
           <Stack

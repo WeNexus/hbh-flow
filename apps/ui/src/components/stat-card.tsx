@@ -13,6 +13,7 @@ export type StatCardProps = {
   value: string;
   interval: string;
   trend: 'up' | 'down' | 'neutral';
+  sentiment: 'positive' | 'negative' | 'neutral';
   data: number[];
 };
 
@@ -48,16 +49,17 @@ export default function StatCard({
   interval,
   trend,
   data,
+  sentiment,
 }: StatCardProps) {
   const theme = useTheme();
   const daysInWeek = getDaysInMonth(4, 2024);
 
   const trendColors = {
-    up:
+    positive:
       theme.palette.mode === 'light'
         ? theme.palette.success.main
         : theme.palette.success.dark,
-    down:
+    negative:
       theme.palette.mode === 'light'
         ? theme.palette.error.main
         : theme.palette.error.dark,
@@ -68,13 +70,13 @@ export default function StatCard({
   };
 
   const labelColors = {
-    up: 'success' as const,
-    down: 'error' as const,
+    positive: 'success' as const,
+    negative: 'error' as const,
     neutral: 'default' as const,
   };
 
-  const color = labelColors[trend];
-  const chartColor = trendColors[trend];
+  const color = labelColors[sentiment];
+  const chartColor = trendColors[sentiment];
   const trendValues = { up: '+25%', down: '-25%', neutral: '+5%' };
 
   return (

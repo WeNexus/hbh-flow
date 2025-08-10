@@ -4,18 +4,22 @@ import ExecutionsByStatusChart from '@/components/executions-by-status-chart';
 import StatCard, { type StatCardProps } from '@/components/stat-card';
 import CustomizedTreeView from '@/components/customized-tree-view';
 import CustomizedDataGrid from '@/components/customized-data-grid';
+import type { PageContext } from '@/types/page-context.ts';
 import Typography from '@mui/material/Typography';
+import { useOutletContext } from 'react-router';
 import Copyright from '@/components/copyright';
 import Stack from '@mui/material/Stack';
 import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
+import { useEffect } from 'react';
 
 const data: StatCardProps[] = [
   {
-    title: 'Webhook hits',
+    title: 'Webhook Hits',
     value: '200k',
     interval: 'Last 30 days',
     trend: 'neutral',
+    sentiment: 'neutral',
     data: [
       500, 400, 510, 530, 520, 600, 530, 520, 510, 730, 520, 510, 530, 620, 510,
       530, 520, 410, 530, 520, 610, 530, 520, 610, 530, 420, 510, 430, 520, 510,
@@ -25,27 +29,30 @@ const data: StatCardProps[] = [
     title: 'Executions',
     value: '14k',
     interval: 'Last 30 days',
-    trend: 'up',
+    trend: 'neutral',
+    sentiment: 'neutral',
     data: [
       200, 24, 220, 260, 240, 380, 100, 240, 280, 240, 300, 340, 320, 360, 340,
       380, 360, 400, 380, 420, 400, 640, 340, 460, 440, 480, 460, 600, 880, 920,
     ],
   },
   {
-    title: 'Successful executions',
+    title: 'Successful Executions',
     value: '13.7k',
     interval: 'Last 30 days',
     trend: 'up',
+    sentiment: 'positive',
     data: [
       200, 24, 220, 260, 240, 380, 100, 240, 280, 240, 300, 340, 320, 360, 340,
       380, 360, 400, 380, 420, 400, 640, 340, 460, 440, 480, 460, 600, 880, 920,
     ],
   },
   {
-    title: 'Failed executions',
+    title: 'Failed Executions',
     value: '325',
     interval: 'Last 30 days',
-    trend: 'neutral',
+    trend: 'up',
+    sentiment: 'negative',
     data: [
       1640, 1250, 970, 1130, 1050, 900, 720, 1080, 900, 450, 920, 820, 840, 600,
       820, 780, 800, 760, 380, 740, 660, 620, 840, 500, 520, 480, 400, 360, 300,
@@ -55,6 +62,12 @@ const data: StatCardProps[] = [
 ];
 
 export default function Dashboard() {
+  const ctx = useOutletContext<PageContext>();
+
+  useEffect(() => {
+    ctx.setShowSearch(false);
+  }, [ctx]);
+
   return (
     <Box sx={{ width: '100%', maxWidth: { sm: '100%', md: '1700px' } }}>
       {/* cards */}

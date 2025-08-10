@@ -1,6 +1,6 @@
 import { PrivateLayout } from '@/layouts/private/layout.tsx';
 import AppTheme from '@/components/theme/app-theme.tsx';
-import { Connections } from '@/pages/connections.tsx';
+import { Integrations } from '@/pages/integrations.tsx';
 import CssBaseline from '@mui/material/CssBaseline';
 import { PublicLayout } from '@/layouts/public.tsx';
 import { NotFound } from '@/pages/not-found.tsx';
@@ -20,7 +20,7 @@ export default function App(props: { disableCustomTheme?: boolean }) {
 
         <Route element={<PrivateLayout />}>
           <Route element={<Dashboard />} path="/" index />
-          <Route element={<Connections />} path="/connections" />
+          <Route element={<Integrations />} path="/integrations" />
         </Route>
 
         <Route path="*" element={<NotFound />} />

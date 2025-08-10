@@ -16,7 +16,7 @@ import List from '@mui/material/List';
 const mainListItems = [
   { text: 'Home', icon: <HomeRoundedIcon />, href: '/' },
   { text: 'Workflows', icon: <AccountTreeRoundedIcon />, href: '/workflows' },
-  { text: 'Connections', icon: <CableRoundedIcon />, href: '/connections' },
+  { text: 'Integrations', icon: <CableRoundedIcon />, href: '/integrations' },
   { text: 'Analytics', icon: <AnalyticsRoundedIcon />, href: '/analytics' },
   { text: 'Products', icon: <Inventory2RoundedIcon />, href: '/products' },
 ];
