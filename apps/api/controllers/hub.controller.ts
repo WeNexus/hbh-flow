@@ -1,8 +1,6 @@
+import { ActivityService, PrismaService } from '#lib/core/services';
 import { Controller, Query, Get, Req } from '@nestjs/common';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { Auth, Protected } from '#lib/auth/decorators';
-import { ActivityService } from '#lib/core/services';
-import type { AuthContext } from '#lib/auth/types';
 import { HubService } from '#lib/hub/hub.service';
 import type { Request } from 'express';
 import * as arctic from 'arctic';
@@ -18,10 +16,10 @@ export class HubController {
   constructor(
     private readonly activityService: ActivityService,
     private readonly hubService: HubService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get('/callback')
-  @Protected('DEVELOPER')
   @ApiOperation({
     summary: 'OAuth2 Callback Handler',
     description:
@@ -33,12 +31,20 @@ export class HubController {
   })
   async callback(
     @Req() req: Request,
-    @Auth() auth: AuthContext,
     @Query('code') code: string,
     @Query('state') state: string,
   ) {
     try {
       const { dbTokens } = await this.hubService.handleCallback(state, code);
+      const activity = await this.prisma.activity.findFirstOrThrow({
+        where: {
+          resource: 'OAUTH2_AUTH_STATE',
+          subAction: 'OAUTH2_INITIATE_AUTHORIZATION',
+          resourceId: {
+            equals: state,
+          },
+        },
+      });
 
       await this.activityService.recordActivity({
         req,
@@ -49,7 +55,7 @@ export class HubController {
           connection: dbTokens.connection,
         },
         subAction: 'OAUTH2_AUTHORIZATION',
-        userId: auth.user.id,
+        userId: activity.result?.userId,
       });
 
       return `

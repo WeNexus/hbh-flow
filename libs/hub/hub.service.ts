@@ -3,10 +3,10 @@ import { GlobalEventService, PrismaService } from '#lib/core/services';
 import { NoProviderException, NoStateException } from './exceptions';
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { DiscoveryService, Reflector } from '@nestjs/core';
+import type { GlobalEventPayload } from '#lib/core/types';
 import { OAuth2Client, TokenClient } from './clients';
 import { OnEvent } from '@nestjs/event-emitter';
 import { OAuth2Token } from '@prisma/client';
-import type { Jsonify } from 'type-fest';
 
 /**
  * Service for managing OAuth2 clients and Token Clients.
@@ -83,7 +83,9 @@ export class HubService implements OnApplicationBootstrap {
   }
 
   @OnEvent('global.hub.refresh')
-  protected handleTokenRefresh(payload: Jsonify<OAuth2Token>) {
+  protected handleTokenRefresh({
+    data: payload,
+  }: GlobalEventPayload<OAuth2Token>) {
     const provider = this.validateProvider(payload.provider);
 
     if (provider.type !== 'oauth2') {
@@ -273,62 +275,53 @@ export class HubService implements OnApplicationBootstrap {
    */
   async testConnection(id: string, connection: string): Promise<boolean> {
     const provider = this.validateProvider(id);
+    let working = false;
+    let error: Error | null = null;
 
     if (provider.type === 'oauth2') {
-      const user: unknown = await provider.client.getUserInfo(connection);
-
-      return !!user;
+      try {
+        const user: unknown = await provider.client.getUserInfo(connection);
+        working = !!user;
+      } catch (e) {
+        if (e instanceof Error) {
+          error = e;
+        }
+      }
+    } else {
+      try {
+        working = await provider.client.testConnection(connection);
+      } catch (e: unknown) {
+        if (e instanceof Error) {
+          error = e;
+        }
+      }
     }
 
-    try {
-      const good = await provider.client.testConnection(connection);
-
-      await this.prisma.connectionStatus.upsert({
-        where: {
-          provider_connection: {
-            provider: id,
-            connection: connection,
-          },
-        },
-        update: {
-          working: true,
-          testedAt: new Date(),
-          reason: null,
-        },
-        create: {
+    await this.prisma.connectionStatus.upsert({
+      where: {
+        provider_connection: {
           provider: id,
           connection: connection,
-          working: true,
-          testedAt: new Date(),
         },
-      });
+      },
+      update: {
+        working,
+        testedAt: new Date(),
+        reason: error ? error.message : null,
+      },
+      create: {
+        working,
+        provider: id,
+        connection: connection,
+        testedAt: new Date(),
+        reason: error ? error.message : null,
+      },
+    });
 
-      return good;
-    } catch (e: unknown) {
-      if (e instanceof Error) {
-        await this.prisma.connectionStatus.upsert({
-          where: {
-            provider_connection: {
-              provider: id,
-              connection: connection,
-            },
-          },
-          update: {
-            working: false,
-            reason: e.message,
-            testedAt: new Date(),
-          },
-          create: {
-            provider: id,
-            connection: connection,
-            working: false,
-            reason: e.message,
-            testedAt: new Date(),
-          },
-        });
-      }
-
-      throw e;
+    if (error) {
+      throw error;
     }
+
+    return working;
   }
 }
