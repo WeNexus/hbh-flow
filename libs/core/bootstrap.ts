@@ -176,7 +176,12 @@ export async function bootstrap(
       helmet({
         contentSecurityPolicy: {
           directives: {
-            imgSrc: [`'self'`, 'data:', 'blob:'],
+            imgSrc: [
+              process.env.NODE_ENV === 'development' ? 'http:' : '',
+              `https:`,
+              'data:',
+              'blob:',
+            ],
             scriptSrc: [`'self'`, `https: 'unsafe-inline'`],
             manifestSrc: [`'self'`],
             frameSrc: [`'self'`],
