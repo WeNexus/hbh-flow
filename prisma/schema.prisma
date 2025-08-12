@@ -280,3 +280,17 @@ model OAuth2Token {
 
   @@id([provider, connection])
 }
+
+model ConnectionStatus {
+  provider   String
+  connection String
+
+  working Boolean @default(true) // Indicates if the connection is working
+  reason  String? // Optional reason if the connection is not working
+
+  testedAt  DateTime? @db.Timestamptz() // Optional timestamp when the connection was last tested
+  createdAt DateTime  @default(now()) @db.Timestamptz()
+  updatedAt DateTime? @updatedAt @db.Timestamptz()
+
+  @@id([provider, connection])
+}

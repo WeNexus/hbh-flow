@@ -1,11 +1,11 @@
-import { HubService } from './hub.service';
+import { ConnectionTestWorkflow, TokenRefreshWorkflow } from './misc';
 import { DiscoveryModule } from '@nestjs/core';
-import { TokenRefreshWorkflow } from './misc';
+import { HubService } from './hub.service';
 import { Module } from '@nestjs/common';
 
 @Module({
   imports: [DiscoveryModule],
-  providers: [HubService, TokenRefreshWorkflow],
+  providers: [HubService, TokenRefreshWorkflow, ConnectionTestWorkflow],
   exports: [HubService],
 })
 export class HubModule {}

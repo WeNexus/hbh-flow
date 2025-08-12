@@ -222,6 +222,9 @@ export class HubService implements OnApplicationBootstrap {
 
     this.globalEventService.emit<OAuth2Token>('global.hub.refresh', dbTokens);
 
+    // Test the connection to ensure it's valid
+    await this.testConnection(oauth2State.provider, oauth2State.connection);
+
     return {
       arcticTokens,
       dbTokens,
@@ -277,6 +280,55 @@ export class HubService implements OnApplicationBootstrap {
       return !!user;
     }
 
-    return provider.client.testConnection(connection);
+    try {
+      const good = await provider.client.testConnection(connection);
+
+      await this.prisma.connectionStatus.upsert({
+        where: {
+          provider_connection: {
+            provider: id,
+            connection: connection,
+          },
+        },
+        update: {
+          working: true,
+          testedAt: new Date(),
+          reason: null,
+        },
+        create: {
+          provider: id,
+          connection: connection,
+          working: true,
+          testedAt: new Date(),
+        },
+      });
+
+      return good;
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        await this.prisma.connectionStatus.upsert({
+          where: {
+            provider_connection: {
+              provider: id,
+              connection: connection,
+            },
+          },
+          update: {
+            working: false,
+            reason: e.message,
+            testedAt: new Date(),
+          },
+          create: {
+            provider: id,
+            connection: connection,
+            working: false,
+            reason: e.message,
+            testedAt: new Date(),
+          },
+        });
+      }
+
+      throw e;
+    }
   }
 }

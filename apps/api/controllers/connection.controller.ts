@@ -1,7 +1,6 @@
 import { ApiOperation, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { TokenClientConnection, OAuth2Connection } from '#lib/hub/types';
 import { ActivityService, PrismaService } from '#lib/core/services';
-import { ConnectionWithProviderSchema } from '../schema';
 import { Auth, Protected } from '#lib/auth/decorators';
 import type { AuthContext } from '#lib/auth/types';
 import { HubService } from '#lib/hub/hub.service';
@@ -15,9 +14,11 @@ import {
 
 import {
   ConnectionAuthorizationOutputSchema,
+  ConnectionWithProviderSchema,
   ConnectionTestOutputSchema,
   ConnectionDetailSchema,
   ConnectionSchema,
+  UserSchema,
 } from '../schema';
 
 import {
@@ -50,13 +51,33 @@ export class ConnectionController {
     description: 'An array of connection summaries.',
     type: [ConnectionWithProviderSchema],
   })
-  listAll(): ConnectionWithProviderSchema[] {
+  async listAll(): Promise<ConnectionWithProviderSchema[]> {
     const connections: ConnectionWithProviderSchema[] = [];
+
+    const { result: dbConnections } =
+      await this.prisma.connectionStatus.findMany({
+        where: {
+          provider: {
+            in: this.hubService.providersArray.map(
+              (p) => p.client.clientOptions.id,
+            ),
+          },
+        },
+      });
 
     for (const provider of this.hubService.providersArray) {
       const clientOptions = provider.client.clientOptions;
 
       for (const c of clientOptions.connections) {
+        const dbConnection = dbConnections.find(
+          (dc) => dc.provider === clientOptions.id && dc.connection === c.id,
+        );
+
+        const connectedBy = await this.getConnectedByUser(
+          provider.client.clientOptions.id,
+          c.id,
+        );
+
         connections.push({
           ...c,
           provider: {
@@ -65,6 +86,10 @@ export class ConnectionController {
             name: clientOptions.name,
             icon: clientOptions.icon,
           },
+          working: dbConnection?.working ?? false,
+          reason: dbConnection?.reason ?? undefined,
+          testedAt: dbConnection?.testedAt ?? undefined,
+          connectedBy: connectedBy?.user,
         });
       }
     }
@@ -93,16 +118,39 @@ export class ConnectionController {
     status: 404,
     description: 'Provider not found.',
   })
-  list(@Param('id') id: string): ConnectionSchema[] {
+  async list(@Param('id') id: string): Promise<ConnectionSchema[]> {
     try {
       const provider = this.hubService.validateProvider(id);
+      const { result: dbConnections } =
+        await this.prisma.connectionStatus.findMany({
+          where: {
+            provider: provider.client.clientOptions.id,
+          },
+        });
 
-      return provider.client.clientOptions.connections.map(
-        (c: TokenClientConnection | OAuth2Connection) => ({
-          id: c.id,
-          description: c.description,
-          scopes: (c as OAuth2Connection).scopes ?? undefined,
-        }),
+      return Promise.all(
+        provider.client.clientOptions.connections.map(
+          async (c: TokenClientConnection | OAuth2Connection) => {
+            const dbConnection = dbConnections.find(
+              (dc) => dc.connection === c.id,
+            );
+
+            const connectedBy = await this.getConnectedByUser(
+              provider.client.clientOptions.id,
+              c.id,
+            );
+
+            return {
+              id: c.id,
+              description: c.description,
+              scopes: (c as OAuth2Connection).scopes ?? undefined,
+              working: dbConnection?.working ?? false,
+              reason: dbConnection?.reason ?? undefined,
+              testedAt: dbConnection?.testedAt ?? undefined,
+              connectedBy: connectedBy?.user,
+            };
+          },
+        ),
       );
     } catch (e: unknown) {
       if (e instanceof NoProviderException) {
@@ -173,17 +221,27 @@ export class ConnectionController {
         },
       });
 
-      const { result: lastActivity } = await this.prisma.activity.findFirst({
-        where: {
-          resource: 'OAUTH2_TOKEN',
-          AND: [
-            { resourceId: { path: ['provider'], equals: id } },
-            { resourceId: { path: ['connection'], equals: connection } },
-          ],
-        },
-        select: {
-          createdAt: true,
-          User: {
+      let connectedUser: Record<string, any> | undefined = undefined;
+      let connectedAt: Date | undefined = undefined;
+      let connectedBy: UserSchema | undefined;
+
+      if (provider.type !== 'token') {
+        try {
+          connectedUser = (await provider.client.getUserInfo(
+            connection,
+          )) as Record<string, any>;
+          const result = await this.getConnectedByUser(id, connection);
+          connectedBy = result?.user;
+          connectedAt = result?.connectedAt;
+        } catch {
+          // Ignored - returning details even if user info fails
+        }
+      } else {
+        connectedBy = (
+          await this.prisma.user.findFirstOrThrow({
+            where: {
+              role: 'SYSTEM',
+            },
             select: {
               id: true,
               name: true,
@@ -191,21 +249,8 @@ export class ConnectionController {
               role: true,
               createdAt: true,
             },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      let connectedUser: Record<string, any> | undefined = undefined;
-
-      if (provider.type !== 'token') {
-        try {
-          connectedUser = (await provider.client.getUserInfo(
-            connection,
-          )) as Record<string, any>;
-        } catch {
-          // Ignored - returning details even if user info fails
-        }
+          })
+        ).result;
       }
 
       return {
@@ -214,11 +259,12 @@ export class ConnectionController {
         scopes: (conn as OAuth2Connection).scopes ?? undefined,
         working,
         reason: error || undefined,
+        testedAt: new Date(),
         tokenRefreshedAt: oauth2Token?.access
           ? (oauth2Token?.updatedAt ?? oauth2Token.createdAt).toISOString()
           : undefined,
-        connectedAt: lastActivity?.createdAt.toISOString() ?? undefined,
-        connectedBy: lastActivity?.User,
+        connectedAt: connectedAt?.toISOString(),
+        connectedBy,
         connectedUser,
       };
     } catch (e: unknown) {
@@ -340,5 +386,39 @@ export class ConnectionController {
       }
       throw e;
     }
+  }
+
+  private async getConnectedByUser(provider: string, connection: string) {
+    const { result: lastActivity } = await this.prisma.activity.findFirst({
+      where: {
+        resource: 'OAUTH2_TOKEN',
+        AND: [
+          { resourceId: { path: ['provider'], equals: provider } },
+          { resourceId: { path: ['connection'], equals: connection } },
+        ],
+      },
+      select: {
+        createdAt: true,
+        User: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (lastActivity?.User) {
+      return {
+        user: lastActivity.User,
+        connectedAt: lastActivity.createdAt,
+      };
+    }
+
+    return null;
   }
 }

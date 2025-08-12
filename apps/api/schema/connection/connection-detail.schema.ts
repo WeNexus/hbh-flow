@@ -1,23 +1,7 @@
 import { ConnectionSchema } from './connection.schema';
-import { UserSchema } from '../user/user.schema';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ConnectionDetailSchema extends ConnectionSchema {
-  @ApiProperty({
-    description:
-      'Indicates whether the connection is currently functioning as expected.',
-    example: true,
-  })
-  working: boolean;
-
-  @ApiProperty({
-    description:
-      'Explanation of why the connection is not working, if applicable.',
-    example: 'Invalid credentials or token expired.',
-    required: false,
-  })
-  reason?: string;
-
   @ApiProperty({
     description:
       'Timestamp of the most recent token refresh, applicable to OAuth2 connections.',
@@ -35,13 +19,6 @@ export class ConnectionDetailSchema extends ConnectionSchema {
     required: false,
   })
   connectedAt?: string;
-
-  @ApiProperty({
-    description: 'The Flow user who established the connection.',
-    type: UserSchema,
-    required: false,
-  })
-  connectedBy?: UserSchema;
 
   @ApiProperty({
     description:
