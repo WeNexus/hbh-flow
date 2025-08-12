@@ -1,4 +1,5 @@
 export * from './connection/connection-authorization-output.schema';
+export * from './connection/connection-with-provider.schema';
 export * from './connection/connection-test-output.schema';
 export * from './workflow/workflow-update-input.schema';
 export * from './schedule/schedule-create-input.schema';

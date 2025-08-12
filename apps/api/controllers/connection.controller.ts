@@ -1,6 +1,7 @@
 import { ApiOperation, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { TokenClientConnection, OAuth2Connection } from '#lib/hub/types';
 import { ActivityService, PrismaService } from '#lib/core/services';
+import { ConnectionWithProviderSchema } from '../schema';
 import { Auth, Protected } from '#lib/auth/decorators';
 import type { AuthContext } from '#lib/auth/types';
 import { HubService } from '#lib/hub/hub.service';
@@ -29,7 +30,7 @@ import {
   Req,
 } from '@nestjs/common';
 
-@Controller('api/providers')
+@Controller('api')
 export class ConnectionController {
   constructor(
     private readonly activityService: ActivityService,
@@ -37,7 +38,41 @@ export class ConnectionController {
     private readonly prisma: PrismaService,
   ) {}
 
-  @Get('/:id/connections')
+  @Get('/connections')
+  @Protected('OBSERVER')
+  @ApiOperation({
+    summary: 'List all connections across all providers',
+    description:
+      'Returns a list of all available connections configured across all providers.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'An array of connection summaries.',
+    type: [ConnectionWithProviderSchema],
+  })
+  listAll(): ConnectionWithProviderSchema[] {
+    const connections: ConnectionWithProviderSchema[] = [];
+
+    for (const provider of this.hubService.providersArray) {
+      const clientOptions = provider.client.clientOptions;
+
+      for (const c of clientOptions.connections) {
+        connections.push({
+          ...c,
+          provider: {
+            id: clientOptions.id,
+            type: provider.type,
+            name: clientOptions.name,
+            icon: clientOptions.icon,
+          },
+        });
+      }
+    }
+
+    return connections;
+  }
+
+  @Get('/providers/:id/connections')
   @Protected('OBSERVER')
   @ApiOperation({
     summary: 'List all connections for a provider',
@@ -77,7 +112,7 @@ export class ConnectionController {
     }
   }
 
-  @Get('/:id/connections/:connection')
+  @Get('/providers/:id/connections/:connection')
   @Protected('OBSERVER')
   @ApiOperation({
     summary: 'Fetch details of a single connection',
@@ -197,7 +232,7 @@ export class ConnectionController {
     }
   }
 
-  @Post('/:id/connections/:connection/test')
+  @Post('/providers/:id/connections/:connection/test')
   @Protected('OBSERVER')
   @ApiOperation({
     summary: 'Test a provider connection',
@@ -243,7 +278,7 @@ export class ConnectionController {
     }
   }
 
-  @Post('/:id/connections/:connection/authorize')
+  @Post('/providers/:id/connections/:connection/authorize')
   @Protected('DEVELOPER')
   @ApiOperation({
     summary: 'Initiate OAuth2 authorization',
