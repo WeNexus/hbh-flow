@@ -230,7 +230,7 @@ export abstract class OAuth2Client {
         reject(new TokenRefreshFailedException(e?.message));
       };
 
-      const timeoutId = setTimeout(failedListener, 5000000); // 10 seconds timeout
+      const timeoutId = setTimeout(failedListener, 60000 * 30); // 30 minutes
       this.moduleRef
         .get(EventEmitter2, { strict: false })
         .once('global.hub.refresh', listener);
