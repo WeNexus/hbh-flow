@@ -303,11 +303,11 @@ export class WorkflowService implements OnApplicationBootstrap {
                 sentryTrace: dbJob.sentryTrace,
                 baggage: dbJob.sentryBaggage,
               },
-              () => this.execute(instance, config?.maxRetries ?? 3, token),
+              () => this.execute(instance, token),
             );
           }
 
-          return this.execute(instance, config?.maxRetries ?? 3, token);
+          return this.execute(instance, token);
         },
         {
           autorun: true,
@@ -487,11 +487,7 @@ export class WorkflowService implements OnApplicationBootstrap {
     merge(instance.dbJob, result);
   }
 
-  private async execute(
-    instance: WorkflowBase,
-    maxRetries: number,
-    token?: string,
-  ) {
+  private async execute(instance: WorkflowBase, token?: string) {
     const flow = await this.resolveClass(instance, true);
     const { bullJob, dbJob } = instance;
 
@@ -620,7 +616,9 @@ export class WorkflowService implements OnApplicationBootstrap {
               // @ts-expect-error private properties
               const { needsRerun, paused, delayed, cancelled } = instance;
 
-              const maxRetriesReached = dbStep.retries >= maxRetries;
+              const maxRetriesReached =
+                dbStep.retries >=
+                (bullJob.opts.attempts ? bullJob.opts.attempts - 1 : 0);
               const canRetry = error && !maxRetriesReached;
               const shouldRerun = needsRerun || canRetry;
 
