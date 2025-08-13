@@ -35,18 +35,21 @@ export class ZohoService extends OAuth2HttpClient {
 
   async getUserInfo(connection: string): Promise<ZohoUserInfo | null> {
     try {
-      const res1 = await this.get<string>('/oauth/user/info', {
-        baseURL: 'https://accounts.zoho.com',
-        connection,
-      });
+      const { data: data1 } = await this.get<Record<string, any>>(
+        '/oauth/user/info',
+        {
+          baseURL: 'https://accounts.zoho.com',
+          connection,
+        },
+      );
 
-      const res2 = await this.get<string>('/oauth/v2/userinfo', {
-        baseURL: 'https://accounts.zoho.com',
-        connection,
-      });
-
-      const data1 = JSON.parse(res1.data) as Record<string, any>;
-      const data2 = JSON.parse(res2.data) as Record<string, any>;
+      const { data: data2 } = await this.get<Record<string, any>>(
+        '/oauth/v2/userinfo',
+        {
+          baseURL: 'https://accounts.zoho.com',
+          connection,
+        },
+      );
 
       return {
         id: Number(data1.ZUID),

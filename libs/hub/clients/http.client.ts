@@ -1,4 +1,4 @@
-import { Axios, AxiosRequestConfig, AxiosResponse } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { RequestConfig } from '../types';
 
 /**
@@ -6,7 +6,7 @@ import { RequestConfig } from '../types';
  * This class should be extended by specific OAuth2/Token HTTP clients.
  */
 export abstract class HttpClient {
-  protected readonly fetchers = new Map<string, Axios>();
+  protected readonly fetchers = new Map<string, AxiosInstance>();
 
   /**
    * Sets the default configuration for the HTTP client.
@@ -30,7 +30,7 @@ export abstract class HttpClient {
     config: AxiosRequestConfig,
   ): Promise<AxiosRequestConfig> | AxiosRequestConfig;
 
-  protected async getFetcher(connection: string): Promise<Axios> {
+  protected async getFetcher(connection: string): Promise<AxiosInstance> {
     let fetcher = this.fetchers.get(connection);
 
     if (fetcher) {
@@ -38,7 +38,7 @@ export abstract class HttpClient {
     }
 
     const config = await this.defaultConfig(connection);
-    fetcher = new Axios(config);
+    fetcher = axios.create(config);
     this.fetchers.set(connection, fetcher);
 
     return fetcher;
