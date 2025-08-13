@@ -24,6 +24,7 @@ import {
 import {
   NotFoundException,
   Controller,
+  Delete,
   Param,
   Query,
   Post,
@@ -278,6 +279,56 @@ export class ConnectionController {
     }
   }
 
+  @Delete('/providers/:id/connections/:connection')
+  @Protected('DEVELOPER')
+  @ApiOperation({
+    summary: 'Disconnect a connection',
+    description: 'Disconnects an OAuth2 connection from the provider.',
+  })
+  @ApiParam({ name: 'id', description: 'Provider ID.', type: String })
+  @ApiParam({
+    name: 'connection',
+    description: 'Connection ID to disconnect.',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Connection successfully disconnected.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Provider or connection not found.',
+  })
+  async disconnect(
+    @Req() req: Request,
+    @Auth() auth: AuthContext,
+    @Param('id') id: string,
+    @Param('connection') connection: string,
+  ) {
+    try {
+      await this.hubService.disconnect(id, connection);
+
+      await this.activityService.recordActivity({
+        req,
+        action: 'DELETE',
+        resource: 'OAUTH2_TOKEN',
+        resourceId: { provider: id, connection },
+        subAction: 'OAUTH2_DISCONNECT',
+        userId: auth.user.id,
+      });
+
+      return { message: 'Connection successfully disconnected.' };
+    } catch (e: unknown) {
+      if (
+        e instanceof NoProviderException ||
+        e instanceof NoConnectionException
+      ) {
+        throw new NotFoundException(e.message);
+      }
+      throw e;
+    }
+  }
+
   @Post('/providers/:id/connections/:connection/test')
   @Protected('OBSERVER')
   @ApiOperation({
@@ -320,6 +371,13 @@ export class ConnectionController {
           reason: e.message,
         };
       }
+      if (e instanceof Error) {
+        return {
+          working: false,
+          reason: e.message,
+        };
+      }
+
       throw e;
     }
   }
@@ -399,6 +457,7 @@ export class ConnectionController {
       },
       select: {
         createdAt: true,
+        subAction: true,
         User: {
           select: {
             id: true,
@@ -412,7 +471,10 @@ export class ConnectionController {
       orderBy: { createdAt: 'desc' },
     });
 
-    if (lastActivity?.User) {
+    if (
+      lastActivity?.subAction === 'OAUTH2_AUTHORIZATION' &&
+      lastActivity?.User
+    ) {
       return {
         user: lastActivity.User,
         connectedAt: lastActivity.createdAt,

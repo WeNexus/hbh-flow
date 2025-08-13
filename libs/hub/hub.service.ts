@@ -324,4 +324,48 @@ export class HubService implements OnApplicationBootstrap {
 
     return working;
   }
+
+  /**
+   * Disconnects a connection from an OAuth2 provider.
+   *
+   * @param id - The ID of the OAuth2 provider.
+   * @param connection - The ID of the connection to disconnect.
+   * @throws NoProviderException if the provider is not an OAuth2 provider.
+   */
+  async disconnect(id: string, connection: string) {
+    const provider = this.validateProvider(id);
+
+    if (provider.type !== 'oauth2') {
+      throw new NoProviderException(
+        `Provider "${id}" is not an OAuth2 provider.`,
+      );
+    }
+
+    // Remove the tokens from the database
+    await this.prisma.oAuth2Token.deleteMany({
+      where: {
+        provider: id,
+        connection: connection,
+      },
+    });
+
+    // Remove the connection status
+    await this.prisma.connectionStatus.deleteMany({
+      where: {
+        provider: id,
+        connection: connection,
+      },
+    });
+
+    // Remove the auth state
+    await this.prisma.oAuth2AuthState.deleteMany({
+      where: {
+        provider: id,
+        connection: connection,
+      },
+    });
+
+    // Remove the tokens from the client cache
+    provider.client.tokens.delete(connection);
+  }
 }
