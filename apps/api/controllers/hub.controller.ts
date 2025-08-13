@@ -44,6 +44,9 @@ export class HubController {
             equals: state,
           },
         },
+        orderBy: {
+          createdAt: 'desc',
+        },
       });
 
       await this.activityService.recordActivity({
