@@ -1,13 +1,16 @@
+import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded';
+import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import MuiDrawer, { drawerClasses } from '@mui/material/Drawer';
 import SidebarMenuContent from './sidebar-menu-content.tsx';
+import OptionsMenu from '@/components/options-menu.tsx';
 import Typography from '@mui/material/Typography';
 import { styled } from '@mui/material/styles';
-import OptionsMenu from './options-menu.tsx';
 import Divider from '@mui/material/Divider';
 import { useApi } from '@/hooks/use-api.ts';
 import Avatar from '@mui/material/Avatar';
 import Stack from '@mui/material/Stack';
 import Box from '@mui/material/Box';
+import { useMemo } from 'react';
 
 const drawerWidth = 240;
 
@@ -23,7 +26,19 @@ const Drawer = styled(MuiDrawer)({
 });
 
 export default function Sidebar() {
-  const { user } = useApi();
+  const { user, api } = useApi();
+  const menuItems = useMemo(() => [
+    {
+      label: 'My Account',
+      icon: <ManageAccountsRoundedIcon />,
+      onClick: () => api.logout(),
+    },
+    {
+      label: 'Logout',
+      icon: <LogoutRoundedIcon />,
+      onClick: () => api.logout(),
+    },
+  ], [api])
 
   return (
     <Drawer
@@ -89,7 +104,7 @@ export default function Sidebar() {
             {user?.email}
           </Typography>
         </Box>
-        <OptionsMenu />
+        <OptionsMenu items={menuItems} title='Options' />
       </Stack>
     </Drawer>
   );

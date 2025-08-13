@@ -1,5 +1,3 @@
-import type { PageContext } from '@/types/page-context.ts';
-import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router';
 import HeaderMobile from './header-mobile.tsx';
 import { alpha } from '@mui/material/styles';
@@ -7,28 +5,15 @@ import { useApi } from '@/hooks/use-api.ts';
 import Stack from '@mui/material/Stack';
 import Sidebar from './sidebar.tsx';
 import Box from '@mui/material/Box';
+import { useEffect } from 'react';
 import Header from './header.tsx';
 
 export function PrivateLayout() {
   const navigate = useNavigate();
   const { api, user } = useApi();
 
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
-
-  const ctx = useMemo(
-    () => ({
-      showDatePicker,
-      showSearch,
-      setShowDatePicker,
-      setShowSearch,
-    }),
-    [showDatePicker, showSearch],
-  );
-
   useEffect(() => {
     if (!api.user) {
-      console.log('User is not authenticated, redirecting to login');
       navigate('/login', { replace: true });
     }
   }, [api.user, navigate]);
@@ -61,9 +46,9 @@ export function PrivateLayout() {
             mt: { xs: 8, md: 0 },
           }}
         >
-          <Header showDatePicker={showDatePicker} showSearch={showSearch} />
+          <Header />
 
-          <Outlet context={ctx satisfies PageContext} />
+          <Outlet />
         </Stack>
       </Box>
     </Box>

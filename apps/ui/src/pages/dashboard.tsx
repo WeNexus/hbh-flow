@@ -4,9 +4,8 @@ import ExecutionsByStatusChart from '@/components/executions-by-status-chart';
 import StatCard, { type StatCardProps } from '@/components/stat-card';
 import CustomizedTreeView from '@/components/customized-tree-view';
 import CustomizedDataGrid from '@/components/customized-data-grid';
-import type { PageContext } from '@/types/page-context.ts';
+import { HeaderEvents } from '@/layouts/private/header-events.ts';
 import Typography from '@mui/material/Typography';
-import { useOutletContext } from 'react-router';
 import Copyright from '@/components/copyright';
 import Stack from '@mui/material/Stack';
 import Grid from '@mui/material/Grid';
@@ -62,11 +61,16 @@ const data: StatCardProps[] = [
 ];
 
 export default function Dashboard() {
-  const ctx = useOutletContext<PageContext>();
-
   useEffect(() => {
-    ctx.setShowSearch(false);
-  }, [ctx]);
+    window.dispatchEvent(
+      new CustomEvent(HeaderEvents.ui, {
+        detail: {
+          search: false,
+          datePicker: true,
+        },
+      }),
+    );
+  }, []);
 
   return (
     <Box sx={{ width: '100%', maxWidth: { sm: '100%', md: '1700px' } }}>
