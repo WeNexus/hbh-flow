@@ -45,6 +45,33 @@
       "compilerOptions": {
         "tsConfigPath": "libs/workflow/tsconfig.lib.json"
       }
+    },
+    "auth": {
+      "type": "library",
+      "root": "libs/auth",
+      "entryFile": "index",
+      "sourceRoot": "libs/auth",
+      "compilerOptions": {
+        "tsConfigPath": "libs/auth/tsconfig.lib.json"
+      }
+    },
+    "hub": {
+      "type": "library",
+      "root": "libs/hub",
+      "entryFile": "index",
+      "sourceRoot": "libs/hub",
+      "compilerOptions": {
+        "tsConfigPath": "libs/hub/tsconfig.lib.json"
+      }
+    },
+    "zoho": {
+      "type": "library",
+      "root": "libs/zoho",
+      "entryFile": "index",
+      "sourceRoot": "libs/zoho",
+      "compilerOptions": {
+        "tsConfigPath": "libs/zoho/tsconfig.lib.json"
+      }
     }
   }
 }
