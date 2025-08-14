@@ -13,6 +13,7 @@ import { ErrorState } from '@/components/error-state.tsx';
 import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
 import CardHeader from '@mui/material/CardHeader';
+import { useSocket } from '@/hooks/use-socket.ts';
 import { useSearchParams } from 'react-router';
 import Skeleton from '@mui/material/Skeleton';
 import Divider from '@mui/material/Divider';
@@ -92,6 +93,7 @@ export function Integrations() {
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [error, setError] = useState<AxiosError | string | null>(null);
   const [testing, setTesting] = useState<Record<string, boolean>>({});
+  const socket = useSocket('/connections');
 
   const fetchConnections = useCallback(
     (silent = true) => {
@@ -270,6 +272,16 @@ export function Integrations() {
       window.removeEventListener(HeaderEvents.query as any, queryHandler);
     };
   }, []);
+
+  useEffect(() => {
+    socket.on('activity', () => fetchConnections(true));
+
+    return () => {
+      if (socket) {
+        socket.off('activity');
+      }
+    };
+  }, [fetchConnections, socket]);
 
   return (
     <Box sx={{ width: '100%', mx: 'auto', px: { xs: 1, sm: 2 }, py: 2 }}>
