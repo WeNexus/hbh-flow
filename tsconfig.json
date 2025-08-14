@@ -53,11 +53,11 @@
       "#lib/zoho/*": [
         "libs/zoho/*"
       ],
-      "#lib/prisma-cache": [
-        "libs/prisma-cache"
+      "#lib/fujimausa": [
+        "libs/fujimausa"
       ],
-      "#lib/prisma-cache/*": [
-        "libs/prisma-cache/*"
+      "#lib/fujimausa/*": [
+        "libs/fujimausa/*"
       ],
       "#app/api": [
         "apps/api"

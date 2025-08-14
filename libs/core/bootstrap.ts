@@ -2,6 +2,7 @@ import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { APP_TYPE, RedisIoAdapter, RUNTIME_ID } from '#lib/core/misc';
 import { PrismaExtensionRedis } from '#lib/core/misc/prisma-cache';
+import { FujimausaModule } from '#lib/fujimausa/fujimausa.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { REDIS_SUB, RedisModule } from '#lib/core/redis';
@@ -28,7 +29,6 @@ import {
   Provider,
   ValidationPipe,
 } from '@nestjs/common';
-
 /**
  * Bootstraps the NestJS application with the provided metadata.
  * This function initializes the application with necessary modules,
@@ -87,6 +87,7 @@ export async function bootstrap(
         },
         inject: [EnvService],
       }),
+      FujimausaModule,
     ],
     providers: [
       {

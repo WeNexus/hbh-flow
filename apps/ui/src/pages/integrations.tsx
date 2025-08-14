@@ -213,18 +213,20 @@ export function Integrations() {
             ctx: item,
           });
         }
-
-        result[item.id].push({
-          label: 'Test connection',
-          onClick: testConnection,
-          icon: <BugReportRoundedIcon />,
-          ctx: item,
-        });
       } else if (item.provider.type === 'oauth2') {
         result[item.id].push({
           label: 'Connect',
           onClick: connect,
           icon: <PowerRoundedIcon />,
+          ctx: item,
+        });
+      }
+
+      if (item.provider.type === 'token' || item.connectedBy) {
+        result[item.id].push({
+          label: 'Test connection',
+          onClick: testConnection,
+          icon: <BugReportRoundedIcon />,
           ctx: item,
         });
       }

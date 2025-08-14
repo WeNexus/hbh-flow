@@ -72,6 +72,15 @@
       "compilerOptions": {
         "tsConfigPath": "libs/zoho/tsconfig.lib.json"
       }
+    },
+    "fujimausa": {
+      "type": "library",
+      "root": "libs/fujimausa",
+      "entryFile": "index",
+      "sourceRoot": "libs/fujimausa",
+      "compilerOptions": {
+        "tsConfigPath": "libs/fujimausa/tsconfig.lib.json"
+      }
     }
   }
 }
