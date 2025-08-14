@@ -13,6 +13,14 @@ import { merge } from 'lodash-es';
   name: 'Zoho',
   icon: 'https://www.zohowebstatic.com/sites/zweb/images/commonroot/zoho-logo-web.svg',
   scopes: ['aaaserver.profile.READ'],
+  connections: [
+    {
+      id: 'hbh',
+      description: 'Honehbeeherb Zoho Connection',
+      authorizationURL: 'https://accounts.zoho.com/oauth/v2/auth',
+      tokenURL: 'https://accounts.zoho.com/oauth/v2/token',
+    },
+  ],
 })
 export class ZohoService extends OAuth2HttpClient {
   constructor(

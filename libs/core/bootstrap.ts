@@ -83,14 +83,6 @@ export async function bootstrap(
           return {
             clientId: env.getString('ZOHO_CLIENT_ID'),
             clientSecret: env.getString('ZOHO_CLIENT_SECRET'),
-            connections: [
-              {
-                id: 'hbh',
-                description: 'Honehbeeherb Zoho Connection',
-                authorizationURL: 'https://accounts.zoho.com/oauth/v2/auth',
-                tokenURL: 'https://accounts.zoho.com/oauth/v2/token',
-              },
-            ],
           };
         },
         inject: [EnvService],
