@@ -447,9 +447,12 @@ export class ConnectionController {
   }
 
   private async getConnectedByUser(provider: string, connection: string) {
-    const { result: lastActivity } = await this.prisma.activity.findFirst({
+    const { result: activity } = await this.prisma.activity.findFirst({
       where: {
         resource: 'OAUTH2_TOKEN',
+        subAction: {
+          in: ['OAUTH2_AUTHORIZATION', 'OAUTH2_DISCONNECT'],
+        },
         AND: [
           { resourceId: { path: ['provider'], equals: provider } },
           { resourceId: { path: ['connection'], equals: connection } },
@@ -471,13 +474,10 @@ export class ConnectionController {
       orderBy: { createdAt: 'desc' },
     });
 
-    if (
-      lastActivity?.subAction === 'OAUTH2_AUTHORIZATION' &&
-      lastActivity?.User
-    ) {
+    if (activity?.subAction === 'OAUTH2_AUTHORIZATION' && activity?.User) {
       return {
-        user: lastActivity.User,
-        connectedAt: lastActivity.createdAt,
+        user: activity.User,
+        connectedAt: activity.createdAt,
       };
     }
 
