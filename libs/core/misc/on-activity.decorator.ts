@@ -10,5 +10,5 @@ import { Resource } from '@prisma/client';
  * @returns A method decorator that listens for activity events on the specified resources.
  */
 export function OnActivity(resources: Resource[]) {
-  return applyDecorators(OnEvent(resources.map((r) => `activity.${r}`)));
+  return applyDecorators(...resources.map((r) => OnEvent(`activity.${r}`)));
 }
