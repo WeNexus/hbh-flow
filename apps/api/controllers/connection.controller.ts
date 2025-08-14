@@ -446,7 +446,30 @@ export class ConnectionController {
     }
   }
 
-  private async getConnectedByUser(provider: string, connection: string) {
+  private async getConnectedByUser(id: string, connection: string) {
+    const provider = this.hubService.validateProvider(id);
+
+    if (provider.type === 'token') {
+      const { result: systemUser } = await this.prisma.user.findFirstOrThrow({
+        where: { role: 'SYSTEM' },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          createdAt: true,
+        },
+        cache: {
+          key: 'system-user',
+        },
+      });
+
+      return {
+        user: systemUser,
+        connectedAt: new Date(),
+      };
+    }
+
     const { result: activity } = await this.prisma.activity.findFirst({
       where: {
         resource: 'OAUTH2_TOKEN',
@@ -454,7 +477,7 @@ export class ConnectionController {
           in: ['OAUTH2_AUTHORIZATION', 'OAUTH2_DISCONNECT'],
         },
         AND: [
-          { resourceId: { path: ['provider'], equals: provider } },
+          { resourceId: { path: ['provider'], equals: id } },
           { resourceId: { path: ['connection'], equals: connection } },
         ],
       },
