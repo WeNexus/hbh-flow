@@ -1,7 +1,7 @@
-import { ActivityGateway } from '#app/api/gateways/activity.gateway';
 import type { InputJsonValue } from '@prisma/client/runtime/library';
 import { Activity, type Resource, Revision } from '@prisma/client';
 import type { RecordActivityConfig } from '#lib/core/types';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from './prisma.service';
 import * as jsondiffpatch from 'jsondiffpatch';
 import { Injectable } from '@nestjs/common';
@@ -10,7 +10,7 @@ import { omit } from 'lodash-es';
 @Injectable()
 export class ActivityService {
   constructor(
-    private readonly activityGateway: ActivityGateway,
+    private readonly emitter: EventEmitter2,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -106,7 +106,7 @@ export class ActivityService {
       ).result;
     }
 
-    this.activityGateway.notifyActivity(activity, revision);
+    this.emitter.emit(`activity.${activity.resource}`, { activity, revision });
 
     return { activity, revision };
   }

@@ -1,4 +1,4 @@
-import { Activity, Revision } from '@prisma/client';
+import type { ActivityEventPayload } from '#lib/core/types';
 import { Namespace, Socket } from 'socket.io';
 import { ModuleRef } from '@nestjs/core';
 
@@ -7,6 +7,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import { OnEvent } from '@nestjs/event-emitter';
 
 @WebSocketGateway({ namespace: 'activities' })
 export class ActivityGateway implements OnGatewayConnection {
@@ -27,7 +28,8 @@ export class ActivityGateway implements OnGatewayConnection {
     }
   }
 
-  notifyActivity(activity: Activity, revision: Revision | null = null) {
-    this.namespace.emit('activity', { activity, revision });
+  @OnEvent('activity.*')
+  notifyActivity(payload: ActivityEventPayload) {
+    this.namespace.emit('activity', payload);
   }
 }
