@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { cloneDeep, isEqual } from 'lodash-es';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { isEqual as lodashIsEqual } from 'lodash-es';
 import { get } from '@/modules/object-util.ts';
 
 type MessageType = 'error' | 'warning' | 'info';
@@ -15,10 +15,6 @@ export interface Validator<S> {
   validate: (value: any, state: S) => Promise<Message | void> | Message | void;
 }
 
-export type FormState<T = Record<string, any>> = ReturnType<
-  typeof useFormState<T>
->;
-
 export type PathToValidate =
   | string
   | {
@@ -26,163 +22,241 @@ export type PathToValidate =
       path: string;
     };
 
+// New: options, with backward compatibility
+export interface UseFormStateOptions<P extends string, T> {
+  readOnly?: boolean;
+  validators?: Record<P, Validator<T>>;
+  history?: boolean | { limit?: number }; // false disables history
+  compare?: (a: T, b: T) => boolean; // defaults to lodash isEqual
+}
+
 const wildcardRegex = /\*/gim;
-const historyLimit = 25;
+const DEFAULT_HISTORY_LIMIT = 25;
 
 function replaceWildcardWithIndex(pathToValidate: PathToValidate): string {
-  if (typeof pathToValidate === 'string') {
-    return pathToValidate;
-  }
-
-  if (pathToValidate.indexes.length === 0) {
-    return pathToValidate.path;
-  }
+  if (typeof pathToValidate === 'string') return pathToValidate;
+  if (pathToValidate.indexes.length === 0) return pathToValidate.path;
 
   let index = 0;
   return pathToValidate.path.replace(wildcardRegex, () =>
     index === pathToValidate.indexes.length
       ? '*'
-      : pathToValidate.indexes[index++].toString(),
+      : String(pathToValidate.indexes[index++]),
   );
 }
 
-export function useFormState<
-  T = Record<string, any>,
-  P extends string = string,
->(initialState: T, readOnly?: boolean, validators?: Record<P, Validator<T>>) {
+// Internal history state managed via reducer (atomic & efficient)
+interface HistoryState<T> {
+  changes: T[];
+  cursor: number; // index into changes
+}
+
+type HistoryAction<T> =
+  | { type: 'RESET'; payload: T; trackHistory: boolean }
+  | { type: 'PUSH'; payload: T; limit: number; trackHistory: boolean }
+  | { type: 'REPLACE_CURRENT'; payload: T; trackHistory: boolean }
+  | { type: 'UNDO' }
+  | { type: 'REDO' };
+
+function historyReducer<T>(
+  state: HistoryState<T>,
+  action: HistoryAction<T>,
+): HistoryState<T> {
+  switch (action.type) {
+    case 'RESET': {
+      const base = [action.payload];
+      return action.trackHistory
+        ? { changes: base, cursor: 0 }
+        : { changes: base, cursor: 0 };
+    }
+    case 'PUSH': {
+      if (!action.trackHistory) {
+        // Single snapshot mode
+        return { changes: [action.payload], cursor: 0 };
+      }
+      // Drop "future" history if user edited after undo
+      const upto = state.changes.slice(0, state.cursor + 1);
+      const next = [...upto, action.payload];
+      const limit = Math.max(1, action.limit || DEFAULT_HISTORY_LIMIT);
+      const trimmed =
+        next.length > limit ? next.slice(next.length - limit) : next;
+      return { changes: trimmed, cursor: trimmed.length - 1 };
+    }
+    case 'REPLACE_CURRENT': {
+      if (!action.trackHistory) {
+        return { changes: [action.payload], cursor: 0 };
+      }
+      const changes = state.changes.slice();
+      changes[state.cursor] = action.payload;
+      return { changes, cursor: state.cursor };
+    }
+    case 'UNDO': {
+      if (state.cursor > 0) return { ...state, cursor: state.cursor - 1 };
+      return state;
+    }
+    case 'REDO': {
+      if (state.cursor < state.changes.length - 1) {
+        return { ...state, cursor: state.cursor + 1 };
+      }
+      return state;
+    }
+    default:
+      return state;
+  }
+}
+
+export function useFormState<T = Record<string, any>, P extends string = string>(
+  initialState: T,
+  {
+    readOnly = false,
+    validators,
+    history = true,
+    compare = lodashIsEqual,
+  }: UseFormStateOptions<P, T> = {},
+) {
+  const trackHistory = history !== false;
+  const historyLimit =
+    typeof history === 'object' && history?.limit
+      ? history.limit
+      : DEFAULT_HISTORY_LIMIT;
+
   const [messages, setMessages] = useState<Record<P, Message>>({} as any);
 
-  const [changes, setChanges] = useState([initialState]);
-  const [cursor, setCursor] = useState(0);
-  const [staged, setStaged] = useState(initialState);
-  const state = useMemo(() => changes[cursor], [cursor, changes]);
+  const [historyState, dispatch] = useReducer(historyReducer<T>, {
+    changes: [initialState],
+    cursor: 0,
+  });
+
+  const state = useMemo(
+    () => historyState.changes[historyState.cursor],
+    [historyState],
+  );
+
+  const [staged, setStaged] = useState<T>(initialState);
 
   const isDirty = useMemo(
-    () => changes.length > 1 && !isEqual(state, initialState),
-    [state, changes, initialState],
+    () => historyState.changes.length > 0 && !compare(state, initialState),
+    [state, initialState, compare],
   );
 
   const validate = useCallback(
     async (target: T, ...path: PathToValidate[]) => {
-      if (!validators) {
+      if (!validators || Object.keys(validators).length === 0) {
         return messages;
       }
 
       const pathsToValidate: PathToValidate[] =
         path.length > 0
           ? path
-          : Object.keys(validators).map((k) => ({
-              path: k,
-              indexes: [],
-            }));
+          : Object.keys(validators).map((k) => ({ path: k, indexes: [] }));
 
       if (pathsToValidate.length === 0) {
         return messages;
       }
 
-      const messagesCopy = cloneDeep(messages);
+      // Build validation tasks
+      const tasks: Array<Promise<{ path: string; message?: Message }>> = [];
 
-      for (const pathToValidate of pathsToValidate) {
-        const pathReplaced =
-          typeof pathToValidate === 'string'
-            ? pathToValidate
-            : replaceWildcardWithIndex(pathToValidate);
-        const validator =
-          // @ts-expect-error - ignore
-          validators[
-            typeof pathToValidate === 'string'
-              ? pathToValidate
-              : pathToValidate.path
-          ];
-        const pathValues = get(target, pathReplaced);
+      for (const p of pathsToValidate) {
+        const rawKey = typeof p === 'string' ? p : p.path;
+        const replaced =
+          typeof p === 'string' ? p : replaceWildcardWithIndex(p);
 
-        if (pathValues.length === 0) {
-          continue;
-        }
+        // @ts-expect-error index by path key
+        const validator: Validator<T> | undefined = validators[rawKey];
+        if (!validator) continue;
 
-        for (const pathValue of pathValues) {
-          const message = await validator.validate(pathValue.value, target);
+        const pathValues = get(target, replaced) ?? [];
+        if (!Array.isArray(pathValues) || pathValues.length === 0) continue;
 
-          if (message) {
-            // @ts-expect-error - ignore
-            messagesCopy[pathValue.path] = message;
-          } else {
-            // @ts-expect-error - ignore
-            delete messagesCopy[pathValue.path];
-          }
+        for (const pv of pathValues) {
+          tasks.push(
+            Promise.resolve(validator.validate(pv.value, target)).then(
+              (msg) => ({
+                path: pv.path,
+                message: msg || undefined,
+              }),
+            ),
+          );
         }
       }
 
-      setMessages(messagesCopy);
+      if (tasks.length === 0) return messages;
 
-      return messagesCopy;
+      const results = await Promise.all(tasks);
+
+      setMessages((prev) => {
+        // Build next map immutably, only touching changed keys
+        const next = { ...(prev as Record<string, Message>) } as Record<
+          P,
+          Message
+        >;
+        for (const { path, message } of results) {
+          if (message) {
+            next[path as P] = message;
+          } else {
+            if (path in next) delete next[path as P];
+          }
+        }
+        return next as Record<P, Message>;
+      });
+
+      return messages;
     },
     [validators, messages],
   );
 
   const addChange = useCallback(
     (change: Partial<T>, ...pathsToValidate: PathToValidate[]) => {
-      if (readOnly) {
-        return;
-      }
+      if (readOnly) return;
 
       const newState = { ...state, ...change };
-
-      if (!isEqual(newState, state)) {
-        const newCursor = cursor + 1;
-
-        setChanges([
-          ...changes.slice(newCursor <= historyLimit ? 0 : 1, newCursor),
-          newState,
-        ]);
+      if (!Object.is(newState, state) && !lodashIsEqual(newState, state)) {
+        dispatch({
+          type: 'PUSH',
+          payload: newState,
+          limit: historyLimit,
+          trackHistory,
+        });
         setStaged(newState);
-        setCursor(newCursor > historyLimit ? historyLimit : newCursor);
-
         if (pathsToValidate?.length) {
-          validate(newState, ...pathsToValidate);
+          // Fire & forget; caller can await if needed
+          void validate(newState, ...pathsToValidate);
         }
       }
     },
-    [readOnly, state, cursor, changes, validate],
+    [readOnly, state, historyLimit, trackHistory, validate],
   );
 
   const patch = useCallback(
     (change: Partial<T>, ...pathsToValidate: PathToValidate[]) => {
-      if (readOnly) {
-        return;
-      }
+      if (readOnly) return;
 
       const newState = { ...state, ...change };
-
-      if (!isEqual(newState, state)) {
-        const changesCopy = [...changes];
-        changesCopy[cursor] = newState;
-
-        setChanges(changesCopy);
+      if (!lodashIsEqual(newState, state)) {
+        dispatch({ type: 'REPLACE_CURRENT', payload: newState, trackHistory });
         setStaged(newState);
-
         if (pathsToValidate?.length) {
-          validate(newState, ...pathsToValidate);
+          void validate(newState, ...pathsToValidate);
         }
       }
     },
-    [changes, cursor, readOnly, state, validate],
+    [readOnly, state, trackHistory, validate],
   );
 
   const addToStaged = useCallback(
     (change: Partial<T>, ...pathsToValidate: PathToValidate[]) => {
-      if (readOnly) {
-        return;
-      }
+      if (readOnly) return;
 
-      const newStaged = { ...staged, ...change };
-      setStaged(newStaged);
-
-      if (pathsToValidate?.length) {
-        validate(newStaged, ...pathsToValidate);
-      }
+      setStaged((prev) => {
+        const newStaged = { ...(prev as T), ...change };
+        if (pathsToValidate?.length) {
+          void validate(newStaged, ...pathsToValidate);
+        }
+        return newStaged;
+      });
     },
-    [readOnly, staged, validate],
+    [readOnly, validate],
   );
 
   const commitStaged = useCallback(
@@ -192,51 +266,33 @@ export function useFormState<
   );
 
   const undo = useCallback(() => {
-    if (cursor > 0) {
-      const newCursor = cursor - 1;
-
-      setCursor(newCursor);
-      setStaged(changes[newCursor]);
-    }
-  }, [cursor, changes]);
+    if (!trackHistory) return; // no-op when history disabled
+    dispatch({ type: 'UNDO' });
+  }, [trackHistory]);
 
   const redo = useCallback(() => {
-    if (cursor < changes.length - 1) {
-      const newCursor = cursor + 1;
+    if (!trackHistory) return; // no-op when history disabled
+    dispatch({ type: 'REDO' });
+  }, [trackHistory]);
 
-      setCursor(newCursor);
-      setStaged(changes[newCursor]);
+  const clearMessages = useCallback((...pathPrefixes: string[]) => {
+    if (pathPrefixes.length === 0) {
+      setMessages({} as any);
+      return;
     }
-  }, [cursor, changes]);
-
-  const clearMessages = useCallback(
-    (...pathPrefixes: string[]) => {
-      if (pathPrefixes.length === 0) {
-        return setMessages({} as any);
-      }
-
-      const messagesCopy = cloneDeep(messages);
-
-      for (const pathPrefix of pathPrefixes) {
-        for (const path of Object.keys(messagesCopy)) {
-          if (path.startsWith(pathPrefix)) {
-            // @ts-expect-error - ignore
-            delete messagesCopy[path];
-          }
-        }
-      }
-
-      setMessages(messagesCopy);
-    },
-    [messages],
-  );
+    setMessages((prev) => {
+      const nextEntries = Object.entries(prev).filter(
+        ([path]) => !pathPrefixes.some((pref) => path.startsWith(pref)),
+      ) as [string, Message][];
+      return Object.fromEntries(nextEntries) as Record<P, Message>;
+    });
+  }, []);
 
   const reset = useCallback(() => {
-    setChanges([initialState]);
+    dispatch({ type: 'RESET', payload: initialState, trackHistory });
     setStaged(initialState);
     setMessages({} as any);
-    setCursor(0);
-  }, [initialState]);
+  }, [initialState, trackHistory]);
 
   useEffect(() => reset(), [reset, initialState]);
 
@@ -248,10 +304,10 @@ export function useFormState<
     messages,
     readOnly,
     validate,
-    changes,
+    changes: historyState.changes,
     isDirty,
     staged,
-    cursor,
+    cursor: historyState.cursor,
     reset,
     patch,
     state,

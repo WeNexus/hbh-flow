@@ -80,28 +80,30 @@ export default function Login() {
 
   const { staged, state, commitStaged, messages, addToStaged } = useFormState(
     initialState,
-    false,
     {
-      email: {
-        target: 'state',
-        validate: (value) => {
-          if (!value || !/\S+@\S+\.\S+/.test(value)) {
-            return {
-              type: 'error',
-              message: 'Please enter a valid email address.',
-            };
-          }
+      history: false,
+      validators: {
+        email: {
+          target: 'state',
+          validate: (value) => {
+            if (!value || !/\S+@\S+\.\S+/.test(value)) {
+              return {
+                type: 'error',
+                message: 'Please enter a valid email address.',
+              };
+            }
+          },
         },
-      },
-      password: {
-        target: 'state',
-        validate: (value) => {
-          if (!value) {
-            return {
-              type: 'error',
-              message: 'Password cannot be empty.',
-            };
-          }
+        password: {
+          target: 'state',
+          validate: (value) => {
+            if (!value) {
+              return {
+                type: 'error',
+                message: 'Password cannot be empty.',
+              };
+            }
+          },
         },
       },
     },
