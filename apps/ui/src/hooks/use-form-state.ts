@@ -105,7 +105,84 @@ function historyReducer<T>(
   }
 }
 
-export function useFormState<T = Record<string, any>, P extends string = string>(
+function normalizeForFormData(path: string, value: any): [string, string][] {
+  const entries: [string, string][] = [];
+  const valueType = typeof value;
+
+  if (valueType === 'function' || valueType === 'symbol') {
+    throw new Error(
+      `Cannot serialize value of type ${valueType} at path "${path}" for FormData.`,
+    );
+  }
+
+  if (valueType === 'undefined') {
+    return entries; // skip undefined values
+  }
+
+  if (value === null) {
+    entries.push([path, '']);
+    return entries;
+  }
+
+  if (
+    valueType === 'string' ||
+    valueType === 'number' ||
+    valueType === 'boolean' ||
+    valueType === 'bigint'
+  ) {
+    entries.push([path, value]);
+    return entries;
+  }
+
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const itemPath = `${path}[${i}]`;
+      const itemValue = value[i];
+      if (itemValue !== undefined) {
+        entries.push(...normalizeForFormData(itemPath, itemValue));
+      }
+    }
+    return entries;
+  }
+
+  const keys = Object.keys(value);
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    const itemPath = `${path}[${key}]`;
+    // Handle special case for numeric keys (e.g. arrays)
+    const itemValue = value[key];
+    if (itemValue !== undefined) {
+      entries.push(...normalizeForFormData(itemPath, itemValue));
+    }
+  }
+
+  return entries;
+}
+
+export function toFormData(state: Record<string, any>): FormData {
+  const formData = new FormData();
+  const keys = Object.keys(state);
+
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    const value = state[key];
+
+    if (value !== undefined) {
+      const entries = normalizeForFormData(key, value);
+
+      for (const [path, val] of entries) {
+        formData.append(path, val);
+      }
+    }
+  }
+
+  return formData;
+}
+
+export function useFormState<
+  T = Record<string, any>,
+  P extends string = string,
+>(
   initialState: T,
   {
     readOnly = false,
