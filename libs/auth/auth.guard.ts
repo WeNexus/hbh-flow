@@ -86,6 +86,7 @@ export class AuthGuard implements CanActivate {
       },
       omit: {
         password: true,
+        avatar: true,
       },
     });
 
@@ -162,6 +163,7 @@ export class AuthGuard implements CanActivate {
       },
       omit: {
         password: true,
+        avatar: true,
       },
     });
 

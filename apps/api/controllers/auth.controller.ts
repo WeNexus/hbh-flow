@@ -62,6 +62,7 @@ export class AuthController {
   ): Promise<LoginOutputSchema> {
     const { result: user } = await this.prisma.user.findUnique({
       where: { email: input.email },
+      omit: { avatar: true },
     });
 
     if (!user || !(await argon2.verify(user.password, input.password))) {

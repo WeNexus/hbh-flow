@@ -4,6 +4,7 @@ import { omit } from 'lodash-es';
 
 import {
   IsNotEmpty,
+  IsOptional,
   MinLength,
   IsString,
   IsEmail,
@@ -50,4 +51,13 @@ export class UserCreateInputSchema {
   @IsString()
   @MinLength(8)
   password: string;
+
+  @ApiProperty({
+    description: 'New avatar image for the user.',
+    type: 'string',
+    format: 'binary',
+    required: false,
+  })
+  @IsOptional()
+  avatar: Express.Multer.File;
 }

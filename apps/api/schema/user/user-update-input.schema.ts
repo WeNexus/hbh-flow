@@ -53,4 +53,13 @@ export class UserUpdateInputSchema {
   @MinLength(8)
   @IsOptional()
   password: string;
+
+  @ApiProperty({
+    description: 'New avatar image for the user.',
+    type: 'string',
+    format: 'binary',
+    required: false,
+  })
+  @IsOptional()
+  avatar: Express.Multer.File;
 }

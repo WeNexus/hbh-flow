@@ -17,6 +17,7 @@ export class ActivityService {
   private omitKeys: Partial<Record<Resource, string[]>> = {
     JOB: ['sentryTrace', 'sentryBaggage', 'payload', 'options'],
     SCHEDULE: ['userDefined'],
+    USER: ['avatar'],
   };
   private sensitiveKeys: Partial<Record<Resource, string[]>> = {
     USER: ['password'],

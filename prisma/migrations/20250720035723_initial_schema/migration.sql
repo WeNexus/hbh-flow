@@ -30,6 +30,7 @@ CREATE TABLE "public"."User"
     "name"      TEXT            NOT NULL,
     "email"     TEXT            NOT NULL,
     "password"  TEXT            NOT NULL,
+    "avatar"    BYTEA,
     "createdAt" TIMESTAMPTZ     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMPTZ,
 

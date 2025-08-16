@@ -79,6 +79,7 @@ model User {
   role     Role   @default(OBSERVER)
   name     String
   email    String @unique
+  avatar   Bytes? @db.ByteA
   password String
 
   createdAt DateTime  @default(now()) @db.Timestamptz()

@@ -450,8 +450,8 @@ export class ConnectionController {
     const provider = this.hubService.validateProvider(id);
 
     if (provider.type === 'token') {
-      const { result: systemUser } = await this.prisma.user.findFirstOrThrow({
-        where: { role: 'SYSTEM' },
+      const { result: systemUser } = await this.prisma.user.findUniqueOrThrow({
+        where: { id: 1 },
         select: {
           id: true,
           name: true,

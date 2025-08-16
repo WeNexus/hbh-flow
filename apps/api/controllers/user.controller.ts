@@ -1,17 +1,20 @@
-import { ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
-import { ActivityService, PrismaService } from '#lib/core/services';
 import { listData, PrismaWhereExceptionFilter } from '#lib/core/misc';
+import { ActivityService, PrismaService } from '#lib/core/services';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Auth, Protected } from '#lib/auth/decorators';
 import { ListInputSchema } from '#lib/core/schema';
 import type { AuthContext } from '#lib/auth/types';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { omit } from 'lodash-es';
 import argon2 from 'argon2';
+import sharp from 'sharp';
 
 import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
+  UseInterceptors,
+  UploadedFile,
   Controller,
   UseFilters,
   HttpCode,
@@ -23,7 +26,15 @@ import {
   Post,
   Get,
   Req,
+  Res,
 } from '@nestjs/common';
+
+import {
+  ApiOperation,
+  ApiResponse,
+  ApiConsumes,
+  ApiParam,
+} from '@nestjs/swagger';
 
 import {
   UserUpdateInputSchema,
@@ -38,6 +49,16 @@ export class UserController {
     private readonly activityService: ActivityService,
     private readonly prisma: PrismaService,
   ) {}
+
+  private supportedImageTypes = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+    'image/avif',
+    'image/tiff',
+    'image/svg+xml',
+  ]);
 
   @Get('/')
   @Protected('OBSERVER')
@@ -118,13 +139,20 @@ export class UserController {
     status: 403,
     description: 'Restricted action: Cannot assign ADMIN or SYSTEM roles.',
   })
+  @UseInterceptors(
+    FileInterceptor('avatar', {
+      limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+    }), // 5MB limit
+  )
   async create(
     @Req() req: Request,
     @Body() input: UserCreateInputSchema,
     @Auth() auth: AuthContext,
+    @UploadedFile() rawAvatar?: Express.Multer.File,
   ) {
     const { result: existingUser } = await this.prisma.user.findUnique({
       where: { email: input.email },
+      select: { id: true },
     });
 
     if (existingUser) {
@@ -143,7 +171,9 @@ export class UserController {
         email: input.email,
         name: input.name,
         role: input.role,
+        avatar: await this.processAvatar(rawAvatar),
       },
+      omit: { avatar: true },
     });
 
     await this.activityService.recordActivity({
@@ -167,6 +197,7 @@ export class UserController {
       'Updates an existing user. Role changes are restricted, especially for SYSTEM users.',
   })
   @ApiParam({ name: 'id', type: Number, description: 'The user ID.' })
+  @ApiConsumes('multipart/form-data')
   @ApiResponse({
     status: 200,
     description: 'User updated successfully.',
@@ -185,21 +216,24 @@ export class UserController {
     description: 'User not found.',
   })
   @HttpCode(200)
+  @UseInterceptors(
+    FileInterceptor('avatar', {
+      limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+    }), // 5MB limit
+  )
   async update(
     @Req() req: Request,
     @Param('id') id: number,
     @Body() input: UserUpdateInputSchema,
     @Auth() auth: AuthContext,
+    @UploadedFile() rawAvatar?: Express.Multer.File,
   ) {
     const { result: user } = await this.prisma.user.findUnique({
       where: { id },
+      omit: { avatar: true },
     });
 
     if (!user) throw new NotFoundException('User not found.');
-
-    if (user.role === 'SYSTEM') {
-      throw new ForbiddenException('SYSTEM users cannot be updated.');
-    }
 
     const isSelfUpdate = auth.user.id === id;
 
@@ -213,18 +247,25 @@ export class UserController {
       throw new ForbiddenException('You cannot change your own role.');
     }
 
-    if (auth.user.role !== 'ADMIN' && input.role === 'ADMIN') {
-      throw new ForbiddenException('Only ADMINs can assign the ADMIN role.');
+    if (
+      !(auth.user.role === 'ADMIN' || auth.user.role === 'SYSTEM') &&
+      input.role === 'ADMIN'
+    ) {
+      throw new ForbiddenException(
+        'Only ADMIN or SYSTEM users can assign ADMIN role.',
+      );
     }
 
     const { result: updated } = await this.prisma.user.update({
       where: { id },
       data: {
-        ...input,
+        ...omit(input, 'avatar'),
+        avatar: await this.processAvatar(rawAvatar),
         password: input.password
           ? await argon2.hash(input.password)
           : undefined,
       },
+      omit: { avatar: true },
     });
 
     await this.activityService.recordActivity({
@@ -269,6 +310,7 @@ export class UserController {
   ) {
     const { result: user } = await this.prisma.user.findUnique({
       where: { id },
+      omit: { avatar: true },
     });
 
     if (!user) throw new NotFoundException('User not found.');
@@ -295,5 +337,74 @@ export class UserController {
       resourceId: id,
       data: user,
     });
+  }
+
+  @Get('/:id/avatar')
+  @Protected('OBSERVER')
+  @ApiOperation({
+    summary: 'Get user avatar by ID',
+    description: 'Retrieves the avatar of a user by their unique numeric ID.',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'The user ID.' })
+  @ApiResponse({
+    status: 200,
+    description: 'User avatar found and returned.',
+    content: {
+      'image/webp': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  async getAvatar(
+    @Param('id') id: number,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    if (!id || isNaN(id)) {
+      throw new BadRequestException('Invalid user ID provided.');
+    }
+
+    const { result: user } = await this.prisma.user.findUnique({
+      where: { id },
+      select: { avatar: true },
+    });
+
+    if (!user?.avatar) {
+      throw new NotFoundException('User avatar not found.');
+    }
+
+    res.setHeader('Content-Type', 'image/webp');
+    res.setHeader('Content-Length', user.avatar.length);
+    res.setHeader('Cache-Control', 'public, max-age=3600, immutable'); // 1 hour cache
+    res.setHeader('Content-Disposition', 'inline; filename="avatar.webp"');
+
+    res.status(200).send(user.avatar);
+  }
+
+  private processAvatar(rawAvatar?: Express.Multer.File) {
+    if (!rawAvatar) {
+      return undefined;
+    }
+
+    if (!this.supportedImageTypes.has(rawAvatar.mimetype)) {
+      throw new BadRequestException(
+        'Unsupported image type. Supported types: JPEG, PNG, WebP, GIF, AVIF, TIFF, SVG.',
+      );
+    }
+
+    return sharp(rawAvatar.buffer)
+      .resize({
+        width: 400,
+        fit: 'cover',
+        withoutEnlargement: true,
+      })
+      .webp({
+        quality: 80,
+        nearLossless: true,
+        preset: 'photo',
+      })
+      .toBuffer();
   }
 }
