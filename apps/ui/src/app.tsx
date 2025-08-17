@@ -17,6 +17,10 @@ export default function App(props: { disableCustomTheme?: boolean }) {
     open: false,
     severity: 'info',
     message: '',
+    anchorOrigin: {
+      vertical: 'bottom',
+      horizontal: 'center',
+    },
   });
 
   const snackbarContext = useMemo(
@@ -38,7 +42,7 @@ export default function App(props: { disableCustomTheme?: boolean }) {
 
       <Snackbar
         onClose={() => setSnackbarState((s) => ({ ...s, open: false }))}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        anchorOrigin={snackbarState.anchorOrigin}
         open={snackbarState.open}
         autoHideDuration={4000}
       >

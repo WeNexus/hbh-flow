@@ -1,9 +1,10 @@
+import type { AlertProps, SnackbarProps } from '@mui/material';
 import { createContext, useContext } from 'react';
-import type { AlertProps } from '@mui/material';
 
 export interface SnackbarState {
   open: boolean;
   severity?: AlertProps['severity'];
+  anchorOrigin?: SnackbarProps['anchorOrigin'];
   message: string;
 }
 
