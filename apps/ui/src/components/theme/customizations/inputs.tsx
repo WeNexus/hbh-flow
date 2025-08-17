@@ -27,7 +27,7 @@ export const inputsCustomizations: Components<Theme> = {
   },
   MuiButton: {
     styleOverrides: {
-      root: ({ theme }) => ({
+      root: ({ theme, ownerState }) => ({
         boxShadow: 'none',
         borderRadius: (theme.vars || theme).shape.borderRadius,
         textTransform: 'none',
@@ -64,6 +64,9 @@ export const inputsCustomizations: Components<Theme> = {
                 backgroundImage: 'none',
                 backgroundColor: gray[700],
                 boxShadow: 'none',
+              },
+              '&.Mui-disabled': {
+                color: gray[500],
               },
               '&:active': {
                 backgroundColor: gray[800],
@@ -110,31 +113,34 @@ export const inputsCustomizations: Components<Theme> = {
             props: {
               variant: 'outlined',
             },
-            style: {
-              color: (theme.vars || theme).palette.text.primary,
-              border: '1px solid',
-              borderColor: gray[200],
-              backgroundColor: alpha(gray[50], 0.3),
-              '&:hover': {
-                backgroundColor: gray[100],
-                borderColor: gray[300],
-              },
-              '&:active': {
-                backgroundColor: gray[200],
-              },
-              ...theme.applyStyles('dark', {
-                backgroundColor: gray[800],
-                borderColor: gray[700],
+            style:
+              ownerState.color !== 'error'
+                ? {
+                    color: (theme.vars || theme).palette.text.primary,
+                    border: '1px solid',
+                    borderColor: gray[200],
+                    backgroundColor: alpha(gray[50], 0.3),
+                    '&:hover': {
+                      backgroundColor: gray[100],
+                      borderColor: gray[300],
+                    },
+                    '&:active': {
+                      backgroundColor: gray[200],
+                    },
+                    ...theme.applyStyles('dark', {
+                      backgroundColor: gray[800],
+                      borderColor: gray[700],
 
-                '&:hover': {
-                  backgroundColor: gray[900],
-                  borderColor: gray[600],
-                },
-                '&:active': {
-                  backgroundColor: gray[900],
-                },
-              }),
-            },
+                      '&:hover': {
+                        backgroundColor: gray[900],
+                        borderColor: gray[600],
+                      },
+                      '&:active': {
+                        backgroundColor: gray[900],
+                      },
+                    }),
+                  }
+                : {},
           },
           {
             props: {
@@ -440,6 +446,13 @@ export const inputsCustomizations: Components<Theme> = {
         typography: theme.typography.caption,
         marginBottom: 8,
       }),
+    },
+  },
+  MuiInputLabel: {
+    defaultProps: {
+      sx: {
+        marginTop: -0.7,
+      },
     },
   },
 };
