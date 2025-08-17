@@ -22,12 +22,12 @@ export type PathToValidate =
       path: string;
     };
 
-// New: options, with backward compatibility
 export interface UseFormStateOptions<P extends string, T> {
   readOnly?: boolean;
   validators?: Record<P, Validator<T>>;
   history?: boolean | { limit?: number }; // false disables history
   compare?: (a: T, b: T) => boolean; // defaults to lodash isEqual
+  syncStagedOnHistory?: boolean;
 }
 
 const wildcardRegex = /\*/gim;
@@ -45,7 +45,6 @@ function replaceWildcardWithIndex(pathToValidate: PathToValidate): string {
   );
 }
 
-// Internal history state managed via reducer (atomic & efficient)
 interface HistoryState<T> {
   changes: T[];
   cursor: number; // index into changes
@@ -182,16 +181,16 @@ export function toFormData(state: Record<string, any>): FormData {
 export function useFormState<
   T = Record<string, any>,
   P extends string = string,
->(
-  initialState: T,
-  {
+>(initialState: T, options: UseFormStateOptions<P, T> = {}) {
+  const {
     readOnly = false,
     validators,
     history = true,
     compare = lodashIsEqual,
-  }: UseFormStateOptions<P, T> = {},
-) {
-  const trackHistory = history !== false;
+    syncStagedOnHistory = true,
+  } = options;
+
+  const trackHistory = Boolean(history);
   const historyLimit =
     typeof history === 'object' && history?.limit
       ? history.limit
@@ -213,7 +212,7 @@ export function useFormState<
 
   const isDirty = useMemo(
     () => historyState.changes.length > 0 && !compare(state, initialState),
-    [state, initialState, compare],
+    [historyState.changes.length, compare, state, initialState],
   );
 
   const validate = useCallback(
@@ -262,23 +261,21 @@ export function useFormState<
 
       const results = await Promise.all(tasks);
 
+      let next: Record<P, Message>;
       setMessages((prev) => {
         // Build next map immutably, only touching changed keys
-        const next = { ...(prev as Record<string, Message>) } as Record<
+        const n = { ...(prev as Record<string, Message>) } as Record<
           P,
           Message
         >;
         for (const { path, message } of results) {
-          if (message) {
-            next[path as P] = message;
-          } else {
-            if (path in next) delete next[path as P];
-          }
+          if (message) n[path as P] = message;
+          else delete n[path as P];
         }
-        return next as Record<P, Message>;
+        next = n; // capture to return below
+        return n;
       });
-
-      return messages;
+      return next!;
     },
     [validators, messages],
   );
@@ -373,7 +370,17 @@ export function useFormState<
 
   useEffect(() => reset(), [reset, initialState]);
 
+  useEffect(() => {
+    if (syncStagedOnHistory) {
+      setStaged(state);
+    }
+  }, [state, syncStagedOnHistory]);
+
   return {
+    changes: historyState.changes,
+    cursor: historyState.cursor,
+    history: trackHistory,
+    syncStagedOnHistory,
     clearMessages,
     commitStaged,
     addToStaged,
@@ -381,10 +388,8 @@ export function useFormState<
     messages,
     readOnly,
     validate,
-    changes: historyState.changes,
     isDirty,
     staged,
-    cursor: historyState.cursor,
     reset,
     patch,
     state,
