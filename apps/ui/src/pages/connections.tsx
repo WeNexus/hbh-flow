@@ -83,7 +83,7 @@ function TypeChip({ type }: { type: ProviderSchema['type'] }) {
   );
 }
 
-export function Integrations() {
+export function Connections() {
   const { api } = useApi();
 
   const [searchParams] = useSearchParams();
@@ -405,7 +405,7 @@ export function Integrations() {
                           <Avatar
                             alt={connection.connectedBy.name || 'Anonymous'}
                             sx={{ width: 24, height: 24 }}
-                            src={`/api/users/a/avatar`}
+                            src={`/api/users/${connection.connectedBy.id}/avatar`}
                             sizes="small"
                           />
                         </Tooltip>
