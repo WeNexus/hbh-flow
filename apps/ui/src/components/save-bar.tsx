@@ -1,4 +1,6 @@
+import { HeaderEvents } from '@/layouts/private/header-events.ts';
 import type { useFormState } from '@/hooks/use-form-state.ts';
+import { useEffect } from 'react';
 
 import {
   CardContent,
@@ -26,6 +28,14 @@ export function SaveBar(props: SaveBarProps) {
   const { changes, cursor, isDirty, undo, redo, reset, history } =
     props.formState;
 
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent(
+        props.saving ? HeaderEvents.loadingShow : HeaderEvents.loadingHide,
+      ),
+    );
+  }, [props.saving]);
+
   return (
     <Card
       sx={{ top: 'auto', bottom: 0, zIndex: 44000, borderRadius: 4, mt: 3 }}
@@ -38,7 +48,7 @@ export function SaveBar(props: SaveBarProps) {
         spacing={2}
       >
         {history && (
-          <ButtonGroup>
+          <ButtonGroup disabled={props.saving}>
             <Tooltip title="Undo changes">
               <Button onClick={undo} disabled={!isDirty}>
                 <UndoIcon />
@@ -58,7 +68,7 @@ export function SaveBar(props: SaveBarProps) {
 
         <Stack direction="row" spacing={1} alignItems="center">
           <Button
-            disabled={changes.length === 1}
+            disabled={changes.length === 1 || props.saving}
             startIcon={<RestoreIcon />}
             variant="outlined"
             onClick={reset}
@@ -69,10 +79,9 @@ export function SaveBar(props: SaveBarProps) {
 
           <Button
             startIcon={<SaveIcon />}
+            disabled={!isDirty || props.saving}
             onClick={props.onSave}
-            disabled={!isDirty}
             variant="contained"
-            loading={true}
           >
             Save
           </Button>
