@@ -10,7 +10,9 @@ import { useNavigate } from 'react-router';
 import Button from '@mui/material/Button';
 import MuiCard from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
+import { Alert } from '@mui/material';
 import Box from '@mui/material/Box';
+import { AxiosError } from 'axios';
 
 import {
   type FormEvent,
@@ -19,8 +21,6 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { Alert } from '@mui/material';
-import { AxiosError } from 'axios';
 
 const Card = styled(MuiCard)(({ theme }) => ({
   display: 'flex',
@@ -150,8 +150,8 @@ export default function Login() {
           component="form"
           noValidate
           sx={{
-            display: 'flex',
             flexDirection: 'column',
+            display: 'flex',
             width: '100%',
             gap: 2,
           }}
@@ -173,6 +173,7 @@ export default function Login() {
               autoComplete="email"
               variant="outlined"
               type="email"
+              id="email"
               autoFocus
               required
               fullWidth
@@ -195,6 +196,7 @@ export default function Login() {
               placeholder="••••••"
               variant="outlined"
               type="password"
+              id="password"
               autoFocus
               fullWidth
               required
