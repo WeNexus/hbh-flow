@@ -10,10 +10,14 @@ export interface Message {
   message: string;
 }
 
-export interface Validator<S> {
+export interface Validator<S, P extends keyof S> {
   target: ValidationTarget;
-  validate: (value: any, state: S) => Promise<Message | void> | Message | void;
+  validate: (value: S[P], state: S) => Promise<Message | void> | Message | void;
 }
+
+export type ValidatorMap<S> = {
+  [P in keyof S]?: Validator<S, P>;
+};
 
 export type PathToValidate =
   | string
@@ -22,11 +26,11 @@ export type PathToValidate =
       path: string;
     };
 
-export interface UseFormStateOptions<P extends string, T> {
+export interface UseFormStateOptions<S> {
   readOnly?: boolean;
-  validators?: Record<P, Validator<T>>;
+  validators?: ValidatorMap<S>;
   history?: boolean | { limit?: number }; // false disables history
-  compare?: (a: T, b: T) => boolean; // defaults to lodash isEqual
+  compare?: (a: S, b: S) => boolean; // defaults to lodash isEqual
   syncStagedOnHistory?: boolean;
 }
 
@@ -104,84 +108,10 @@ function historyReducer<T>(
   }
 }
 
-function normalizeForFormData(path: string, value: any): [string, string][] {
-  const entries: [string, string][] = [];
-  const valueType = typeof value;
-
-  if (valueType === 'function' || valueType === 'symbol') {
-    throw new Error(
-      `Cannot serialize value of type ${valueType} at path "${path}" for FormData.`,
-    );
-  }
-
-  if (valueType === 'undefined') {
-    return entries; // skip undefined values
-  }
-
-  if (value === null) {
-    entries.push([path, '']);
-    return entries;
-  }
-
-  if (
-    valueType === 'string' ||
-    valueType === 'number' ||
-    valueType === 'boolean' ||
-    valueType === 'bigint'
-  ) {
-    entries.push([path, value]);
-    return entries;
-  }
-
-  if (Array.isArray(value)) {
-    for (let i = 0; i < value.length; i++) {
-      const itemPath = `${path}[${i}]`;
-      const itemValue = value[i];
-      if (itemValue !== undefined) {
-        entries.push(...normalizeForFormData(itemPath, itemValue));
-      }
-    }
-    return entries;
-  }
-
-  const keys = Object.keys(value);
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
-    const itemPath = `${path}[${key}]`;
-    // Handle special case for numeric keys (e.g. arrays)
-    const itemValue = value[key];
-    if (itemValue !== undefined) {
-      entries.push(...normalizeForFormData(itemPath, itemValue));
-    }
-  }
-
-  return entries;
-}
-
-export function toFormData(state: Record<string, any>): FormData {
-  const formData = new FormData();
-  const keys = Object.keys(state);
-
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
-    const value = state[key];
-
-    if (value !== undefined) {
-      const entries = normalizeForFormData(key, value);
-
-      for (const [path, val] of entries) {
-        formData.append(path, val);
-      }
-    }
-  }
-
-  return formData;
-}
-
 export function useFormState<
   T = Record<string, any>,
-  P extends string = string,
->(initialState: T, options: UseFormStateOptions<P, T> = {}) {
+  P extends keyof T = keyof T,
+>(initialState: T, options: UseFormStateOptions<T> = {}) {
   const {
     readOnly = false,
     validators,
@@ -218,7 +148,7 @@ export function useFormState<
   const validate = useCallback(
     async (target: T, ...path: PathToValidate[]) => {
       if (!validators || Object.keys(validators).length === 0) {
-        return messages;
+        return true;
       }
 
       const pathsToValidate: PathToValidate[] =
@@ -227,7 +157,7 @@ export function useFormState<
           : Object.keys(validators).map((k) => ({ path: k, indexes: [] }));
 
       if (pathsToValidate.length === 0) {
-        return messages;
+        return true;
       }
 
       // Build validation tasks
@@ -257,13 +187,11 @@ export function useFormState<
         }
       }
 
-      if (tasks.length === 0) return messages;
+      if (tasks.length === 0) return true;
 
       const results = await Promise.all(tasks);
 
-      let next: Record<P, Message>;
       setMessages((prev) => {
-        // Build next map immutably, only touching changed keys
         const n = { ...(prev as Record<string, Message>) } as Record<
           P,
           Message
@@ -272,12 +200,13 @@ export function useFormState<
           if (message) n[path as P] = message;
           else delete n[path as P];
         }
-        next = n; // capture to return below
+
         return n;
       });
-      return next!;
+
+      return !results.some((r) => r.message?.type === 'error');
     },
-    [validators, messages],
+    [validators],
   );
 
   const addChange = useCallback(
