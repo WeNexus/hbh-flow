@@ -82,16 +82,19 @@ export class AuthController {
     }
 
     try {
-      const tokens = await this.authService.login(user);
+      const tokens = await this.authService.login(
+        user,
+        user.role === 'SYSTEM'
+          ? 60 * 60 // 1 hour
+          : 60 * 60 * 24, // 24 hours
+      );
+      const expiresAt = new Date(tokens.expiresAt);
 
       res.cookie('access_token', tokens.accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
-        maxAge:
-          user.role === 'SYSTEM'
-            ? 60 * 60 * 1000 // 1 hour
-            : 24 * 60 * 60 * 1000, // 24 hours
+        maxAge: expiresAt.getTime() - Date.now(),
       });
 
       await this.activityService.recordActivity({
@@ -105,7 +108,7 @@ export class AuthController {
 
       return {
         csrfToken: tokens.csrfToken,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        expiresAt,
       };
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
@@ -207,7 +210,7 @@ export class AuthController {
 
       return {
         csrfToken: tokens.csrfToken,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        expiresAt: new Date(tokens.expiresAt),
       };
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {

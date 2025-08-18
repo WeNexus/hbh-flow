@@ -1,5 +1,5 @@
 import type { LoginOutputSchema, UserSchema } from '@/types/schema.ts';
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosError, type AxiosInstance } from 'axios';
 import { Manager } from 'socket.io-client';
 import { isEqual } from 'lodash-es';
 
@@ -51,14 +51,17 @@ export class Api {
       return config;
     });
 
-    this.axios.interceptors.response.use((response) => {
-      if (response.status === 401) {
-        // If the response status is 401, it means the session has expired or is invalid.
-        void this.logout(true);
-      }
+    this.axios.interceptors.response.use(
+      (response) => response,
+      (error: AxiosError) => {
+        if (error.status === 401) {
+          // If the response status is 401, it means the session has expired or is invalid.
+          void this.logout(true);
+        }
 
-      return response;
-    });
+        return Promise.reject(error);
+      },
+    );
   }
 
   private static instance: Api | null = null;
@@ -239,6 +242,26 @@ export class Api {
     const csrfToken = localStorage.getItem('csrfToken');
     const sessionExpiresAt = localStorage.getItem('sessionExpiresAt');
 
+    setInterval(
+      () => {
+        if (!this.sessionExpiresAt) {
+          // If sessionExpiresAt is not set, we cannot check for expiration.
+          return;
+        }
+
+        // If expiresAt is less than 60 minutes from now, refresh the session.
+        const remaining = (this.sessionExpiresAt.getTime() - Date.now());
+
+        if (remaining < 1000 * 60 * 60) {
+          this.refreshLogin().catch(() => {
+            // If refresh fails, log out the user.
+            void this.logout(true);
+          });
+        }
+      },
+      1000 * 10,
+    ); // Check every 5 minutes to refresh the session if needed.
+
     if (!csrfToken || !sessionExpiresAt) {
       // No session data available, call removeSessionData to clear any stale data.
       return this.removeSessionData();
@@ -275,26 +298,6 @@ export class Api {
         }
       })
       .catch(() => this.logout(true));
-
-    setInterval(
-      () => {
-        if (!this.sessionExpiresAt) {
-          // If sessionExpiresAt is not set, we cannot check for expiration.
-          return;
-        }
-
-        // If expiresAt is less than 60 minutes from now, refresh the session.
-        const refreshThreshold = new Date(Date.now() + 1000 * 60 * 60); // 60 minutes
-
-        if (this.sessionExpiresAt < refreshThreshold) {
-          this.refreshLogin().catch(() => {
-            // If refresh fails, log out the user.
-            void this.logout(true);
-          });
-        }
-      },
-      1000 * 60 * 5,
-    ); // Check every 5 minutes to refresh the session if needed.
   }
 }
 

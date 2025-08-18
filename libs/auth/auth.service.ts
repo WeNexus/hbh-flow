@@ -23,7 +23,7 @@ export class AuthService {
    */
   async login(
     userOrId: number | Pick<User, 'id' | 'role'>,
-    expiresIn: string = '24h',
+    expiresIn = 60 * 60 * 24, // Default to 24 hours
   ): Promise<LoginResult> {
     const user =
       typeof userOrId === 'number'
@@ -55,7 +55,7 @@ export class AuthService {
     return {
       accessToken,
       csrfToken,
-      expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
     };
   }
 }
