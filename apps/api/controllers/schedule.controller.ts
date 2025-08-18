@@ -261,6 +261,12 @@ export class ScheduleController {
     @Req() req: express.Request,
     @Auth() auth: AuthContext,
   ): Promise<void> {
+    id = Number(id);
+
+    if (isNaN(id)) {
+      throw new NotFoundException(`Schedule with ID "${id}" was not found.`);
+    }
+
     try {
       const { result: schedule } = await this.prisma.schedule.updateMany({
         where: { id, userDefined: true }, // Only allow deletion of user-defined schedules

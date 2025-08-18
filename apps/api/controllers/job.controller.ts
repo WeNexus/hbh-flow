@@ -169,6 +169,12 @@ export class JobController {
     @Auth() auth: AuthContext,
     @Req() req: Request,
   ): Promise<JobSchema> {
+    id = Number(id);
+
+    if (isNaN(id)) {
+      throw new NotFoundException(`Job with ID "${id}" was not found.`);
+    }
+
     const { result: job } = await this.prisma.job.findUnique({
       where: { id },
       select: {
@@ -316,6 +322,12 @@ export class JobController {
     @Auth() auth?: AuthContext,
     @Query('token') token?: string,
   ): Promise<void> {
+    id = Number(id);
+
+    if (isNaN(id)) {
+      throw new NotFoundException(`Job with ID "${id}" was not found.`);
+    }
+
     await this.verifyJobToken(id, token, auth);
 
     const { result: job } = await this.prisma.job.findUnique({
