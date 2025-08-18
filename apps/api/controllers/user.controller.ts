@@ -82,6 +82,7 @@ export class UserController {
       omit: {
         updatedAt: true,
         password: true,
+        avatar: true,
       },
     });
   }
