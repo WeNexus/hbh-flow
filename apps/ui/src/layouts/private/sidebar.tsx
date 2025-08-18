@@ -7,6 +7,7 @@ import Typography from '@mui/material/Typography';
 import { styled } from '@mui/material/styles';
 import Divider from '@mui/material/Divider';
 import { useApi } from '@/hooks/use-api.ts';
+import { useNavigate } from 'react-router';
 import Avatar from '@mui/material/Avatar';
 import Stack from '@mui/material/Stack';
 import Box from '@mui/material/Box';
@@ -26,19 +27,21 @@ const Drawer = styled(MuiDrawer)({
 });
 
 export default function Sidebar() {
+  const navigate = useNavigate();
   const { user, api } = useApi();
+
   const menuItems = useMemo(() => [
     {
       label: 'My Account',
       icon: <ManageAccountsRoundedIcon />,
-      onClick: () => api.logout(),
+      onClick: () => navigate('/account'),
     },
     {
       label: 'Logout',
       icon: <LogoutRoundedIcon />,
       onClick: () => api.logout(),
     },
-  ], [api])
+  ], [api, navigate])
 
   return (
     <Drawer
