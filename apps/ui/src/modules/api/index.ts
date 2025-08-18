@@ -12,7 +12,6 @@ import {
 const axiosInstance = axios.create({
   baseURL: location.origin + '/api',
   headers: {
-    'Content-Type': 'application/json',
     accept: 'application/json',
   },
   validateStatus(status) {
@@ -175,6 +174,38 @@ export class Api {
     this.removeSessionData();
   }
 
+  /**
+   * Loads the currently authenticated user from the server.
+   *
+   * @param user - Optional `UserSchema` to use instead of fetching from the server.
+   *               If provided, it will be used directly without making a request.
+   *               If not provided, it fetches the user data from the server.
+   *
+   * @returns A promise that resolves with the `UserSchema` of the authenticated user.
+   * @throws If the request fails or the user is not authenticated.
+   * @remarks
+   * - Updates the user object in the instance and stores it in `localStorage`.
+   * - If the user data is not available, it returns a fallback user object.
+   * - Dispatches a `UserUpdatedEvent` if the user data has changed.
+   * */
+  async loadUser(user?: UserSchema): Promise<UserSchema> {
+    const userPassed = !!user;
+
+    if (!user) {
+      const r = await this.axios.get<UserSchema>('/auth/whoami');
+      user = r.data;
+    }
+
+    localStorage.setItem('user', JSON.stringify(user));
+    this._user = user;
+
+    if (userPassed) {
+      this.events.dispatchEvent(new LoginEvent(user));
+    }
+
+    return user;
+  }
+
   // --------- Internal Methods ---------
 
   private async refreshLogin(): Promise<void> {
@@ -183,14 +214,6 @@ export class Api {
 
     // Update session data in localStorage.
     this.storeSessionData(result);
-  }
-
-  private async loadUser(): Promise<UserSchema> {
-    const r = await this.axios.get<UserSchema>('/auth/whoami');
-    localStorage.setItem('user', JSON.stringify(r.data));
-    this._user = r.data;
-
-    return r.data;
   }
 
   private storeSessionData(loginOutput: LoginOutputSchema): void {
@@ -290,5 +313,3 @@ for (const key of Object.keys(axiosInstance)) {
     api[key] = axiosInstance[key];
   }
 }
-
-
