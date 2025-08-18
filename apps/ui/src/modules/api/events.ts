@@ -26,3 +26,12 @@ export class UserUpdatedEvent extends CustomEvent<UserSchema> {
     });
   }
 }
+
+export class SessionExpiredEvent extends CustomEvent<null> {
+  constructor() {
+    super('session-expired', {
+      detail: null,
+      bubbles: true,
+    });
+  }
+}

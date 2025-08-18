@@ -4,6 +4,7 @@ import { Manager } from 'socket.io-client';
 import { isEqual } from 'lodash-es';
 
 import {
+  SessionExpiredEvent,
   UserUpdatedEvent,
   LogoutEvent,
   LoginEvent,
@@ -56,7 +57,8 @@ export class Api {
       (error: AxiosError) => {
         if (error.status === 401) {
           // If the response status is 401, it means the session has expired or is invalid.
-          void this.logout(true);
+          // void this.logout(true);
+          this.events.dispatchEvent(new SessionExpiredEvent());
         }
 
         return Promise.reject(error);
@@ -120,6 +122,24 @@ export class Api {
    */
   get user() {
     return this._user;
+  }
+
+  /**
+   * Checks if the current session is expired.
+   * Returns `true` if the session is expired or if no session data is available.
+   *
+   * @remarks
+   * - Uses `sessionExpiresAt` to determine expiration.
+   * - If `sessionExpiresAt` is not set, it assumes the session is expired.
+   */
+  get isSessionExpired() {
+    // If sessionExpiresAt is not set, we cannot determine if the session is expired.
+    if (!this.sessionExpiresAt) {
+      return true;
+    }
+
+    // Check if the session has expired.
+    return this.sessionExpiresAt.getTime() < Date.now();
   }
 
   /**
@@ -250,16 +270,16 @@ export class Api {
         }
 
         // If expiresAt is less than 60 minutes from now, refresh the session.
-        const remaining = (this.sessionExpiresAt.getTime() - Date.now());
+        const remaining = this.sessionExpiresAt.getTime() - Date.now();
 
         if (remaining < 1000 * 60 * 60) {
           this.refreshLogin().catch(() => {
             // If refresh fails, log out the user.
-            void this.logout(true);
+            this.events.dispatchEvent(new SessionExpiredEvent());
           });
         }
       },
-      1000 * 10,
+      1000 * 60 * 5,
     ); // Check every 5 minutes to refresh the session if needed.
 
     if (!csrfToken || !sessionExpiresAt) {

@@ -64,7 +64,11 @@ const SignInContainer = styled(Stack)(({ theme }) => ({
   },
 }));
 
-export default function Login() {
+export interface LoginFormProps {
+  redirectTo?: string;
+}
+
+export function LoginForm(props: LoginFormProps) {
   const navigate = useNavigate();
   const { api } = useApi();
 
@@ -78,7 +82,7 @@ export default function Login() {
     [],
   );
 
-  const { staged, state, commitStaged, messages, addToStaged } = useFormState(
+  const { state, messages, addChange } = useFormState(
     initialState,
     {
       history: false,
@@ -121,7 +125,10 @@ export default function Login() {
 
       try {
         await api.login(state.email, state.password);
-        navigate('/', { replace: true });
+
+        if (props.redirectTo) {
+          navigate(props.redirectTo, { replace: true });
+        }
       } catch (e) {
         if (e instanceof AxiosError) {
           setError(e.response?.data?.message || 'An error occurred');
@@ -130,12 +137,87 @@ export default function Login() {
         setLoading(false);
       }
     },
-    [api, loading, navigate, state.email, state.password],
+    [api, loading, navigate, props.redirectTo, state.email, state.password],
   );
 
   return (
+    <Box
+      onSubmit={handleSubmit}
+      component="form"
+      noValidate
+      sx={{
+        flexDirection: 'column',
+        display: 'flex',
+        width: '100%',
+        gap: 2,
+      }}
+    >
+      <FormControl>
+        <FormLabel htmlFor="email">Email</FormLabel>
+        <TextField
+          onChange={(e) =>
+            addChange({
+              email: e.target.value,
+            })
+          }
+          color={messages.email?.type === 'error' ? 'error' : 'primary'}
+          error={messages.email?.type === 'error'}
+          helperText={messages.email?.message}
+          placeholder="your@email.com"
+          autoComplete="email"
+          value={state.email}
+          variant="outlined"
+          type="email"
+          id="email"
+          autoFocus
+          required
+          fullWidth
+        />
+      </FormControl>
+      <FormControl>
+        <FormLabel htmlFor="password">Password</FormLabel>
+        <TextField
+          onChange={(e) => {
+            addChange({
+              password: e.target.value,
+            });
+          }}
+          color={messages.password?.type === 'error' ? 'error' : 'primary'}
+          error={messages.password?.type === 'error'}
+          helperText={messages.password?.message}
+          autoComplete="current-password"
+          value={state.password}
+          placeholder="••••••"
+          variant="outlined"
+          type="password"
+          id="password"
+          autoFocus
+          fullWidth
+          required
+        />
+      </FormControl>
+
+      {error && <Alert severity="error">{error}</Alert>}
+
+      <Button
+        onClick={handleSubmit}
+        variant="contained"
+        disabled={loading}
+        loading={loading}
+        type="submit"
+        fullWidth
+      >
+        Sign in
+      </Button>
+    </Box>
+  );
+}
+
+export function Login() {
+  return (
     <SignInContainer direction="column" justifyContent="space-between">
       <ColorModeSelect sx={{ position: 'fixed', top: '1rem', right: '1rem' }} />
+
       <Card variant="outlined">
         <Typography
           sx={{ width: '100%', fontSize: 'clamp(2rem, 10vw, 2.15rem)' }}
@@ -145,77 +227,8 @@ export default function Login() {
         >
           Login
         </Typography>
-        <Box
-          onSubmit={handleSubmit}
-          component="form"
-          noValidate
-          sx={{
-            flexDirection: 'column',
-            display: 'flex',
-            width: '100%',
-            gap: 2,
-          }}
-        >
-          <FormControl>
-            <FormLabel htmlFor="email">Email</FormLabel>
-            <TextField
-              onChange={(e) =>
-                addToStaged({
-                  email: e.target.value,
-                })
-              }
-              color={messages.email?.type === 'error' ? 'error' : 'primary'}
-              onBlur={() => commitStaged('email')}
-              error={messages.email?.type === 'error'}
-              helperText={messages.email?.message}
-              placeholder="your@email.com"
-              value={staged.email}
-              autoComplete="email"
-              variant="outlined"
-              type="email"
-              id="email"
-              autoFocus
-              required
-              fullWidth
-            />
-          </FormControl>
-          <FormControl>
-            <FormLabel htmlFor="password">Password</FormLabel>
-            <TextField
-              onChange={(e) => {
-                addToStaged({
-                  password: e.target.value,
-                });
-              }}
-              color={messages.password?.type === 'error' ? 'error' : 'primary'}
-              onBlur={() => commitStaged('password')}
-              error={messages.password?.type === 'error'}
-              helperText={messages.password?.message}
-              autoComplete="current-password"
-              value={staged.password}
-              placeholder="••••••"
-              variant="outlined"
-              type="password"
-              id="password"
-              autoFocus
-              fullWidth
-              required
-            />
-          </FormControl>
 
-          {error && <Alert severity="error">{error}</Alert>}
-
-          <Button
-            onClick={handleSubmit}
-            variant="contained"
-            disabled={loading}
-            loading={loading}
-            type="submit"
-            fullWidth
-          >
-            Sign in
-          </Button>
-        </Box>
+        <LoginForm redirectTo='/' />
       </Card>
     </SignInContainer>
   );

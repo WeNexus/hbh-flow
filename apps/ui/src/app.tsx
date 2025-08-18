@@ -10,7 +10,7 @@ import Dashboard from '@/pages/dashboard.tsx';
 import { Account } from '@/pages/account.tsx';
 import { Route, Routes } from 'react-router';
 import { useMemo, useState } from 'react';
-import Login from '@/pages/login.tsx';
+import { Login } from '@/pages/login.tsx';
 
 export default function App(props: { disableCustomTheme?: boolean }) {
   const [snackbarState, setSnackbarState] = useState<SnackbarState>({

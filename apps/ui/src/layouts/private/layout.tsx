@@ -1,22 +1,58 @@
 import { Outlet, useNavigate } from 'react-router';
 import HeaderMobile from './header-mobile.tsx';
+import { LoginForm } from '@/pages/login.tsx';
 import { alpha } from '@mui/material/styles';
+import { useCallback, useEffect, useState } from 'react';
 import { useApi } from '@/hooks/use-api.ts';
-import Stack from '@mui/material/Stack';
 import Sidebar from './sidebar.tsx';
-import Box from '@mui/material/Box';
-import { useEffect } from 'react';
 import Header from './header.tsx';
 
+import {
+  DialogContent,
+  DialogTitle,
+  Typography,
+  Divider,
+  Dialog,
+  Stack,
+  Alert,
+  Box,
+} from '@mui/material';
+
 export function PrivateLayout() {
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
   const navigate = useNavigate();
   const { api, user } = useApi();
+
+  const handleLoginDialogClose = useCallback(() => {
+    setShowLoginDialog(false);
+
+    if (api.isSessionExpired) {
+      navigate('/login', { replace: true });
+    }
+  }, [api.isSessionExpired, navigate]);
 
   useEffect(() => {
     if (!api.user) {
       navigate('/login', { replace: true });
     }
   }, [api.user, navigate]);
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setShowLoginDialog(true);
+    };
+    const handleLogin = () => {
+      setShowLoginDialog(false);
+    };
+
+    api.events.addEventListener('session-expired', handleSessionExpired);
+    api.events.addEventListener('login', handleLogin);
+
+    return () => {
+      api.events.removeEventListener('session-expired', handleSessionExpired);
+      api.events.removeEventListener('login', handleLogin);
+    };
+  }, [api]);
 
   if (!user) {
     return <></>;
@@ -26,6 +62,24 @@ export function PrivateLayout() {
     <Box sx={{ display: 'flex' }}>
       <Sidebar />
       <HeaderMobile />
+
+      <Dialog onClose={handleLoginDialogClose} open={showLoginDialog}>
+        <DialogTitle align="center">
+          <Typography variant="h3" component="span">
+            Login
+          </Typography>
+
+          <Divider sx={{ mt: 2 }} />
+        </DialogTitle>
+
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            Your session has expired. Please log in again to continue.
+          </Alert>
+
+          <LoginForm />
+        </DialogContent>
+      </Dialog>
 
       <Box
         component="main"
