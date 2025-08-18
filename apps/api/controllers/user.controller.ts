@@ -15,6 +15,7 @@ import {
   NotFoundException,
   UseInterceptors,
   UploadedFile,
+  ParseIntPipe,
   Controller,
   UseFilters,
   HttpCode,
@@ -102,21 +103,23 @@ export class UserController {
     description: 'User not found.',
   })
   async single(@Param('id') id: number) {
-    const { result: user } = await this.prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    try {
+      const { result: user } = await this.prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
 
-    if (!user) throw new NotFoundException('User not found.');
-
-    return user;
+      return user;
+    } catch {
+      throw new NotFoundException('User not found.');
+    }
   }
 
   @Post('/')
@@ -159,7 +162,16 @@ export class UserController {
       throw new BadRequestException('A user with this email already exists.');
     }
 
-    if (auth.user.role === 'DEVELOPER' && input.role === 'ADMIN') {
+    if (input.role === 'SYSTEM') {
+      throw new BadRequestException(
+        'Cannot create users with SYSTEM role through the Rest API.',
+      );
+    }
+
+    if (
+      !(auth.user.role === 'SYSTEM' || auth.user.role === 'ADMIN') &&
+      input.role === 'ADMIN'
+    ) {
       throw new BadRequestException(
         'You do not have permission to create an ADMIN user.',
       );
@@ -228,6 +240,12 @@ export class UserController {
     @Auth() auth: AuthContext,
     @UploadedFile() rawAvatar?: Express.Multer.File,
   ) {
+    id = Number(id);
+
+    if (isNaN(id)) {
+      throw new NotFoundException(`User with ID "${id}" was not found.`);
+    }
+
     const { result: user } = await this.prisma.user.findUnique({
       where: { id },
       omit: { avatar: true },
@@ -308,6 +326,12 @@ export class UserController {
     @Auth() auth: AuthContext,
     @Param('id') id: number,
   ) {
+    id = Number(id);
+
+    if (isNaN(id)) {
+      throw new NotFoundException(`User with ID "${id}" was not found.`);
+    }
+
     const { result: user } = await this.prisma.user.findUnique({
       where: { id },
       omit: { avatar: true },
@@ -362,8 +386,10 @@ export class UserController {
     @Param('id') id: number,
     @Res({ passthrough: true }) res: Response,
   ) {
-    if (!id || isNaN(id)) {
-      throw new BadRequestException('Invalid user ID provided.');
+    id = Number(id);
+
+    if (isNaN(id)) {
+      throw new NotFoundException(`User with ID "${id}" was not found.`);
     }
 
     const { result: user } = await this.prisma.user.findUnique({
