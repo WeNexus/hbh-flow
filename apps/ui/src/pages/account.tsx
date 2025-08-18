@@ -266,12 +266,15 @@ export function Account() {
       });
     } catch (e) {
       if (e instanceof AxiosError) {
-        console.log(e);
+        showSnackbar({
+          message: e.response?.data?.message || 'An error occurred',
+          severity: 'error',
+        });
       }
     } finally {
       setSaving(false);
     }
-  }, [api, showSnackbar, state, user?.id, validate]);
+  }, [api, canEditRole, showSnackbar, state, user?.id, validate]);
 
   useEffect(() => {
     if (!params.id) {
