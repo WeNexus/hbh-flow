@@ -20,6 +20,8 @@ Ensure you have the following installed on your system:
 
    ```bash
    pnpm install
+   cd ./apps/ui
+   pnpm install
    ```
 
 3. Copy the `.env.example` file to `.env` and configure the environment variables:
