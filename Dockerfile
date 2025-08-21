@@ -21,6 +21,8 @@ RUN pnpm store prune
 
 FROM node:24-alpine AS production
 
+RUN corepack enable pnpm
+
 WORKDIR /app
 
 COPY --from=build /app .
