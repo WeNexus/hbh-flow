@@ -142,6 +142,26 @@ export class Api {
     return this.sessionExpiresAt.getTime() < Date.now();
   }
 
+
+  /**
+   * Checks if the current user has power user privileges.
+   * Returns `true` if the user is a SYSTEM, ADMIN, or DEVELOPER.
+   *
+   * @remarks
+   * - If no user is authenticated, returns `false`.
+   */
+  get isPowerUser() {
+    if (!this.user) {
+      return false;
+    }
+
+    return (
+      this.user.role === 'SYSTEM' ||
+      this.user.role === 'ADMIN' ||
+      this.user.role === 'DEVELOPER'
+    );
+  }
+
   /**
    * Authenticates the user with the given credentials.
    *

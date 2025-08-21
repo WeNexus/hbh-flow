@@ -2,6 +2,7 @@ import SentimentDissatisfiedIcon from '@mui/icons-material/SentimentDissatisfied
 import { HeaderEvents } from '@/layouts/private/header-events.ts';
 import SearchIconRounded from '@mui/icons-material/SearchRounded';
 import ClearIconRounded from '@mui/icons-material/ClearRounded';
+import { useSearch } from '@/hooks/use-search.ts';
 import { useSearchParams } from 'react-router';
 import * as React from 'react';
 
@@ -26,7 +27,7 @@ export function SearchEmptyState({
   const theme = useTheme();
   const [searchParams] = useSearchParams();
   const originalQuery = searchParams.get('q') || '';
-  const [query, setQuery] = React.useState(originalQuery);
+  const [query, setQuery] = useSearch(500);
 
   const onClear = React.useCallback(() => {
     window.dispatchEvent(
@@ -39,24 +40,6 @@ export function SearchEmptyState({
       new CustomEvent(HeaderEvents.querySubmit, { detail: query }),
     );
   }, [query]);
-
-  const onChange = React.useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      window.dispatchEvent(
-        new CustomEvent(HeaderEvents.query, { detail: e.target.value }),
-      );
-    },
-    [],
-  );
-
-  React.useEffect(() => {
-    const queryHandler = (e: CustomEvent<string>) => setQuery(e.detail);
-    window.addEventListener(HeaderEvents.query as any, queryHandler);
-
-    return () => {
-      window.removeEventListener(HeaderEvents.query as any, queryHandler);
-    };
-  }, []);
 
   return (
     <Stack spacing={3} sx={{ maxWidth: 760, mx: 'auto' }}>
@@ -95,7 +78,7 @@ export function SearchEmptyState({
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>
           <TextField
             placeholder="Search again"
-            onChange={onChange}
+            onChange={setQuery}
             value={query}
             size="small"
             fullWidth

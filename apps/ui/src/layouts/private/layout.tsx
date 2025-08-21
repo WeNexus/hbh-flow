@@ -1,8 +1,8 @@
+import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router';
 import HeaderMobile from './header-mobile.tsx';
 import { LoginForm } from '@/pages/login.tsx';
 import { alpha } from '@mui/material/styles';
-import { useCallback, useEffect, useState } from 'react';
 import { useApi } from '@/hooks/use-api.ts';
 import Sidebar from './sidebar.tsx';
 import Header from './header.tsx';
@@ -88,7 +88,7 @@ export function PrivateLayout() {
           backgroundColor: theme.vars
             ? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
             : alpha(theme.palette.background.default, 1),
-          overflow: 'auto',
+          overflow: 'visible',
         })}
       >
         <Stack

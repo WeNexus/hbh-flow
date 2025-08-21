@@ -60,9 +60,9 @@ export default function OptionsMenu(props: OptionsMenuProps) {
         </Tooltip>
       ) : (
         <MenuButton
+          sx={{ borderColor: 'transparent' }}
           aria-label="Open menu"
           onClick={handleClick}
-          sx={{ borderColor: 'transparent' }}
         >
           <MoreVertRoundedIcon />
         </MenuButton>
@@ -99,10 +99,11 @@ export default function OptionsMenu(props: OptionsMenuProps) {
               },
             }}
           >
+            {item.icon && <ListItemIcon sx={{ mr: 1 }}>{item.icon}</ListItemIcon>}
+
             <ListItemText onClick={() => item.onClick(item.ctx)}>
               {item.label}&nbsp;&nbsp;
             </ListItemText>
-            {item.icon && <ListItemIcon>{item.icon}</ListItemIcon>}
           </MenuItem>
         ))}
       </Menu>

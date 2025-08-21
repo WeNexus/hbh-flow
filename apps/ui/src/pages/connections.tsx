@@ -3,7 +3,6 @@ import BugReportRoundedIcon from '@mui/icons-material/BugReportRounded';
 import { SearchEmptyState } from '@/components/search-empty-state.tsx';
 import LinkOffRoundedIcon from '@mui/icons-material/LinkOffRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
-import { HeaderEvents } from '@/layouts/private/header-events.ts';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import CircleRoundedIcon from '@mui/icons-material/CircleRounded';
 import PowerRoundedIcon from '@mui/icons-material/PowerRounded';
@@ -14,7 +13,7 @@ import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
 import CardHeader from '@mui/material/CardHeader';
 import { useSocket } from '@/hooks/use-socket.ts';
-import { useSearchParams } from 'react-router';
+import { useSearch } from '@/hooks/use-search.ts';
 import Skeleton from '@mui/material/Skeleton';
 import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
@@ -84,13 +83,12 @@ function TypeChip({ type }: { type: ProviderSchema['type'] }) {
 }
 
 export function Connections() {
+  const [query] = useSearch(300);
   const { api } = useApi();
 
-  const [searchParams] = useSearchParams();
   const [connections, setConnections] = useState<
     ConnectionWithProviderSchema[] | null
   >(null);
-  const [query, setQuery] = useState(searchParams.get('q') || '');
   const [error, setError] = useState<AxiosError | string | null>(null);
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const socket = useSocket('/connections');
@@ -258,22 +256,6 @@ export function Connections() {
 
   // eslint-disable-next-line
   useEffect(() => fetchConnections(), []);
-
-  useEffect(() => {
-    window.dispatchEvent(
-      new CustomEvent(HeaderEvents.ui, {
-        detail: { search: true, datePicker: false },
-      }),
-    );
-
-    const queryHandler = (e: CustomEvent<string>) => setQuery(e.detail);
-
-    window.addEventListener(HeaderEvents.query as any, queryHandler);
-
-    return () => {
-      window.removeEventListener(HeaderEvents.query as any, queryHandler);
-    };
-  }, []);
 
   useEffect(() => {
     socket.on('activity', () => fetchConnections(true));

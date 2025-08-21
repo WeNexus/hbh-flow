@@ -6,7 +6,7 @@ import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded';
 import { toggleButtonClasses } from '@mui/material/ToggleButton';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import { svgIconClasses } from '@mui/material/SvgIcon';
-import { gray, brand } from '../theme-primitives';
+import { gray, brand, red } from '../theme-primitives';
 
 export const inputsCustomizations: Components<Theme> = {
   MuiButtonBase: {
@@ -225,59 +225,100 @@ export const inputsCustomizations: Components<Theme> = {
       }),
     },
   },
-  MuiIconButton: {
+  MuiFab: {
     styleOverrides: {
       root: ({ theme }) => ({
-        boxShadow: 'none',
-        borderRadius: (theme.vars || theme).shape.borderRadius,
-        textTransform: 'none',
-        fontWeight: theme.typography.fontWeightMedium,
-        letterSpacing: 0,
-        color: (theme.vars || theme).palette.text.primary,
-        border: '1px solid ',
-        borderColor: gray[200],
-        backgroundColor: alpha(gray[50], 0.3),
+        color: 'white',
+        backgroundColor: gray[900],
+        backgroundImage: `linear-gradient(to bottom, ${gray[700]}, ${gray[800]})`,
+        boxShadow: `inset 0 1px 0 ${gray[600]}, inset 0 -1px 0 1px hsl(220, 0%, 0%)`,
+        border: `1px solid ${gray[700]}`,
         '&:hover': {
-          backgroundColor: gray[100],
-          borderColor: gray[300],
+          backgroundImage: 'none',
+          backgroundColor: gray[700],
+          boxShadow: 'none',
+        },
+        '&.Mui-disabled': {
+          color: gray[500],
         },
         '&:active': {
-          backgroundColor: gray[200],
+          backgroundColor: gray[800],
         },
         ...theme.applyStyles('dark', {
-          backgroundColor: gray[800],
-          borderColor: gray[700],
+          color: 'black',
+          backgroundColor: gray[50],
+          backgroundImage: `linear-gradient(to bottom, ${gray[100]}, ${gray[50]})`,
+          boxShadow: 'inset 0 -1px 0  hsl(220, 30%, 80%)',
+          border: `1px solid ${gray[50]}`,
           '&:hover': {
-            backgroundColor: gray[900],
-            borderColor: gray[600],
+            backgroundImage: 'none',
+            backgroundColor: gray[300],
+            boxShadow: 'none',
           },
           '&:active': {
-            backgroundColor: gray[900],
+            backgroundColor: gray[400],
           },
         }),
-        variants: [
-          {
-            props: {
-              size: 'small',
-            },
-            style: {
-              width: '2.25rem',
-              height: '2.25rem',
-              padding: '0.25rem',
-              [`& .${svgIconClasses.root}`]: { fontSize: '1rem' },
-            },
-          },
-          {
-            props: {
-              size: 'medium',
-            },
-            style: {
-              width: '2.5rem',
-              height: '2.5rem',
-            },
-          },
-        ],
       }),
+    },
+  },
+  MuiIconButton: {
+    styleOverrides: {
+      root: ({ theme, ownerState }) => {
+        const isErrorColor = ownerState.color === 'error';
+
+        return {
+          boxShadow: 'none',
+          borderRadius: (theme.vars || theme).shape.borderRadius,
+          textTransform: 'none',
+          fontWeight: theme.typography.fontWeightMedium,
+          letterSpacing: 0,
+          border: '1px solid ',
+          color: isErrorColor ? 'error' : (theme.vars || theme).palette.text.primary,
+          borderColor: isErrorColor ? red[200] : gray[200],
+          backgroundColor: alpha(gray[50], 0.3),
+          '&:hover': {
+            backgroundColor: isErrorColor ? red[50] : gray[100],
+            borderColor: isErrorColor ? red[300] : gray[300],
+          },
+          '&:active': {
+            backgroundColor: isErrorColor ? red[100] : gray[200],
+          },
+          ...theme.applyStyles('dark', {
+            backgroundColor: gray[800],
+            borderColor: isErrorColor ? red[700] : gray[700],
+            '&:hover': {
+              backgroundColor: isErrorColor ? alpha(red[900], 0.3) : gray[900],
+              borderColor: isErrorColor ? red[500] : gray[600],
+            },
+            '&:active': {
+              backgroundColor: isErrorColor ? alpha(red[900], 0.5) : gray[900],
+            },
+          }),
+          variants: [
+            {
+              props: {
+                size: 'small',
+              },
+              style: {
+                width: '2.25rem',
+                height: '2.25rem',
+                padding: '0.25rem',
+                [`& .${svgIconClasses.root}`]: { fontSize: '1rem' },
+              },
+            },
+            {
+              props: {
+                size: 'medium',
+              },
+              style: {
+                width: '2.5rem',
+                height: '2.5rem',
+              },
+            },
+          ],
+        };
+      },
     },
   },
   MuiToggleButtonGroup: {

@@ -11,6 +11,7 @@ import { Account } from '@/pages/account.tsx';
 import { Route, Routes } from 'react-router';
 import { useMemo, useState } from 'react';
 import { Login } from '@/pages/login.tsx';
+import { Users } from '@/pages/users.tsx';
 
 export default function App(props: { disableCustomTheme?: boolean }) {
   const [snackbarState, setSnackbarState] = useState<SnackbarState>({
@@ -63,9 +64,10 @@ export default function App(props: { disableCustomTheme?: boolean }) {
 
           <Route element={<PrivateLayout />}>
             <Route element={<Dashboard />} path="/" index />
+            <Route element={<Account />} path="/account" />
             <Route element={<Connections />} path="/connections" />
-            {/*<Route element={<Users />} path="/users" />*/}
-            <Route path="/account/:id?" element={<Account />} />
+            <Route element={<Users />} path="/users" />
+            <Route element={<Account />} path="/users/:id?" />
           </Route>
 
           <Route path="*" element={<NotFound />} />

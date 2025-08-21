@@ -1,6 +1,5 @@
-import { HeaderEvents } from '@/layouts/private/header-events.ts';
 import type { useFormState } from '@/hooks/use-form-state.ts';
-import { useEffect } from 'react';
+import { useProgress } from '@/hooks/use-progress.ts';
 
 import {
   CardContent,
@@ -13,9 +12,9 @@ import {
 
 import {
   RestoreRounded as RestoreIcon,
+  CheckRounded as SaveIcon,
   UndoRounded as UndoIcon,
   RedoRounded as RedoIcon,
-  SaveRounded as SaveIcon,
 } from '@mui/icons-material';
 
 export interface SaveBarProps {
@@ -28,20 +27,12 @@ export function SaveBar(props: SaveBarProps) {
   const { changes, cursor, isDirty, undo, redo, reset, history } =
     props.formState;
 
-  useEffect(() => {
-    window.dispatchEvent(
-      new CustomEvent(
-        props.saving ? HeaderEvents.loadingShow : HeaderEvents.loadingHide,
-      ),
-    );
-  }, [props.saving]);
+  useProgress(props.saving);
 
   return (
-    <Card
-      sx={{ top: 'auto', bottom: 0, zIndex: 44000, borderRadius: 4, mt: 3 }}
-    >
+    <Card sx={{ position: 'sticky', bottom: 0, borderRadius: 4, mt: 3 }}>
       <CardContent
-        justifyContent={history ? 'space-between' : 'flex-end'}
+        justifyContent="space-between"
         alignItems="center"
         component={Stack}
         direction="row"
@@ -57,7 +48,9 @@ export function SaveBar(props: SaveBarProps) {
 
             <Tooltip title="Redo changes">
               <Button
-                disabled={changes.length === 0 || cursor === changes.length - 1}
+                disabled={
+                  changes.length === 0 || cursor === changes.length - 1
+                }
                 onClick={redo}
               >
                 <RedoIcon />

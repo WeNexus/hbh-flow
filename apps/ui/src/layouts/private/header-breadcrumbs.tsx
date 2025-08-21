@@ -51,6 +51,7 @@ export default function HeaderBreadcrumbs() {
 
           const link = `/${route.pathname
             .split('/')
+            .filter(Boolean)
             .slice(0, index + 1)
             .join('/')}`;
 

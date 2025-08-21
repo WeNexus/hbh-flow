@@ -27,6 +27,54 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "#lib/core": [
+        "../../libs/core"
+      ],
+      "#lib/core/*": [
+        "../../libs/core/*"
+      ],
+      "#lib/workflow": [
+        "../../libs/workflow"
+      ],
+      "#lib/workflow/*": [
+        "../../libs/workflow/*"
+      ],
+      "#lib/auth": [
+        "../../libs/auth"
+      ],
+      "#lib/auth/*": [
+        "../../libs/auth/*"
+      ],
+      "#lib/hub": [
+        "../../libs/hub"
+      ],
+      "#lib/hub/*": [
+        "../../libs/hub/*"
+      ],
+      "#lib/zoho": [
+        "../../libs/zoho"
+      ],
+      "#lib/zoho/*": [
+        "../../libs/zoho/*"
+      ],
+      "#lib/fujimausa": [
+        "../../libs/fujimausa"
+      ],
+      "#lib/fujimausa/*": [
+        "../../libs/fujimausa/*"
+      ],
+      "#app/api": [
+        "../api"
+      ],
+      "#app/api/*": [
+        "../api/*"
+      ],
+      "#app/worker": [
+        "../worker"
+      ],
+      "#app/worker/*": [
+        "../worker/*"
       ]
     }
   },
