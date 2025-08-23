@@ -1,9 +1,11 @@
 import { useLocation, useNavigate, useParams } from 'react-router';
+import { ShowWhen } from '@/components/show-when.tsx';
 import { useSnackbar } from '@/hooks/use-snackbar.ts';
 import type { Role } from '@/types/backend-types.ts';
 import type { UserSchema } from '@/types/schema.ts';
 import { SaveBar } from '@/components/save-bar.tsx';
 import { roleColor } from '@/modules/role-color.ts';
+import { useHeader } from '@/hooks/use-header.ts';
 import { useApi } from '@/hooks/use-api.ts';
 import { ROLES } from '@/modules/roles.ts';
 import { omit } from 'lodash-es';
@@ -60,7 +62,6 @@ import {
   useFormState,
   type UseFormStateOptions,
 } from '@/hooks/use-form-state.ts';
-import { ShowWhen } from '@/components/show-when.tsx';
 
 interface FormState extends Omit<UserSchema, 'id' | 'createdAt'> {
   password: string;
@@ -228,6 +229,7 @@ export function Account() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user: currentUser, api } = useApi();
+  const { UI: updateHeaderUI } = useHeader();
 
   const isCreatePage = useMemo(
     () => location.pathname.endsWith('/create'),
@@ -426,6 +428,15 @@ export function Account() {
       });
     }
   }, [messages.avatar, showSnackbar]);
+
+  useEffect(() => {
+    updateHeaderUI({
+      search: false,
+      datePicker: false,
+      loading: false,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!user && mode !== 'create') {
     return (

@@ -4,8 +4,8 @@ import ExecutionsByStatusChart from '@/components/executions-by-status-chart';
 import StatCard, { type StatCardProps } from '@/components/stat-card';
 import CustomizedTreeView from '@/components/customized-tree-view';
 import CustomizedDataGrid from '@/components/customized-data-grid';
-import { HeaderEvents } from '@/layouts/private/header-events.ts';
 import Typography from '@mui/material/Typography';
+import { useHeader } from '@/hooks/use-header.ts';
 import Copyright from '@/components/copyright';
 import Stack from '@mui/material/Stack';
 import Grid from '@mui/material/Grid';
@@ -61,15 +61,15 @@ const data: StatCardProps[] = [
 ];
 
 export default function Dashboard() {
+  const { UI: updateHeaderUI } = useHeader();
+
   useEffect(() => {
-    window.dispatchEvent(
-      new CustomEvent(HeaderEvents.ui, {
-        detail: {
-          search: false,
-          datePicker: true,
-        },
-      }),
-    );
+    updateHeaderUI({
+      search: false,
+      datePicker: true,
+      loading: false,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

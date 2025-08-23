@@ -4,9 +4,8 @@ import { SearchEmptyState } from '@/components/search-empty-state.tsx';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ErrorState } from '@/components/error-state.tsx';
 import { EmptyState } from '@/components/empty-state.tsx';
-import { useProgress } from '@/hooks/use-progress.ts';
 import { roleColor } from '@/modules/role-color.ts';
-import { useSearch } from '@/hooks/use-search.ts';
+import { useHeader } from '@/hooks/use-header.ts';
 import { useApi } from '@/hooks/use-api.ts';
 import type { AxiosError } from 'axios';
 
@@ -143,9 +142,9 @@ function UserCard({
 const limit = 24; // Default items per page
 
 export function Users() {
+  const { state: { query }, UI: updateHeaderUI } = useHeader();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [query] = useSearch(300);
   const { api } = useApi();
 
   const [page, setPage] = useState<number>(
@@ -155,7 +154,7 @@ export function Users() {
   const [users, setUsers] = useState<UserListOutputSchema | null>(null);
   const [error, setError] = useState<AxiosError | string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const switchProgress = useProgress();
+  const { loading: switchProgress } = useHeader();
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -226,6 +225,15 @@ export function Users() {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, page]);
+
+  useEffect(() => {
+    updateHeaderUI({
+      search: true,
+      datePicker: false,
+      loading: false,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isEmpty = !loading && !error && (users?.data.length ?? 0) === 0;
 

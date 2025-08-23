@@ -1,9 +1,9 @@
 import SentimentDissatisfiedIcon from '@mui/icons-material/SentimentDissatisfied';
-import { HeaderEvents } from '@/layouts/private/header-events.ts';
 import SearchIconRounded from '@mui/icons-material/SearchRounded';
 import ClearIconRounded from '@mui/icons-material/ClearRounded';
-import { useSearch } from '@/hooks/use-search.ts';
+import { useHeader } from '@/hooks/use-header.ts';
 import { useSearchParams } from 'react-router';
+import { useEffect, useState } from 'react';
 import * as React from 'react';
 
 import {
@@ -27,19 +27,19 @@ export function SearchEmptyState({
   const theme = useTheme();
   const [searchParams] = useSearchParams();
   const originalQuery = searchParams.get('q') || '';
-  const [query, setQuery] = useSearch(500);
+  const { state: headerState, submitQuery } = useHeader();
+  const [query, setQuery] = useState(headerState.query);
 
-  const onClear = React.useCallback(() => {
-    window.dispatchEvent(
-      new CustomEvent(HeaderEvents.querySubmit, { detail: '' }),
-    );
-  }, []);
+  const onClear = React.useCallback(() => submitQuery(''), [submitQuery]);
 
-  const onTryAgain = React.useCallback(() => {
-    window.dispatchEvent(
-      new CustomEvent(HeaderEvents.querySubmit, { detail: query }),
-    );
-  }, [query]);
+  const onTryAgain = React.useCallback(
+    () => submitQuery(headerState.query),
+    [submitQuery, headerState.query],
+  );
+
+  useEffect(() => {
+    setQuery(originalQuery);
+  }, [originalQuery, searchParams]);
 
   return (
     <Stack spacing={3} sx={{ maxWidth: 760, mx: 'auto' }}>
@@ -77,8 +77,14 @@ export function SearchEmptyState({
       >
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>
           <TextField
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                submitQuery(query);
+              }
+            }}
             placeholder="Search again"
-            onChange={setQuery}
             value={query}
             size="small"
             fullWidth

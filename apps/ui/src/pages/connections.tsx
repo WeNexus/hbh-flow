@@ -12,8 +12,8 @@ import { ErrorState } from '@/components/error-state.tsx';
 import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
 import CardHeader from '@mui/material/CardHeader';
+import { useHeader } from '@/hooks/use-header.ts';
 import { useSocket } from '@/hooks/use-socket.ts';
-import { useSearch } from '@/hooks/use-search.ts';
 import Skeleton from '@mui/material/Skeleton';
 import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
@@ -83,7 +83,7 @@ function TypeChip({ type }: { type: ProviderSchema['type'] }) {
 }
 
 export function Connections() {
-  const [query] = useSearch(300);
+  const { state: { query }, UI: updateHeaderUI } = useHeader();
   const { api } = useApi();
 
   const [connections, setConnections] = useState<
@@ -266,6 +266,15 @@ export function Connections() {
       }
     };
   }, [fetchConnections, socket]);
+
+  useEffect(() => {
+    updateHeaderUI({
+      search: true,
+      datePicker: false,
+      loading: false,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Box sx={{ width: '100%', mx: 'auto', px: { xs: 1, sm: 2 }, py: 2 }}>

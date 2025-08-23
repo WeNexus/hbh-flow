@@ -1,5 +1,6 @@
 import type { useFormState } from '@/hooks/use-form-state.ts';
-import { useProgress } from '@/hooks/use-progress.ts';
+import { useHeader } from '@/hooks/use-header.ts';
+import { useEffect } from 'react';
 
 import {
   CardContent,
@@ -27,7 +28,9 @@ export function SaveBar(props: SaveBarProps) {
   const { changes, cursor, isDirty, undo, redo, reset, history } =
     props.formState;
 
-  useProgress(props.saving);
+  const { loading } = useHeader();
+
+  useEffect(() => loading(!!props.saving), [loading, props.saving]);
 
   return (
     <Card sx={{ position: 'sticky', bottom: 0, borderRadius: 4, mt: 3 }}>
