@@ -269,7 +269,7 @@ export function Connections() {
 
   return (
     <Box sx={{ width: '100%', mx: 'auto', px: { xs: 1, sm: 2 }, py: 2 }}>
-      {!filtered && !error && (
+      {!filtered && !error ? (
         <Grid container spacing={2}>
           {Array.from({ length: 6 }).map((_, idx) => (
             <Grid key={idx} size={{ xs: 12, sm: 6, md: 4 }}>
@@ -287,9 +287,7 @@ export function Connections() {
             </Grid>
           ))}
         </Grid>
-      )}
-
-      {filtered?.length ? (
+      ) : filtered?.length ? (
         <Grid container spacing={2}>
           {filtered.map((connection) => {
             const testedAt = connection.testedAt
@@ -412,18 +410,20 @@ export function Connections() {
       ) : query ? (
         <SearchEmptyState />
       ) : (
-        <EmptyState
-          description="No integrations found."
-          primaryAction={
-            <Button
-              variant="outlined"
-              onClick={() => fetchConnections(false)}
-              startIcon={<RefreshRoundedIcon />}
-            >
-              Refresh
-            </Button>
-          }
-        />
+        !filtered?.length && (
+          <EmptyState
+            description="No integrations found."
+            primaryAction={
+              <Button
+                variant="outlined"
+                onClick={() => fetchConnections(false)}
+                startIcon={<RefreshRoundedIcon />}
+              >
+                Refresh
+              </Button>
+            }
+          />
+        )
       )}
     </Box>
   );

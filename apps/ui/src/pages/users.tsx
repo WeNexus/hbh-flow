@@ -202,7 +202,7 @@ export function Users() {
   }, []);
 
   const skeletons = useMemo(
-    () => Array.from({ length: Math.min(limit, 24) }),
+    () => Array.from({ length: 8 }),
     [],
   );
 
