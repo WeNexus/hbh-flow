@@ -151,10 +151,11 @@ model Workflow {
   createdAt DateTime  @default(now()) @db.Timestamptz()
   updatedAt DateTime? @updatedAt @db.Timestamptz()
 
-  Jobs     Job[]
-  Webhooks Webhook[]
-  Events   Event[]
-  Folder   Folder?   @relation(fields: [folderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  Jobs      Job[]
+  Webhooks  Webhook[]
+  Events    Event[]
+  Folder    Folder?    @relation(fields: [folderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  Schedules Schedule[]
 }
 
 model Webhook {
@@ -208,6 +209,8 @@ model Schedule {
 
   createdAt DateTime  @default(now()) @db.Timestamptz()
   updatedAt DateTime? @updatedAt @db.Timestamptz()
+
+  Workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@unique([workflowId, cronExpression])
 }
