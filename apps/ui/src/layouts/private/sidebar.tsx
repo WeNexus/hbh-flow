@@ -5,6 +5,7 @@ import SidebarMenuContent from './sidebar-menu-content.tsx';
 import OptionsMenu from '@/components/options-menu.tsx';
 import Typography from '@mui/material/Typography';
 import { styled } from '@mui/material/styles';
+import FlowLogo from '@/assets/honeybee.svg';
 import Divider from '@mui/material/Divider';
 import { useApi } from '@/hooks/use-api.ts';
 import { useNavigate } from 'react-router';
@@ -30,18 +31,21 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const { user, api } = useApi();
 
-  const menuItems = useMemo(() => [
-    {
-      label: 'My Account',
-      icon: <ManageAccountsRoundedIcon />,
-      onClick: () => navigate('/account'),
-    },
-    {
-      label: 'Logout',
-      icon: <LogoutRoundedIcon />,
-      onClick: () => api.logout(),
-    },
-  ], [api, navigate])
+  const menuItems = useMemo(
+    () => [
+      {
+        label: 'My Account',
+        icon: <ManageAccountsRoundedIcon />,
+        onClick: () => navigate('/account'),
+      },
+      {
+        label: 'Logout',
+        icon: <LogoutRoundedIcon />,
+        onClick: () => api.logout(),
+      },
+    ],
+    [api, navigate],
+  );
 
   return (
     <Drawer
@@ -57,11 +61,15 @@ export default function Sidebar() {
         sx={{
           display: 'flex',
           mt: 'calc(var(--template-frame-height, 0px) + 4px)',
-          p: 1.5,
+          alignItems: 'center',
+          gap: 0.5,
+          p: 1,
         }}
         justifyContent="center"
       >
-        <Typography variant="h5" component="h5" sx={{ fontWeight: 600 }}>
+        <Avatar src={FlowLogo} alt="Flow Logo" sx={{ height: 45 }} />
+
+        <Typography variant="h3" sx={{ fontWeight: 600 }}>
           Flow
         </Typography>
       </Box>
@@ -107,7 +115,7 @@ export default function Sidebar() {
             {user?.email}
           </Typography>
         </Box>
-        <OptionsMenu items={menuItems} title='Options' />
+        <OptionsMenu items={menuItems} title="Options" />
       </Stack>
     </Drawer>
   );
