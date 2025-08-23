@@ -16,7 +16,7 @@
     "test": "vitest",
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "build": "./apps/ui/node_modules/.bin/vite build ./apps/ui",
-    "start": "node --import @swc-node/register/esm-register main.ts --no-experimental-strip-types --enable-source-maps",
+    "start": "prisma migrate deploy && node --import @swc-node/register/esm-register main.ts --no-experimental-strip-types --enable-source-maps",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org honeybeeherb --project $SENTRY_PROJECT ./dist && sentry-cli sourcemaps upload --org honeybeeherb --project $SENTRY_PROJECT ./dist"
   },
   "dependencies": {
