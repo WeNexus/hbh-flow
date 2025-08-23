@@ -21,6 +21,7 @@ import {
   Pagination,
   CardHeader,
   Skeleton,
+  Tooltip,
   Divider,
   Avatar,
   Button,
@@ -36,9 +37,9 @@ import {
   CalendarMonthRounded as CalendarMonthIcon,
   VerifiedUserRounded as ChipIcon,
   RefreshRounded as RefreshIcon,
-  CreateRounded as CreateIcon,
   FileOpenRounded as ViewIcon,
   EmailRounded as EmailIcon,
+  AddRounded as CreateIcon,
 } from '@mui/icons-material';
 
 function UserCard({
@@ -311,15 +312,17 @@ export function Users() {
       </Box>
 
       {api.isPowerUser && (
-        <Fab
-          onClick={() => navigate('/users/create')}
-          sx={{ position: 'fixed', bottom: 20, right: 20 }}
-          variant="extended"
-          color="primary"
-        >
-          <CreateIcon sx={{ mr: 1 }} />
-          Create User
-        </Fab>
+        <Tooltip title="Add User" placement="left">
+          <Fab
+            onClick={() => navigate('/users/create')}
+            sx={{ position: 'fixed', bottom: 20, right: 20 }}
+            variant="circular"
+            color="primary"
+            size="large"
+          >
+            <CreateIcon />
+          </Fab>
+        </Tooltip>
       )}
     </>
   );
