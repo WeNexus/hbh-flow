@@ -381,10 +381,8 @@ export function Account() {
     }
 
     if (!params.id) {
-      if (user && currentUser?.id !== user.id) {
-        setUser(currentUser);
-        cancelEditing();
-      }
+      setUser(currentUser);
+      cancelEditing();
 
       return;
     }
@@ -429,7 +427,7 @@ export function Account() {
     }
   }, [messages.avatar, showSnackbar]);
 
-  if (!user) {
+  if (!user && mode !== 'create') {
     return (
       <Container maxWidth="md" component="form">
         <Card sx={{ mb: 3, borderRadius: 4, overflow: 'hidden' }}>
