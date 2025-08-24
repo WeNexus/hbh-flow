@@ -58,18 +58,25 @@ export default function Sidebar() {
       }}
     >
       <Box
+        justifyContent="center"
+        alignItems="flex-end"
+        component={Stack}
+        direction="row"
+        gap={1}
         sx={{
-          display: 'flex',
-          mt: 'calc(var(--template-frame-height, 0px) + 4px)',
-          alignItems: 'center',
-          gap: 0.5,
           p: 1,
         }}
-        justifyContent="center"
       >
-        <Avatar src={FlowLogo} alt="Flow Logo" sx={{ height: 45 }} />
+        <Avatar
+          sx={{ width: 30, height: 43, mb: 0.6 }}
+          alt="Flow Logo"
+          src={FlowLogo}
+        />
 
-        <Typography variant="h3" sx={{ fontWeight: 600 }}>
+        <Typography
+          align="center"
+          variant='h3'
+        >
           Flow
         </Typography>
       </Box>

@@ -1,17 +1,9 @@
 import ColorModeSelect from '@/components/theme/color-mode-select.tsx';
+import { LoginRounded as LoginIcon } from '@mui/icons-material';
 import { useFormState } from '@/hooks/use-form-state.ts';
-import FormControl from '@mui/material/FormControl';
-import Typography from '@mui/material/Typography';
-import FormLabel from '@mui/material/FormLabel';
-import TextField from '@mui/material/TextField';
 import { styled } from '@mui/material/styles';
 import { useApi } from '@/hooks/use-api.ts';
 import { useNavigate } from 'react-router';
-import Button from '@mui/material/Button';
-import MuiCard from '@mui/material/Card';
-import Stack from '@mui/material/Stack';
-import { Alert } from '@mui/material';
-import Box from '@mui/material/Box';
 import { AxiosError } from 'axios';
 
 import {
@@ -21,6 +13,19 @@ import {
   useMemo,
   useState,
 } from 'react';
+
+import {
+  Card as MuiCard,
+  CardContent,
+  FormControl,
+  Typography,
+  FormLabel,
+  TextField,
+  Button,
+  Stack,
+  Alert,
+} from '@mui/material';
+
 
 const Card = styled(MuiCard)(({ theme }) => ({
   display: 'flex',
@@ -82,36 +87,33 @@ export function LoginForm(props: LoginFormProps) {
     [],
   );
 
-  const { state, messages, addChange } = useFormState(
-    initialState,
-    {
-      history: false,
-      validators: {
-        email: {
-          target: 'state',
-          validate: (value) => {
-            if (!value || !/\S+@\S+\.\S+/.test(value)) {
-              return {
-                type: 'error',
-                message: 'Please enter a valid email address.',
-              };
-            }
-          },
+  const { state, messages, addChange } = useFormState(initialState, {
+    history: false,
+    validators: {
+      email: {
+        target: 'state',
+        validate: (value) => {
+          if (!value || !/\S+@\S+\.\S+/.test(value)) {
+            return {
+              type: 'error',
+              message: 'Please enter a valid email address.',
+            };
+          }
         },
-        password: {
-          target: 'state',
-          validate: (value) => {
-            if (!value) {
-              return {
-                type: 'error',
-                message: 'Password cannot be empty.',
-              };
-            }
-          },
+      },
+      password: {
+        target: 'state',
+        validate: (value) => {
+          if (!value) {
+            return {
+              type: 'error',
+              message: 'Password cannot be empty.',
+            };
+          }
         },
       },
     },
-  );
+  });
 
   const handleSubmit = useCallback(
     async (e: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement>) => {
@@ -141,7 +143,7 @@ export function LoginForm(props: LoginFormProps) {
   );
 
   return (
-    <Box
+    <CardContent
       onSubmit={handleSubmit}
       component="form"
       noValidate
@@ -200,6 +202,7 @@ export function LoginForm(props: LoginFormProps) {
       {error && <Alert severity="error">{error}</Alert>}
 
       <Button
+        startIcon={<LoginIcon />}
         onClick={handleSubmit}
         variant="contained"
         disabled={loading}
@@ -207,9 +210,9 @@ export function LoginForm(props: LoginFormProps) {
         type="submit"
         fullWidth
       >
-        Sign in
+        Login
       </Button>
-    </Box>
+    </CardContent>
   );
 }
 
