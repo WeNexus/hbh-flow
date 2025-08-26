@@ -241,14 +241,14 @@ export class WorkflowService implements OnApplicationBootstrap {
                 },
               });
 
-              await this.activityService.recordActivity({
+              /*await this.activityService.recordActivity({
                 userId: 1, // System user ID
                 action: 'UPDATE',
                 resource: 'SCHEDULE',
                 resourceId: schedule.id,
                 subAction: 'SKIP_NEXT_RUN',
                 updated: schedule,
-              });
+              });*/
 
               // If the schedule is set to skip the next run, we skip the job execution
               this.logger.warn(
@@ -283,14 +283,14 @@ export class WorkflowService implements OnApplicationBootstrap {
             );
           }
 
-          await this.activityService.recordActivity({
+          /*await this.activityService.recordActivity({
             userId: 1, // System user ID
             action: 'UPDATE',
             resource: 'JOB',
             resourceId: dbJob.id,
             subAction: 'EXECUTE',
             updated: dbJob,
-          });
+          });*/
 
           instance.bullJob = job;
           instance.dbJob = dbJob;
@@ -517,7 +517,7 @@ export class WorkflowService implements OnApplicationBootstrap {
             continue;
           }
 
-          await this.activityService.recordActivity({
+          /*await this.activityService.recordActivity({
             userId: 1, // System user ID
             action: 'OTHER',
             resource: 'JOB',
@@ -526,7 +526,7 @@ export class WorkflowService implements OnApplicationBootstrap {
             details: {
               step: stepInfo.method,
             },
-          });
+          });*/
 
           await Sentry.startSpan(
             {
@@ -662,14 +662,14 @@ export class WorkflowService implements OnApplicationBootstrap {
                 // Job status is already set to RUNNING at the beginning of the method. so we only update it if it has changed
                 await this.updateDBJob(instance, { status: jobStatus });
 
-                await this.activityService.recordActivity({
+                /*await this.activityService.recordActivity({
                   userId: 1, // System user ID
                   action: 'UPDATE',
                   resource: 'JOB',
                   resourceId: dbJob.id,
                   subAction: jobStatus,
                   updated: dbJob,
-                });
+                });*/
               }
 
               dbStep = (
@@ -1014,14 +1014,25 @@ export class WorkflowService implements OnApplicationBootstrap {
         })
       ).result;
 
-      await this.activityService.recordActivity({
+      /*await this.activityService.recordActivity({
         userId: options?.userId ?? 1, // Fallback to the system user
         action: 'CREATE',
         resource: 'JOB',
         resourceId: dbJob.id,
         subAction: 'RUN',
         updated: dbJob,
-      });
+      });*/
+
+      if (options?.userId) {
+        await this.activityService.recordActivity({
+          userId: options?.userId, // Fallback to the system user
+          action: 'CREATE',
+          resource: 'JOB',
+          resourceId: dbJob.id,
+          subAction: 'RUN',
+          updated: dbJob,
+        });
+      }
     }
 
     if (options?.draft) {
@@ -1120,14 +1131,14 @@ export class WorkflowService implements OnApplicationBootstrap {
       ).result;
     }
 
-    await this.activityService.recordActivity({
+    /*await this.activityService.recordActivity({
       userId: 1, // System user ID
       action: 'OTHER',
       resource: 'SCHEDULE',
       resourceId: schedule.id,
       subAction: 'UPSERT',
       updated: schedule,
-    });
+    });*/
 
     if (!schedule.active) {
       // The schedule is not active, so we remove it from the queue if it exists
@@ -1449,14 +1460,14 @@ export class WorkflowService implements OnApplicationBootstrap {
         },
       });
 
-      await this.activityService.recordActivity({
+      /*await this.activityService.recordActivity({
         userId: 1, // System user ID
         action: 'OTHER',
         resource: 'WORKFLOW',
         resourceId: dbFlow.id,
         subAction: 'UPSERT',
         updated: dbFlow,
-      });
+      });*/
 
       return dbFlow;
     }
@@ -1519,14 +1530,14 @@ export class WorkflowService implements OnApplicationBootstrap {
       },
     });
 
-    await this.activityService.recordActivity({
+    /*await this.activityService.recordActivity({
       userId: 1, // System user ID
       action: 'OTHER',
       resource: 'EVENT',
       resourceId: result.id,
       subAction: 'UPSERT',
       updated: result,
-    });
+    });*/
 
     return result;
   }

@@ -105,7 +105,7 @@ export class SetupCronWorkflow extends WorkflowBase {
         .then((queue) => queue.removeJobScheduler(`#${schedule.id}`));
     }
 
-    if (needToBeDanglingSchedules.length > 0) {
+    /*if (needToBeDanglingSchedules.length > 0) {
       await this.activityService.recordActivities(
         needToBeDanglingSchedules.map((s) => {
           const updated = { ...s };
@@ -123,7 +123,7 @@ export class SetupCronWorkflow extends WorkflowBase {
           };
         }),
       );
-    }
+    }*/
 
     if (userDefinedDanglingSchedules.length) {
       // Delete user-defined dangling schedules

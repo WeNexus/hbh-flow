@@ -89,14 +89,14 @@ export class SetupEventsWorkflow extends WorkflowBase {
 
           if (!existing) {
             // If this is a new event, record it in the activity log
-            await this.activityService.recordActivity({
+            /*await this.activityService.recordActivity({
               action: 'CREATE',
               userId: 1, // System user ID
               resource: 'EVENT',
               resourceId: updated.id,
               subAction: 'SETUP_EVENT',
               updated,
-            });
+            });*/
           }
         }
       }
@@ -124,7 +124,7 @@ export class SetupEventsWorkflow extends WorkflowBase {
         },
       });
 
-      await this.activityService.recordActivities(
+      /*await this.activityService.recordActivities(
         danglingEvents.map((e) => {
           const updated = { ...e };
 
@@ -140,7 +140,7 @@ export class SetupEventsWorkflow extends WorkflowBase {
             updated,
           };
         }),
-      );
+      );*/
     }
   }
 }

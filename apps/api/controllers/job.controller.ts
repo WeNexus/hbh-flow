@@ -293,12 +293,7 @@ export class JobController {
       );
     }
 
-    await this.workflowService.resume(
-      job.id,
-      req.body,
-      auth?.user.id ?? 1,
-      req,
-    );
+    await this.workflowService.resume(job.id, req.body, auth?.user.id, req);
   }
 
   @Post('/:id/cancel')
@@ -357,7 +352,7 @@ export class JobController {
       );
     }
 
-    await this.workflowService.cancel(job.id, auth?.user.id ?? 1, req);
+    await this.workflowService.cancel(job.id, auth?.user.id, req);
   }
 
   @Post('/:id/execute')
