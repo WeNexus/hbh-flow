@@ -46,7 +46,7 @@ export class ActivityService {
         subAction: config.subAction,
         details: {
           ip: config.req?.ip,
-          country: ipInfo?.countryFlag.emoji,
+          country: ipInfo?.countryFlag?.emoji,
           ...config.details,
         } as InputJsonValue,
       },
