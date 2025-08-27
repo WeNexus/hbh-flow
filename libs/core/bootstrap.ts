@@ -16,18 +16,19 @@ import { JwtModule } from '@nestjs/jwt';
 import { Redis } from 'ioredis';
 
 import {
-  ActivityService,
   GlobalEventService,
+  ActivityService,
+  IPInfoService,
   PrismaService,
 } from '#lib/core/services';
 
 import {
-  Global,
   INestApplicationContext,
-  Module,
   ModuleMetadata,
-  Provider,
   ValidationPipe,
+  Provider,
+  Module,
+  Global,
 } from '@nestjs/common';
 /**
  * Bootstraps the NestJS application with the provided metadata.
@@ -134,6 +135,13 @@ export async function bootstrap(
         : undefined) as Provider,
       GlobalEventService,
       ActivityService,
+      {
+        provide: IPInfoService,
+        inject: [EnvService],
+        useFactory(env: EnvService) {
+          return new IPInfoService(env.getString('IPINFO_API_KEY'));
+        },
+      },
     ].filter(Boolean),
     exports: [
       EnvService,
@@ -146,6 +154,7 @@ export async function bootstrap(
       ZohoModule,
       GlobalEventService,
       ActivityService,
+      IPInfoService,
     ],
   })
   class WrapperModule {}

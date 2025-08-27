@@ -3,6 +3,7 @@ import { Activity, type Resource, Revision } from '@prisma/client';
 import type { RecordActivityConfig } from '#lib/core/types';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from './prisma.service';
+import { IPInfoService } from './ipinfo.service';
 import * as jsondiffpatch from 'jsondiffpatch';
 import { Injectable } from '@nestjs/common';
 import { omit } from 'lodash-es';
@@ -12,6 +13,7 @@ export class ActivityService {
   constructor(
     private readonly emitter: EventEmitter2,
     private readonly prisma: PrismaService,
+    private readonly ipinfo: IPInfoService,
   ) {}
 
   private omitKeys: Partial<Record<Resource, string[]>> = {
@@ -31,6 +33,10 @@ export class ActivityService {
    * @returns The recorded activity and its associated revision, if applicable.
    */
   async recordActivity(config: RecordActivityConfig) {
+    const ipInfo = config.req?.ip
+      ? await this.ipinfo.lookupIp(config.req.ip).catch(() => undefined)
+      : undefined;
+
     const { result: activity } = await this.prisma.activity.create({
       data: {
         userId: config.userId,
@@ -40,9 +46,9 @@ export class ActivityService {
         subAction: config.subAction,
         details: {
           ip: config.req?.ip,
-          userAgent: config.req?.headers['user-agent'],
+          country: ipInfo?.countryFlag.emoji,
           ...config.details,
-        },
+        } as InputJsonValue,
       },
     });
 

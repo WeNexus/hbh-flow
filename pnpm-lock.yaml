@@ -89,6 +89,9 @@ importers:
       multer:
         specifier: ^2.0.2
         version: 2.0.2
+      node-ipinfo:
+        specifier: ^4.1.0
+        version: 4.1.0
       oauth:
         specifier: ^0.10.2
         version: 0.10.2
@@ -3253,6 +3256,10 @@ packages:
     resolution: {integrity: sha512-QIXZUBJUx+2zHUdQujWejBkcD9+cs94tLn0+YL8UrCh+D5sCXZ4c7LaEH48pNwRY3MLDgqUFyhlCyjJPf1WP0A==}
     engines: {node: 20 || >=22}
 
+  lru-cache@7.18.3:
+    resolution: {integrity: sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==}
+    engines: {node: '>=12'}
+
   luxon@3.6.1:
     resolution: {integrity: sha512-tJLxrKJhO2ukZ5z0gyjY1zPh3Rh88Ej9P7jNrZiHMUXHae1yvI2imgOZtL1TO8TW6biMMKfTtAOoEJANgtWBMQ==}
     engines: {node: '>=12'}
@@ -3414,6 +3421,10 @@ packages:
   node-gyp-build@4.8.4:
     resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
     hasBin: true
+
+  node-ipinfo@4.1.0:
+    resolution: {integrity: sha512-5HJA50uc6zplOV8LmxflE9rtMyyoiQkHibH4F2Jn1A/91yt4uOqle6oR3RtmNesmbrixXTymVONKntjfaQk6qQ==}
+    engines: {node: '>=14'}
 
   node-releases@2.0.19:
     resolution: {integrity: sha512-xxOWJsBKtzAq7DY0J+DTzuz58K8e7sJbdgwkbMWQe8UYB6ekmsQ45q0M/tJDsGaZmbC+l7n57UV8Hl5tHxO9uw==}
@@ -3993,6 +4004,10 @@ packages:
   strtok3@10.3.4:
     resolution: {integrity: sha512-KIy5nylvC5le1OdaaoCJ07L+8iQzJHGH6pWDuzS+d07Cu7n1MZ2x26P8ZKIWfbK02+XIL8Mp4RkWeqdUCrDMfg==}
     engines: {node: '>=18'}
+
+  subnet-check@1.10.1:
+    resolution: {integrity: sha512-e8lXZ9ICcG42fFsMDZO5TTZ3uS2436b5hnx3uS4Z3XkAFuDLa5R3Pvt9lYhewKm/vCd48t14v0jFaSmVYOT2Kg==}
+    engines: {node: '>=4.0.0'}
 
   supports-color@7.2.0:
     resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
@@ -7606,6 +7621,8 @@ snapshots:
 
   lru-cache@11.1.0: {}
 
+  lru-cache@7.18.3: {}
+
   luxon@3.6.1: {}
 
   magic-string@0.30.17:
@@ -7746,6 +7763,14 @@ snapshots:
     optional: true
 
   node-gyp-build@4.8.4: {}
+
+  node-ipinfo@4.1.0:
+    dependencies:
+      lru-cache: 7.18.3
+      node-fetch: 2.7.0
+      subnet-check: 1.10.1
+    transitivePeerDependencies:
+      - encoding
 
   node-releases@2.0.19: {}
 
@@ -8409,6 +8434,8 @@ snapshots:
     dependencies:
       '@tokenizer/token': 0.3.0
     optional: true
+
+  subnet-check@1.10.1: {}
 
   supports-color@7.2.0:
     dependencies:
