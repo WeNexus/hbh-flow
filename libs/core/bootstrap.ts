@@ -1,5 +1,6 @@
 import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
+import { BigCommerceModule } from '#lib/bigcommerce/bigcommerce.module';
 import { APP_TYPE, RedisIoAdapter, RUNTIME_ID } from '#lib/core/misc';
 import { PrismaExtensionRedis } from '#lib/core/misc/prisma-cache';
 import { FujimausaModule } from '#lib/fujimausa/fujimausa.module';
@@ -89,6 +90,7 @@ export async function bootstrap(
         inject: [EnvService],
       }),
       FujimausaModule,
+      BigCommerceModule,
     ],
     providers: [
       {
@@ -155,6 +157,8 @@ export async function bootstrap(
       GlobalEventService,
       ActivityService,
       IPInfoService,
+      BigCommerceModule,
+      FujimausaModule,
     ],
   })
   class WrapperModule {}

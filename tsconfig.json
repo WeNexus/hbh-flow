@@ -59,6 +59,12 @@
       "#lib/fujimausa/*": [
         "libs/fujimausa/*"
       ],
+      "#lib/bigcommerce": [
+        "libs/bigcommerce"
+      ],
+      "#lib/bigcommerce/*": [
+        "libs/bigcommerce/*"
+      ],
       "#app/api": [
         "apps/api"
       ],
