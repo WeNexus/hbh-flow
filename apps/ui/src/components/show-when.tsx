@@ -1,4 +1,5 @@
 import { type FC, type PropsWithChildren } from 'react';
+import type { CSSProperties } from '@mui/material';
 
 import {
   type UseTransitionProps,
@@ -44,6 +45,7 @@ export interface AnimatedShowHideProps<P = any> extends PropsWithChildren {
   component?: FC<P>;
   props?: P;
   when: boolean;
+  style?: CSSProperties;
 }
 
 export function ShowWhen<P>({
@@ -51,7 +53,8 @@ export function ShowWhen<P>({
   animation,
   children,
   when,
-  props
+  props,
+  style,
 }: AnimatedShowHideProps<P>) {
   const transition = useTransition(when, animations[animation || 'fadeSlideY']);
 
@@ -61,7 +64,7 @@ export function ShowWhen<P>({
     (styles, when) =>
       when && (
         // @ts-expect-error - animated.div expects a style prop
-        <Container style={styles} {...props}>
+        <Container style={{ ...styles, ...(style ?? {}) }} {...props}>
           {children}
         </Container>
       ),

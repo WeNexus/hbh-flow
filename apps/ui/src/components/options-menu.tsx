@@ -1,18 +1,22 @@
-import ListItemIcon, { listItemIconClasses } from '@mui/material/ListItemIcon';
-import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
+import { MoreVertRounded as MoreVertIcon } from '@mui/icons-material';
 import { styled, type Theme } from '@mui/material/styles';
-import { dividerClasses } from '@mui/material/Divider';
-import ListItemText from '@mui/material/ListItemText';
 import MenuButton from '@/components/menu-button.tsx';
-import { paperClasses } from '@mui/material/Paper';
-import IconButton from '@mui/material/IconButton';
-import { listClasses } from '@mui/material/List';
-import MuiMenuItem from '@mui/material/MenuItem';
-import type { SxProps } from '@mui/material';
-import Tooltip from '@mui/material/Tooltip';
-import Menu from '@mui/material/Menu';
 import { useCallback } from 'react';
 import * as React from 'react';
+
+import {
+  MenuItem as MuiMenuItem,
+  listItemIconClasses,
+  dividerClasses,
+  ListItemText,
+  ListItemIcon,
+  type SxProps,
+  paperClasses,
+  IconButton,
+  listClasses,
+  Tooltip,
+  Menu,
+} from '@mui/material';
 
 export interface OptionsMenuProps {
   title?: string;
@@ -55,7 +59,7 @@ export default function OptionsMenu(props: OptionsMenuProps) {
               ...(props.sx || {}),
             }}
           >
-            <MoreVertRoundedIcon />
+            <MoreVertIcon />
           </IconButton>
         </Tooltip>
       ) : (
@@ -64,7 +68,7 @@ export default function OptionsMenu(props: OptionsMenuProps) {
           aria-label="Open menu"
           onClick={handleClick}
         >
-          <MoreVertRoundedIcon />
+          <MoreVertIcon />
         </MenuButton>
       )}
       <Menu

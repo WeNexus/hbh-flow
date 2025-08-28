@@ -1,11 +1,18 @@
-import IconButton, { type IconButtonOwnProps } from '@mui/material/IconButton';
-import LightModeIcon from '@mui/icons-material/LightModeRounded';
-import DarkModeIcon from '@mui/icons-material/DarkModeRounded';
 import { useColorScheme } from '@mui/material/styles';
-import MenuItem from '@mui/material/MenuItem';
-import Menu from '@mui/material/Menu';
-import Box from '@mui/material/Box';
 import * as React from 'react';
+
+import {
+  LightModeRounded as LightModeIcon,
+  DarkModeRounded as DarkModeIcon,
+} from '@mui/icons-material';
+
+import {
+  type IconButtonOwnProps,
+  IconButton,
+  MenuItem,
+  Menu,
+  Box,
+} from '@mui/material';
 
 export default function ColorModeIconDropdown(props: IconButtonOwnProps) {
   const { mode, systemMode, setMode } = useColorScheme();
@@ -21,47 +28,53 @@ export default function ColorModeIconDropdown(props: IconButtonOwnProps) {
     setMode(targetMode);
     handleClose();
   };
+
   if (!mode) {
     return (
       <Box
         data-screenshot="toggle-mode"
         sx={(theme) => ({
+          borderRadius: (theme.vars || theme).shape.borderRadius,
+          borderColor: (theme.vars || theme).palette.divider,
           verticalAlign: 'bottom',
           display: 'inline-flex',
           width: '2.25rem',
           height: '2.25rem',
-          borderRadius: (theme.vars || theme).shape.borderRadius,
           border: '1px solid',
-          borderColor: (theme.vars || theme).palette.divider,
         })}
       />
     );
   }
-  const resolvedMode = (systemMode || mode) as 'light' | 'dark';
+
+  const resolvedMode = (mode === 'system' ? systemMode : mode) || 'light';
+
   const icon = {
     light: <LightModeIcon />,
     dark: <DarkModeIcon />,
   }[resolvedMode];
+
   return (
     <React.Fragment>
       <IconButton
+        aria-controls={open ? 'color-scheme-menu' : undefined}
+        aria-expanded={open ? 'true' : undefined}
         data-screenshot="toggle-mode"
         onClick={handleClick}
+        aria-haspopup="true"
         disableRipple
         size="small"
-        aria-controls={open ? 'color-scheme-menu' : undefined}
-        aria-haspopup="true"
-        aria-expanded={open ? 'true' : undefined}
         {...props}
       >
         {icon}
       </IconButton>
       <Menu
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        onClose={handleClose}
+        onClick={handleClose}
         anchorEl={anchorEl}
         id="account-menu"
         open={open}
-        onClose={handleClose}
-        onClick={handleClose}
         slotProps={{
           paper: {
             variant: 'outlined',
@@ -71,8 +84,6 @@ export default function ColorModeIconDropdown(props: IconButtonOwnProps) {
             },
           },
         }}
-        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
         <MenuItem selected={mode === 'system'} onClick={handleMode('system')}>
           System

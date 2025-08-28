@@ -1,4 +1,4 @@
-import InboxIconRounded from '@mui/icons-material/InboxRounded';
+import { InboxOutlined as InboxIcon } from '@mui/icons-material';
 import * as React from 'react';
 
 import {
@@ -22,7 +22,7 @@ export interface EmptyStateProps {
 }
 
 export function EmptyState({
-  icon = <InboxIconRounded sx={{ fontSize: 36 }} />,
+  icon = <InboxIcon sx={{ fontSize: 36 }} />,
   title = 'Nothing here yet',
   description = 'When you add content, it will show up here.',
   primaryAction,

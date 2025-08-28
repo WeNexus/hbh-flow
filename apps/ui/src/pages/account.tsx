@@ -11,43 +11,43 @@ import { ROLES } from '@/modules/roles.ts';
 import { omit } from 'lodash-es';
 
 import {
-  AxiosError,
   type AxiosResponse,
   CanceledError,
+  AxiosError,
   toFormData,
 } from 'axios';
 
 import {
-  Avatar,
-  Box,
-  Card,
-  CardContent,
-  CardHeader,
-  Chip,
-  Container,
-  Divider,
-  FormControl,
-  FormLabel,
-  Grid,
-  IconButton,
   InputAdornment,
+  CardContent,
+  FormControl,
+  CardHeader,
+  FormLabel,
+  IconButton,
+  TextField,
+  Typography,
+  Container,
   Skeleton,
   MenuItem,
+  Tooltip,
+  Divider,
+  Avatar,
   Select,
   Stack,
-  TextField,
-  Tooltip,
-  Typography,
+  Grid,
+  Card,
+  Chip,
+  Box,
 } from '@mui/material';
 
 import {
-  CameraAltRounded as CameraAltIcon,
+  CameraAltOutlined as CameraAltIcon,
   CloseOutlined as CancelIcon,
-  EditRounded as EditIcon,
-  KeyRounded as KeyIcon,
-  MailRounded as MailIcon,
-  PersonRounded as PersonIcon,
-  ShieldRounded as ShieldIcon,
+  PersonOutlined as PersonIcon,
+  ShieldOutlined as ShieldIcon,
+  EditOutlined as EditIcon,
+  MailOutlined as MailIcon,
+  KeyOutlined as KeyIcon,
 } from '@mui/icons-material';
 
 import {
@@ -62,6 +62,7 @@ import {
   useFormState,
   type UseFormStateOptions,
 } from '@/hooks/use-form-state.ts';
+import { Activities } from '@/pages/activities.tsx';
 
 interface FormState extends Omit<UserSchema, 'id' | 'createdAt'> {
   password: string;
@@ -434,7 +435,7 @@ export function Account() {
       search: false,
       datePicker: false,
       loading: false,
-    })
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -835,13 +836,30 @@ export function Account() {
 
       <ShowWhen
         when={mode === 'edit' || mode === 'create'}
-        component={SaveBar}
-        props={{
-          onSave: save,
-          formState,
-          saving,
+        style={{
+          position: 'sticky',
+          bottom: 0,
         }}
-      />
+      >
+        <SaveBar onSave={save} formState={formState} saving={saving} />
+      </ShowWhen>
+
+      {mode === 'view' && (
+        <Card sx={{ borderRadius: 4, mt: 3, p: 0 }}>
+          <CardHeader
+            subheader="Recent activities"
+            sx={{ px: 3, pt: 2, mb: 3 }}
+            title="Activity"
+          />
+          <CardContent>
+            <Activities
+              userId={Number(params.id ?? user?.id ?? currentUser?.id)!}
+              defaultPageSize={10}
+              embedded
+            />
+          </CardContent>
+        </Card>
+      )}
     </Container>
   );
 }

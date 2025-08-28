@@ -1,8 +1,9 @@
 import type { useFormState } from '@/hooks/use-form-state.ts';
 import { useHeader } from '@/hooks/use-header.ts';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import {
+  type CardProps,
   CardContent,
   ButtonGroup,
   Tooltip,
@@ -12,16 +13,17 @@ import {
 } from '@mui/material';
 
 import {
-  RestoreRounded as RestoreIcon,
-  CheckRounded as SaveIcon,
-  UndoRounded as UndoIcon,
-  RedoRounded as RedoIcon,
+  RestoreOutlined as RestoreIcon,
+  CheckOutlined as SaveIcon,
+  UndoOutlined as UndoIcon,
+  RedoOutlined as RedoIcon,
 } from '@mui/icons-material';
 
 export interface SaveBarProps {
   formState: ReturnType<typeof useFormState<any>>;
   onSave: () => any;
   saving?: boolean;
+  sx?: CardProps['sx'];
 }
 
 export function SaveBar(props: SaveBarProps) {
@@ -30,10 +32,21 @@ export function SaveBar(props: SaveBarProps) {
 
   const { loading } = useHeader();
 
+  const style = useMemo<CardProps['sx']>(
+    () => ({
+      position: 'sticky',
+      bottom: 0,
+      borderRadius: 4,
+      mt: 3,
+      ...(props.sx ?? {}),
+    }),
+    [props.sx],
+  );
+
   useEffect(() => loading(!!props.saving), [loading, props.saving]);
 
   return (
-    <Card sx={{ position: 'sticky', bottom: 0, borderRadius: 4, mt: 3 }}>
+    <Card sx={style}>
       <CardContent
         justifyContent="space-between"
         alignItems="center"
@@ -51,9 +64,7 @@ export function SaveBar(props: SaveBarProps) {
 
             <Tooltip title="Redo changes">
               <Button
-                disabled={
-                  changes.length === 0 || cursor === changes.length - 1
-                }
+                disabled={changes.length === 0 || cursor === changes.length - 1}
                 onClick={redo}
               >
                 <RedoIcon />

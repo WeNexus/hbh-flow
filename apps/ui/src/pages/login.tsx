@@ -1,5 +1,5 @@
 import ColorModeSelect from '@/components/theme/color-mode-select.tsx';
-import { LoginRounded as LoginIcon } from '@mui/icons-material';
+import { LoginOutlined as LoginIcon } from '@mui/icons-material';
 import { useFormState } from '@/hooks/use-form-state.ts';
 import { styled } from '@mui/material/styles';
 import { useApi } from '@/hooks/use-api.ts';

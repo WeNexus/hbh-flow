@@ -4,7 +4,7 @@ import { Outlet, useNavigate, useSearchParams } from 'react-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import HeaderMobile from './header-mobile.tsx';
 import { LoginForm } from '@/pages/login.tsx';
-import { alpha } from '@mui/material/styles';
+import { alpha, type Theme } from '@mui/material/styles';
 import { useApi } from '@/hooks/use-api.ts';
 import Sidebar from './sidebar.tsx';
 import Header from './header.tsx';
@@ -47,29 +47,35 @@ export function PrivateLayout() {
 
   const setQueryThrottled = useDebounceCallback(setQuery, 350);
 
-  const submitQuery = useCallback((value: string) => {
-    setQuery(value);
+  const submitQuery = useCallback(
+    (value: string) => {
+      setQuery(value);
 
-    if (value === '') {
-      setSearchParams((prev) => {
-        const newParams = new URLSearchParams(prev);
-        newParams.delete('q');
-        return newParams;
-      });
-    } else {
-      setSearchParams((prev) => ({
-        ...prev,
-        q: value,
-      }));
-    }
-  }, [setSearchParams]);
+      if (value === '') {
+        setSearchParams((prev) => {
+          const newParams = new URLSearchParams(prev);
+          newParams.delete('q');
+          return newParams;
+        });
+      } else {
+        setSearchParams((prev) => ({
+          ...prev,
+          q: value,
+        }));
+      }
+    },
+    [setSearchParams],
+  );
 
-  const state = useMemo<HeaderState>(() => ({
-    datePicker: showDatePicker,
-    search: showSearch,
-    loading,
-    query,
-  }), [showDatePicker, showSearch, loading, query]);
+  const state = useMemo<HeaderState>(
+    () => ({
+      datePicker: showDatePicker,
+      search: showSearch,
+      loading,
+      query,
+    }),
+    [showDatePicker, showSearch, loading, query],
+  );
 
   const context = useMemo<HeaderContext>(
     () => ({
@@ -82,6 +88,24 @@ export function PrivateLayout() {
     }),
     [setQueryThrottled, state, submitQuery, updateUI],
   );
+
+  const stackStyle = useCallback(
+    (theme: Theme) => ({
+      alignItems: 'center',
+      flexGrow: 1,
+      mt: { xs: 8, md: 0 },
+      mx: 3,
+      pb: 2,
+      backgroundColor: theme.vars
+        ? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
+        : alpha(theme.palette.background.default, 1),
+      overflow: 'hidden',
+      overflowY: 'visible',
+    }),
+    [],
+  );
+
+  const mainStyle = useMemo(() => ({ display: 'flex', width: '100%' }), []);
 
   useEffect(() => {
     if (!api.user) {
@@ -111,7 +135,7 @@ export function PrivateLayout() {
   }
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box component="main" sx={mainStyle}>
       <Sidebar />
       <HeaderMobile />
 
@@ -133,32 +157,13 @@ export function PrivateLayout() {
         </DialogContent>
       </Dialog>
 
-      <Box
-        component="main"
-        sx={(theme) => ({
-          flexGrow: 1,
-          backgroundColor: theme.vars
-            ? `rgba(${theme.vars.palette.background.defaultChannel} / 1)`
-            : alpha(theme.palette.background.default, 1),
-          overflow: 'visible',
-        })}
-      >
-        <Stack
-          spacing={2}
-          sx={{
-            mt: { xs: 8, md: 0 },
-            alignItems: 'center',
-            mx: 3,
-            pb: 5,
-          }}
-        >
-          <HeaderContext value={context}>
-            <Header />
+      <Stack spacing={2} sx={stackStyle} direction="column">
+        <HeaderContext value={context}>
+          <Header />
 
-            <Outlet />
-          </HeaderContext>
-        </Stack>
-      </Box>
+          <Outlet />
+        </HeaderContext>
+      </Stack>
     </Box>
   );
 }

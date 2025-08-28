@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import type { UserListOutputSchema, UserSchema } from '@/types/schema.ts';
 import { SearchEmptyState } from '@/components/search-empty-state.tsx';
+import { useConfirmation } from '@/hooks/use-confirmation.ts';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ErrorState } from '@/components/error-state.tsx';
 import { EmptyState } from '@/components/empty-state.tsx';
+import { ShowWhen } from '@/components/show-when.tsx';
+import { useSnackbar } from '@/hooks/use-snackbar.ts';
 import { roleColor } from '@/modules/role-color.ts';
 import { useHeader } from '@/hooks/use-header.ts';
 import { useApi } from '@/hooks/use-api.ts';
@@ -14,6 +17,7 @@ import OptionsMenu, {
 } from '@/components/options-menu.tsx';
 
 import {
+  type CSSProperties,
   CardContent,
   CardActions,
   Typography,
@@ -33,32 +37,94 @@ import {
 } from '@mui/material';
 
 import {
-  CalendarMonthRounded as CalendarMonthIcon,
+  CalendarMonthOutlined as CalendarMonthIcon,
   VerifiedUserRounded as ChipIcon,
   RefreshRounded as RefreshIcon,
   FileOpenRounded as ViewIcon,
-  EmailRounded as EmailIcon,
+  DeleteRounded as DeleteIcon,
+  EmailOutlined as EmailIcon,
   AddRounded as CreateIcon,
 } from '@mui/icons-material';
 
 function UserCard({
   user,
+  onDelete,
 }: {
   user: UserSchema;
-  onOptions?: (u: UserSchema) => void;
+  onDelete?: (id: number) => void;
 }) {
+  const showSnackbar = useSnackbar();
+  const confirm = useConfirmation();
   const navigate = useNavigate();
+  const { user: currentUser, api } = useApi();
+  const isSelf = currentUser?.id === user.id;
 
-  const menuItems = useMemo<OptionsMenuProps['items']>(() => [
-    {
-      ctx: user.id,
-      label: 'View Profile',
-      icon: <ViewIcon />,
-      onClick(ctx) {
-        navigate(`/users/${ctx}`);
+  const deleteUser = useCallback(
+    async (id: number) => {
+      const confirmed = await confirm({
+        title: 'Are you sure, you want to delete this user?',
+        message:
+          'All data related to this user will be lost. This action is irreversible.',
+      });
+
+      if (!confirmed) {
+        return;
       }
+
+      api
+        .delete(`/users/${id}`)
+        .then(() => {
+          if (onDelete) {
+            onDelete(id);
+          }
+
+          showSnackbar({
+            message: 'User deleted',
+            severity: 'success',
+          });
+        })
+        .catch((err) => {
+          showSnackbar({
+            message: err?.response?.data?.error || 'Failed to delete user',
+            severity: 'error',
+          });
+        });
     },
-  ], [navigate, user.id]);
+    [api, onDelete, showSnackbar, confirm],
+  );
+
+  const menuItems = useMemo<OptionsMenuProps['items']>(
+    () => [
+      {
+        ctx: user.id,
+        label: 'View Profile',
+        icon: <ViewIcon />,
+        onClick(ctx) {
+          navigate(`/users/${ctx}`);
+        },
+      },
+      {
+        ctx: user.id,
+        label: 'Delete User',
+        icon: <DeleteIcon color="error" />,
+        disabled:
+          isSelf ||
+          !api.isPowerUser ||
+          user.role === 'SYSTEM' ||
+          (user.role === 'ADMIN' && currentUser?.role !== 'SYSTEM'),
+        onClick: deleteUser,
+      },
+    ],
+    [
+      api.isPowerUser,
+      currentUser?.role,
+      deleteUser,
+      isSelf,
+      navigate,
+      user.id,
+      user.role,
+    ],
+  );
 
   return (
     <Card sx={{ height: '100%', borderRadius: 3 }}>
@@ -109,11 +175,7 @@ function UserCard({
           </Stack>
         }
         action={
-          <OptionsMenu
-            sx={{ ml: 'auto' }}
-            items={menuItems}
-            title="Options"
-          />
+          <OptionsMenu sx={{ ml: 'auto' }} items={menuItems} title="Options" />
         }
         sx={{ pb: 0.5 }}
       />
@@ -142,10 +204,15 @@ function UserCard({
 const limit = 24; // Default items per page
 
 export function Users() {
-  const { state: { query }, UI: updateHeaderUI } = useHeader();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { api } = useApi();
+
+  const {
+    state: { query },
+    UI: updateHeaderUI,
+    loading: switchProgress,
+  } = useHeader();
 
   const [page, setPage] = useState<number>(
     Number(searchParams.get('page')) || 1,
@@ -154,7 +221,6 @@ export function Users() {
   const [users, setUsers] = useState<UserListOutputSchema | null>(null);
   const [error, setError] = useState<AxiosError | string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const { loading: switchProgress } = useHeader();
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -201,8 +267,32 @@ export function Users() {
     setPage(value);
   }, []);
 
-  const skeletons = useMemo(
-    () => Array.from({ length: 8 }),
+  const onDelete = useCallback(
+    (id: number) => {
+      setUsers((prev) => {
+        if (!prev) return prev;
+        const newData = prev.data.filter((user) => user.id !== id);
+
+        return {
+          ...prev,
+          data: newData,
+          count: prev.count - 1,
+        };
+      });
+
+      fetchUsers();
+    },
+    [fetchUsers],
+  );
+
+  const skeletons = useMemo(() => Array.from({ length: 8 }), []);
+
+  const fabStyle = useMemo<CSSProperties>(
+    () => ({
+      position: 'fixed',
+      bottom: 20,
+      right: 20,
+    }),
     [],
   );
 
@@ -231,7 +321,7 @@ export function Users() {
       search: true,
       datePicker: false,
       loading: false,
-    })
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -270,7 +360,7 @@ export function Users() {
           <SearchEmptyState />
         ) : isEmpty ? (
           <EmptyState
-            description="No integrations found."
+            description="No user found."
             primaryAction={
               <Button
                 startIcon={<RefreshIcon />}
@@ -286,7 +376,10 @@ export function Users() {
             <Grid container spacing={2}>
               {users?.data!.map((user) => (
                 <Grid key={user.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                  <UserCard user={user as unknown as UserSchema} />
+                  <UserCard
+                    user={user as unknown as UserSchema}
+                    onDelete={onDelete}
+                  />
                 </Grid>
               ))}
             </Grid>
@@ -319,11 +412,10 @@ export function Users() {
         )}
       </Box>
 
-      {api.isPowerUser && (
+      <ShowWhen style={fabStyle} when={api.isPowerUser} animation="zoom">
         <Tooltip title="Add User" placement="left">
           <Fab
             onClick={() => navigate('/users/create')}
-            sx={{ position: 'fixed', bottom: 20, right: 20 }}
             variant="circular"
             color="primary"
             size="large"
@@ -331,7 +423,7 @@ export function Users() {
             <CreateIcon />
           </Fab>
         </Tooltip>
-      )}
+      </ShowWhen>
     </>
   );
 }

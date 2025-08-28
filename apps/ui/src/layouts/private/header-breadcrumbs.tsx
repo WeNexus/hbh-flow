@@ -1,10 +1,11 @@
-import NavigateNextRoundedIcon from '@mui/icons-material/NavigateNextRounded';
+import { NavigateNextRounded as NavigateNextIcon } from '@mui/icons-material';
 import Breadcrumbs, { breadcrumbsClasses } from '@mui/material/Breadcrumbs';
 import Typography from '@mui/material/Typography';
+import { Link, useLocation } from 'react-router';
 import { Link as MUILink } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import { Link, useLocation } from 'react-router';
 import { useMemo } from 'react';
+
 
 const StyledBreadcrumbs = styled(Breadcrumbs)(({ theme }) => ({
   margin: theme.spacing(1, 0),
@@ -67,7 +68,7 @@ export default function HeaderBreadcrumbs() {
   return (
     <StyledBreadcrumbs
       aria-label="breadcrumb"
-      separator={<NavigateNextRoundedIcon fontSize="small" />}
+      separator={<NavigateNextIcon fontSize="small" />}
     >
       {parts.map((part) => {
         if (part.isLast) {

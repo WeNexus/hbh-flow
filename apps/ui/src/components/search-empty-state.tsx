@@ -1,10 +1,13 @@
-import SentimentDissatisfiedIcon from '@mui/icons-material/SentimentDissatisfied';
-import SearchIconRounded from '@mui/icons-material/SearchRounded';
-import ClearIconRounded from '@mui/icons-material/ClearRounded';
 import { useHeader } from '@/hooks/use-header.ts';
 import { useSearchParams } from 'react-router';
 import { useEffect, useState } from 'react';
 import * as React from 'react';
+
+import {
+  SentimentDissatisfiedOutlined as SentimentDissatisfiedIcon,
+  SearchOutlined as SearchIconRounded,
+  ClearOutlined as ClearIconRounded,
+} from '@mui/icons-material';
 
 import {
   Typography,

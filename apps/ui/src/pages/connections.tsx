@@ -1,31 +1,38 @@
-import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
-import BugReportRoundedIcon from '@mui/icons-material/BugReportRounded';
 import { SearchEmptyState } from '@/components/search-empty-state.tsx';
-import LinkOffRoundedIcon from '@mui/icons-material/LinkOffRounded';
-import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import CircleRoundedIcon from '@mui/icons-material/CircleRounded';
-import PowerRoundedIcon from '@mui/icons-material/PowerRounded';
-import { CardActions, CircularProgress } from '@mui/material';
 import { EmptyState } from '@/components/empty-state.tsx';
 import { ErrorState } from '@/components/error-state.tsx';
-import CardContent from '@mui/material/CardContent';
-import Typography from '@mui/material/Typography';
-import CardHeader from '@mui/material/CardHeader';
 import { useHeader } from '@/hooks/use-header.ts';
 import { useSocket } from '@/hooks/use-socket.ts';
-import Skeleton from '@mui/material/Skeleton';
-import Divider from '@mui/material/Divider';
-import Tooltip from '@mui/material/Tooltip';
-import Button from '@mui/material/Button';
-import Avatar from '@mui/material/Avatar';
 import { useApi } from '@/hooks/use-api';
 import type { AxiosError } from 'axios';
-import Stack from '@mui/material/Stack';
-import Card from '@mui/material/Card';
-import Chip from '@mui/material/Chip';
-import Grid from '@mui/material/Grid';
-import Box from '@mui/material/Box';
+
+import {
+  BugReportOutlined as BugReportIcon,
+  CheckCircleOutlined as CheckIcon,
+  LinkOffOutlined as LinkOffIcon,
+  RefreshOutlined as RefreshIcon,
+  CircleOutlined as CircleIcon,
+  PowerOutlined as PowerIcon,
+} from '@mui/icons-material';
+
+import {
+  CircularProgress,
+  CardActions,
+  CardContent,
+  Typography,
+  CardHeader,
+  Skeleton,
+  Divider,
+  Tooltip,
+  Button,
+  Avatar,
+  Stack,
+  Card,
+  Chip,
+  Grid,
+  Box,
+} from '@mui/material';
 
 import OptionsMenu, {
   type OptionsMenuProps,
@@ -83,7 +90,10 @@ function TypeChip({ type }: { type: ProviderSchema['type'] }) {
 }
 
 export function Connections() {
-  const { state: { query }, UI: updateHeaderUI } = useHeader();
+  const {
+    state: { query },
+    UI: updateHeaderUI,
+  } = useHeader();
   const { api } = useApi();
 
   const [connections, setConnections] = useState<
@@ -207,7 +217,7 @@ export function Connections() {
           result[item.id].push({
             label: 'Disconnect',
             onClick: disconnect,
-            icon: <LinkOffRoundedIcon />,
+            icon: <LinkOffIcon />,
             ctx: item,
           });
         }
@@ -215,7 +225,7 @@ export function Connections() {
         result[item.id].push({
           label: 'Connect',
           onClick: connect,
-          icon: <PowerRoundedIcon />,
+          icon: <PowerIcon />,
           ctx: item,
         });
       }
@@ -224,7 +234,7 @@ export function Connections() {
         result[item.id].push({
           label: 'Test connection',
           onClick: testConnection,
-          icon: <BugReportRoundedIcon />,
+          icon: <BugReportIcon />,
           ctx: item,
         });
       }
@@ -272,7 +282,7 @@ export function Connections() {
       search: true,
       datePicker: false,
       loading: false,
-    })
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -345,17 +355,17 @@ export function Connections() {
                         />
                       ) : !connection.connectedBy ? (
                         <Tooltip title={`Not connected${testedAt}`}>
-                          <CircleRoundedIcon sx={{ color: 'lightgray' }} />
+                          <CircleIcon sx={{ color: 'lightgray' }} />
                         </Tooltip>
                       ) : connection.working ? (
                         <Tooltip title={`Working${testedAt}`}>
-                          <CheckCircleRoundedIcon
+                          <CheckIcon
                             sx={{ color: 'success.main' }}
                           />
                         </Tooltip>
                       ) : (
                         <Tooltip title={`Not working${testedAt}`}>
-                          <CircleRoundedIcon sx={{ color: 'error.light' }} />
+                          <CircleIcon sx={{ color: 'error.light' }} />
                         </Tooltip>
                       )
                     }
@@ -426,7 +436,7 @@ export function Connections() {
               <Button
                 variant="outlined"
                 onClick={() => fetchConnections(false)}
-                startIcon={<RefreshRoundedIcon />}
+                startIcon={<RefreshIcon />}
               >
                 Refresh
               </Button>

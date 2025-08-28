@@ -1,29 +1,35 @@
-import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
-import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded';
-import AnalyticsRoundedIcon from '@mui/icons-material/AnalyticsRounded';
-import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
-import PeopleRoundedIcon from '@mui/icons-material/PeopleRounded';
-import CableRoundedIcon from '@mui/icons-material/CableRounded';
-import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import ListItemText from '@mui/material/ListItemText';
 import { Link, useLocation } from 'react-router';
-import ListItem from '@mui/material/ListItem';
-import Stack from '@mui/material/Stack';
-import List from '@mui/material/List';
+
+import {
+  AccountTreeRounded as AccountTreeIcon,
+  Inventory2Rounded as Inventory2Icon,
+  AnalyticsRounded as AnalyticsIcon,
+  HistoryRounded as HistoryIcon,
+  PeopleRounded as PeopleIcon,
+  CableRounded as CableIcon,
+  HomeRounded as HomeIcon,
+} from '@mui/icons-material';
+
+import {
+  ListItemButton,
+  ListItemText,
+  ListItemIcon,
+  ListItem,
+  Stack,
+  List,
+} from '@mui/material';
 
 const mainListItems = [
-  { text: 'Home', icon: <HomeRoundedIcon />, href: '/' },
-  { text: 'Workflows', icon: <AccountTreeRoundedIcon />, href: '/workflows' },
-  { text: 'Connections', icon: <CableRoundedIcon />, href: '/connections' },
-  { text: 'Analytics', icon: <AnalyticsRoundedIcon />, href: '/analytics' },
-  { text: 'Products', icon: <Inventory2RoundedIcon />, href: '/products' },
+  { text: 'Home', icon: <HomeIcon />, href: '/' },
+  { text: 'Workflows', icon: <AccountTreeIcon />, href: '/workflows' },
+  { text: 'Connections', icon: <CableIcon />, href: '/connections' },
+  { text: 'Analytics', icon: <AnalyticsIcon />, href: '/analytics' },
+  { text: 'Products', icon: <Inventory2Icon />, href: '/products' },
 ];
 
 const secondaryListItems = [
-  { text: 'Users', icon: <PeopleRoundedIcon />, href: '/users' },
-  { text: 'Activities', icon: <HistoryRoundedIcon />, href: '/activities' },
+  { text: 'Users', icon: <PeopleIcon />, href: '/users' },
+  { text: 'Activities', icon: <HistoryIcon />, href: '/activities' },
 ];
 
 export default function SidebarMenuContent() {

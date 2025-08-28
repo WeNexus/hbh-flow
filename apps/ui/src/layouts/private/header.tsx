@@ -1,24 +1,26 @@
 import ColorModeIconDropdown from '@/components/theme/color-mode-icon-dropdown.tsx';
 import CustomDatePicker from '@/components/custom-date-picker.tsx';
-import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import LinearProgress from '@mui/material/LinearProgress';
-import InputAdornment from '@mui/material/InputAdornment';
+import { SearchRounded as SearchIcon } from '@mui/icons-material';
 import HeaderBreadcrumbs from './header-breadcrumbs.tsx';
-import OutlinedInput from '@mui/material/OutlinedInput';
 import { useHeader } from '@/hooks/use-header.ts';
-import Stack from '@mui/material/Stack';
-import Box from '@mui/material/Box';
 
 import {
-  type KeyboardEvent,
-  type ChangeEvent,
-  useCallback,
-} from 'react';
+  InputAdornment,
+  LinearProgress,
+  OutlinedInput,
+  Stack,
+  Box,
+} from '@mui/material';
+
+import { type KeyboardEvent, type ChangeEvent, useCallback } from 'react';
 
 export default function Header() {
   const { state, setQuery, submitQuery } = useHeader();
 
-  const onQueryChange = useCallback((e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value), [setQuery]);
+  const onQueryChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value),
+    [setQuery],
+  );
 
   const onEnter = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
@@ -57,7 +59,7 @@ export default function Header() {
               size="small"
               startAdornment={
                 <InputAdornment position="start" sx={{ color: 'text.primary' }}>
-                  <SearchRoundedIcon fontSize="small" />
+                  <SearchIcon fontSize="small" />
                 </InputAdornment>
               }
               inputProps={{
@@ -71,7 +73,9 @@ export default function Header() {
       </Stack>
       {state.loading ? (
         <LinearProgress variant="indeterminate" sx={{ height: 2, mt: 1 }} />
-      ): <Box sx={{ height: 2, mt: 1 }}></Box>}
+      ) : (
+        <Box sx={{ height: 2, mt: 1 }}></Box>
+      )}
     </Stack>
   );
 }
