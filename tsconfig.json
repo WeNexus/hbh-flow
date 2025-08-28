@@ -65,6 +65,12 @@
       "#lib/bigcommerce/*": [
         "libs/bigcommerce/*"
       ],
+      "#lib/flodesk": [
+        "libs/flodesk"
+      ],
+      "#lib/flodesk/*": [
+        "libs/flodesk/*"
+      ],
       "#app/api": [
         "apps/api"
       ],

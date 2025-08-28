@@ -5,6 +5,7 @@ import { APP_TYPE, RedisIoAdapter, RUNTIME_ID } from '#lib/core/misc';
 import { PrismaExtensionRedis } from '#lib/core/misc/prisma-cache';
 import { FujimausaModule } from '#lib/fujimausa/fujimausa.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { FlodeskModule } from '#lib/flodesk/flodesk.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { REDIS_SUB, RedisModule } from '#lib/core/redis';
 import { EnvService } from '#lib/core/env/env.service';
@@ -91,6 +92,7 @@ export async function bootstrap(
       }),
       FujimausaModule,
       BigCommerceModule,
+      FlodeskModule,
     ],
     providers: [
       {
@@ -159,6 +161,7 @@ export async function bootstrap(
       IPInfoService,
       BigCommerceModule,
       FujimausaModule,
+      FlodeskModule,
     ],
   })
   class WrapperModule {}
