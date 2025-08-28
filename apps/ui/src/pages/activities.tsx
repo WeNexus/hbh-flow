@@ -458,7 +458,7 @@ function UserCell({
         <>
           <Avatar
             alt={user.name ?? user.email ?? 'User'}
-            src={`/api/avatars/${user.id}`}
+            src={`/api/users/${user.id}/avatar`}
             sx={{ width: 35, height: 35 }}
           />
 
