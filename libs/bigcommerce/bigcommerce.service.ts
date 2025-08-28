@@ -19,11 +19,19 @@ export class BigCommerceService extends TokenHttpClient {
         {
           connections: [
             {
-              id: 'default',
-              description: 'Default BigCommerce Connection',
+              id: 'hbh',
+              description: 'HBH BigCommerce Connection',
               tokens: {
-                accessToken: env.getString('BIGCOMMERCE_ACCESS_TOKEN'),
-                storeHash: env.getString('BIGCOMMERCE_STORE_HASH'),
+                accessToken: env.getString('HBH_BIGCOMMERCE_ACCESS_TOKEN'),
+                storeHash: env.getString('HBH_BIGCOMMERCE_STORE_HASH'),
+              },
+            },
+            {
+              id: 'dispomart',
+              description: 'Dispomart BigCommerce Connection',
+              tokens: {
+                accessToken: env.getString('DM_BIGCOMMERCE_ACCESS_TOKEN'),
+                storeHash: env.getString('DM_BIGCOMMERCE_STORE_HASH'),
               },
             },
           ],
