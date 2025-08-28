@@ -140,7 +140,7 @@ export class WorkflowController {
 
     await this.activityService.recordActivity({
       req,
-      action: 'CREATE',
+      action: 'UPDATE',
       resource: 'WORKFLOW',
       resourceId: updated.id,
       userId: auth.user.id,
