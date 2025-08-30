@@ -25,7 +25,7 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
     const flodeskSegments = [];
 
     while (true) {
-      const response = await this.flodeskService.get('/segments', {
+      const { data } = await this.flodeskService.get('/segments', {
         connection: 'default',
         params: {
           per_page: 100,
@@ -33,9 +33,9 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
         },
       });
 
-      flodeskSegments.push(...response.data);
+      flodeskSegments.push(...data.data);
 
-      if (page >= response.meta.total_pages) {
+      if (page >= data.meta.total_pages) {
         break;
       }
     }
@@ -47,7 +47,9 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
     const customers = [];
 
     for (const channel of channels) {
-      const { data } = await this.bigCommerceService.get('/v3/customers', {
+      const {
+        data: { data },
+      } = await this.bigCommerceService.get('/v3/customers', {
         connection: channel,
         params: {
           'email:in': contact.Email || contact.Wholesale_Site_Login_ID,
@@ -77,7 +79,9 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
         },
       );
     } catch {
-      const { data: metafields } = await this.bigCommerceService.get(
+      const {
+        data: { data: metafields },
+      } = await this.bigCommerceService.get(
         `/v3/customers/${customerId}/metafields`,
         {
           connection: channel,
@@ -113,7 +117,9 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
         },
       );
     } catch {
-      const { data: metafields } = await this.bigCommerceService.get(
+      const {
+        data: { data: metafields },
+      } = await this.bigCommerceService.get(
         `/v3/customers/${customerId}/metafields`,
         {
           connection: channel,
@@ -135,7 +141,6 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
       );
     }
   }
-
 
   @Step(1)
   async fetchData() {
@@ -190,14 +195,13 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
       );
 
       let customerResult;
-      let metafieldResult;
 
       if (!shouldEnable) {
         continue;
       }
 
       if (!customer.customer) {
-        customerResult = await this.bigCommerceService.post(
+        const { data } = await this.bigCommerceService.post(
           '/v3/customers',
           [
             {
@@ -221,14 +225,16 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
           },
         );
 
-        metafieldResult = await this.upsertMetafield(
+        customerResult = data;
+
+        await this.upsertMetafield(
           customer.channel,
           customerResult.data[0].id,
           contact,
           account,
         );
       } else {
-        customerResult = await this.bigCommerceService.put(
+        const { data } = await this.bigCommerceService.put(
           '/v3/customers',
           [
             {
@@ -250,7 +256,9 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
           },
         );
 
-        metafieldResult = await this.upsertMetafield(
+        customerResult = data;
+
+        await this.upsertMetafield(
           customer.channel,
           customer.customer.id,
           contact,
@@ -259,7 +267,6 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
       }
 
       customerResults.push(customerResult);
-      metafieldResults.push(metafieldResult);
     }
 
     if (enableHbh || enableDispomart) {
@@ -283,10 +290,7 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
       await client.close();
     }
 
-    let flodeskSubscriptionResult;
-    let flodeskSegmentResult;
-
-    flodeskSubscriptionResult = await this.flodeskService.post(
+    const { data: flodeskSubscriptionResult } = await this.flodeskService.post(
       '/subscribers',
       {
         email: contact.Email,
@@ -298,7 +302,7 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
       },
     );
 
-    flodeskSegmentResult = await this.flodeskService.post(
+    const { data: flodeskSegmentResult } = await this.flodeskService.post(
       `/subscribers/${contact.Email}/segments`,
       {
         segment_ids: [
