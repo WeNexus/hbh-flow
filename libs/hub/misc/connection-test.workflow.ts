@@ -1,7 +1,6 @@
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { cron, WorkflowBase } from '#lib/workflow/misc';
 import { HubService } from '../hub.service';
-import { ModuleRef } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 
 /**
@@ -13,11 +12,8 @@ import { Logger } from '@nestjs/common';
   triggers: [cron('*/30 * * * *')], // Every 30 minutes
 })
 export class ConnectionTestWorkflow extends WorkflowBase {
-  constructor(
-    private readonly hubService: HubService,
-    moduleRef: ModuleRef,
-  ) {
-    super(moduleRef);
+  constructor(private readonly hubService: HubService) {
+    super();
   }
 
   private logger = new Logger(ConnectionTestWorkflow.name);

@@ -1,9 +1,7 @@
 import { ActivityService, PrismaService } from '#lib/core/services';
-import { WorkflowService } from '#lib/workflow/workflow.service';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base';
 import { Workflow, Step } from '#lib/workflow/decorators';
 import { TriggerType } from '#lib/workflow/misc';
-import { ModuleRef } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 import { omit } from 'lodash-es';
 
@@ -17,12 +15,10 @@ import { omit } from 'lodash-es';
 @Workflow({ internal: true })
 export class SetupCronWorkflow extends WorkflowBase {
   constructor(
-    private readonly workflowService: WorkflowService,
     private readonly activityService: ActivityService,
     private readonly prisma: PrismaService,
-    moduleRef: ModuleRef,
   ) {
-    super(moduleRef);
+    super();
   }
 
   private readonly logger = new Logger(SetupCronWorkflow.name);

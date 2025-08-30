@@ -200,6 +200,11 @@ export class WorkflowService implements OnApplicationBootstrap {
             throw new Error(`Workflow instance not found for: ${flow.name}`);
           }
 
+          // @ts-expect-error - protected property
+          instance.moduleRef = this.moduleRef;
+          // @ts-expect-error - protected property
+          instance.workflowService = this;
+
           const dbFlow = await this.getDBFlow(flow);
 
           let dbJob: DBJob;

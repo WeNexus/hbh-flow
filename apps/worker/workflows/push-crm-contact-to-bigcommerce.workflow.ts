@@ -3,7 +3,6 @@ import { FlodeskService } from '#lib/flodesk/flodesk.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { WorkflowBase } from '#lib/workflow/misc';
 import { EnvService } from '#lib/core/env';
-import { ModuleRef } from '@nestjs/core';
 import mongodb from 'mongodb';
 
 const MongoClient = mongodb.MongoClient;
@@ -14,9 +13,8 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
     private readonly bigCommerceService: BigCommerceService,
     private readonly flodeskService: FlodeskService,
     private readonly envService: EnvService,
-    moduleRef: ModuleRef,
   ) {
-    super(moduleRef);
+    super();
   }
 
   async getFlodeskSegments() {

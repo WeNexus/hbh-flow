@@ -1,7 +1,6 @@
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { WorkflowBase } from '#lib/workflow/misc';
 import { HubService } from '../hub.service';
-import { ModuleRef } from '@nestjs/core';
 
 interface Payload {
   provider: string;
@@ -17,11 +16,8 @@ interface Payload {
  */
 @Workflow({ internal: true })
 export class TokenRefreshWorkflow extends WorkflowBase<Payload> {
-  constructor(
-    private readonly hubService: HubService,
-    moduleRef: ModuleRef,
-  ) {
-    super(moduleRef);
+  constructor(private readonly hubService: HubService) {
+    super();
   }
 
   @Step(0)

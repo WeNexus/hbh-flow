@@ -1,3 +1,4 @@
+import type { WorkflowService } from '#lib/workflow/workflow.service';
 import { StepInfoSchema } from '#lib/workflow/schema';
 import { PrismaService } from '#lib/core/services';
 import { JobPayload } from '#lib/workflow/types';
@@ -19,8 +20,6 @@ import {
  */
 
 export abstract class WorkflowBase<P = any, C = any> {
-  protected constructor(private readonly moduleRef: ModuleRef) {}
-
   // We're keeping queue, worker, bullJob and dbJob private to prevent direct access from outside the class.
   /**
    * Static queue events shared across all instances of a workflow.
@@ -39,6 +38,9 @@ export abstract class WorkflowBase<P = any, C = any> {
    * This won't be available until NestJS calls OnApplicationBootstrap.
    */
   public static worker: Worker<JobPayload>;
+
+  protected workflowService: WorkflowService;
+  protected moduleRef: ModuleRef;
 
   protected needsRerun: boolean = false;
   protected cancelled: boolean = false;

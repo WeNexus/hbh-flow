@@ -1,9 +1,7 @@
 import { ActivityService, PrismaService } from '#lib/core/services';
-import { WorkflowService } from '#lib/workflow/workflow.service';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base';
 import { Workflow, Step } from '#lib/workflow/decorators';
 import { TriggerType } from '#lib/workflow/misc';
-import { ModuleRef } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 
 /**
@@ -17,11 +15,9 @@ import { Logger } from '@nestjs/common';
 export class SetupEventsWorkflow extends WorkflowBase {
   constructor(
     private readonly activityService: ActivityService,
-    private readonly workflowService: WorkflowService,
     private readonly prisma: PrismaService,
-    moduleRef: ModuleRef,
   ) {
-    super(moduleRef);
+    super();
   }
 
   private readonly logger = new Logger(SetupEventsWorkflow.name);
