@@ -46,6 +46,7 @@
     "jsondiffpatch": "^0.7.3",
     "lodash-es": "^4.17.21",
     "micromatch": "^4.0.8",
+    "mongodb": "^6.19.0",
     "multer": "^2.0.2",
     "node-ipinfo": "^4.1.0",
     "oauth": "^0.10.2",
