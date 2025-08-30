@@ -135,25 +135,17 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
       );
     }
   }
-  getMongoAuth() {
-    return {
-      username: this.envService.getString('MONGO_USERNAME'),
-      password: this.envService.getString('MONGO_PASSWORD'),
-      hostname: this.envService.getString('MONGO_HOST'),
-      database: this.envService.getString('MONGO_DB'),
-    };
-  }
+
 
   @Step(1)
   async fetchData() {
-    const mongoAuth = this.getMongoAuth();
     const event = this.payload;
 
     const contact = JSON.parse(event.contact);
     const customers = await this.getBigCommerceCustomers(contact);
 
     const client = await MongoClient.connect(
-      `mongodb+srv://${mongoAuth.username}:${mongoAuth.password}@${mongoAuth.hostname}/${mongoAuth.database}?retryWrites=true&w=majority`,
+      this.envService.getString('MONGO_URL'),
     );
 
     for (const customer of customers) {
@@ -271,13 +263,11 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
     }
 
     if (enableHbh || enableDispomart) {
-      const mongoAuth = this.getMongoAuth();
-
       const client = await MongoClient.connect(
-        `mongodb+srv://${mongoAuth.username}:${mongoAuth.password}@${mongoAuth.hostname}/${mongoAuth.database}?retryWrites=true&w=majority`,
+        this.envService.getString('MONGO_URL'),
       );
 
-      const db = client.db(mongoAuth.database);
+      const db = client.db('hbh');
 
       await db.collection('contact_person').updateOne(
         {
