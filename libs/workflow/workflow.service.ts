@@ -1236,6 +1236,33 @@ export class WorkflowService implements OnApplicationBootstrap {
   }
 
   /**
+   * Retrieves the results of all steps in a job.
+   *
+   * @param jobId - The ID of the job to retrieve the results from.
+   * @returns A promise that resolves to an object containing the results of all steps, keyed by step name.
+   */
+  async getResults<R = any>(jobId: number): Promise<{ [step: string]: R }> {
+    const { result: rows } = await this.prisma.jobStep.findMany({
+      where: {
+        jobId,
+      },
+      select: {
+        name: true,
+        result: true,
+      },
+      distinct: ['name'],
+    });
+
+    const results: { [step: string]: R } = {};
+
+    for (const row of rows) {
+      results[row.name] = row.result as R;
+    }
+
+    return results;
+  }
+
+  /**
    * Retrieves the resume data of a specific step in a job.
    *
    * @param jobId - The ID of the job to retrieve the resume data from.

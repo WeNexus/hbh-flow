@@ -1,9 +1,10 @@
-import { ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { listData, PrismaWhereExceptionFilter } from '#lib/core/misc';
 import { ActivityService, PrismaService } from '#lib/core/services';
 import { WorkflowService } from '#lib/workflow/workflow.service';
 import { JsonWebTokenError, JwtService } from '@nestjs/jwt';
 import { Auth, Protected } from '#lib/auth/decorators';
+import type { RunOptions } from '#lib/workflow/types';
 import { ListInputSchema } from '#lib/core/schema';
 import type { AuthContext } from '#lib/auth/types';
 import * as Sentry from '@sentry/nestjs';
@@ -312,6 +313,19 @@ export class WebhookController {
     description: 'The ID of the webhook to trigger.',
     type: Number,
   })
+  @ApiQuery({
+    name: 'token',
+    description: 'JWT token for authenticating the webhook request.',
+    required: true,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'wait',
+    description:
+      'If set, the request will wait for the workflow execution to complete before responding.',
+    required: false,
+    type: Boolean,
+  })
   @ApiResponse({
     status: 400,
     description: 'Token is missing or request is malformed.',
@@ -331,7 +345,8 @@ export class WebhookController {
   async trigger(
     @Req() req: RawBodyRequest<express.Request>,
     @Query('token') token: string,
-  ): Promise<void> {
+    @Query('wait') wait?: any,
+  ): Promise<any> {
     if (!token) {
       throw new BadRequestException(
         'JWT token is required in the query string.',
@@ -403,8 +418,7 @@ export class WebhookController {
       }
 
       const trace = Sentry.getTraceData();
-
-      this.workflowService.run(flow, {
+      const options = {
         draft: !webhook.active,
         trigger: 'WEBHOOK',
         triggerId: webhook.id.toString(),
@@ -413,7 +427,24 @@ export class WebhookController {
           trace: trace['sentry-trace'],
           baggage: trace.baggage,
         },
-      });
+      } satisfies RunOptions;
+
+      if (
+        !wait ||
+        wait === 'false' ||
+        wait === '0' ||
+        wait === 'no' ||
+        wait === 'off' ||
+        wait === 'disable'
+      ) {
+        this.workflowService.run(flow, options);
+        return;
+      }
+
+      const { job } = await this.workflowService.run(flow, options);
+      await this.workflowService.waitForJob(job.id);
+
+      return this.workflowService.getResults(job.id);
     } catch (e: any) {
       if (e instanceof JsonWebTokenError) {
         throw new UnauthorizedException(
