@@ -20,6 +20,7 @@ import { Redis } from 'ioredis';
 import {
   GlobalEventService,
   ActivityService,
+  PostgresService,
   IPInfoService,
   PrismaService,
 } from '#lib/core/services';
@@ -53,7 +54,7 @@ export async function bootstrap(
   delete metadata.appType;
 
   // Generate a unique runtime ID for the application.
-  const runtimeId = `${appType}-${process.pid}-${crypto.randomUUID()}`;
+  const runtimeId = `${appType}:${process.pid}:${crypto.randomUUID()}`;
 
   // We're creating two modules to avoid everything being global.
 
@@ -139,6 +140,7 @@ export async function bootstrap(
         : undefined) as Provider,
       GlobalEventService,
       ActivityService,
+      PostgresService,
       {
         provide: IPInfoService,
         inject: [EnvService],
@@ -148,12 +150,14 @@ export async function bootstrap(
       },
     ].filter(Boolean),
     exports: [
+      APP_TYPE,
+      RUNTIME_ID,
       EnvService,
       EventEmitterModule,
       RedisModule,
       PrismaService,
+      PostgresService,
       JwtModule,
-      APP_TYPE,
       HubModule,
       ZohoModule,
       GlobalEventService,
