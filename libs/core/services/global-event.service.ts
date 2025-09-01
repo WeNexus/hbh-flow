@@ -16,21 +16,44 @@ export class GlobalEventService {
   constructor(
     @Inject(RUNTIME_ID) private readonly runtimeId: string,
     @Inject(REDIS_PUB) private readonly redisPub: Redis,
-    @Inject(REDIS_SUB) redisSub: Redis,
     private readonly emitter: EventEmitter2,
+    @Inject(REDIS_SUB) redisSub: Redis,
   ) {
     redisSub
-      .subscribe('global-events')
+      .subscribe('ge')
       .then(() => {
-        redisSub.on('message', (channel: string, message: string) =>
-          this.handleMessage(channel, message),
-        );
+        redisSub.on('message', (channel: string, message: string) => {
+          if (channel === 'ge') {
+            this.handleMessage(channel, message);
+          }
+        });
 
         this.logger.log('Subscribed to global events channel');
       })
       .catch((e: Error) =>
         this.logger.error(
           'Failed to subscribe to global events channel',
+          e.stack,
+        ),
+      );
+
+    const redisSub2 = redisSub.duplicate();
+    redisSub2
+      .subscribe(`ge:${this.runtimeId}`)
+      .then(() => {
+        redisSub2.on('message', (channel: string, message: string) => {
+          if (channel === `ge:${this.runtimeId}`) {
+            this.handleMessage(channel, message);
+          }
+        });
+
+        this.logger.log(
+          `Subscribed to global events channel for runtime ${this.runtimeId}`,
+        );
+      })
+      .catch((e: Error) =>
+        this.logger.error(
+          `Failed to subscribe to global events channel for runtime ${this.runtimeId}`,
           e.stack,
         ),
       );
@@ -53,7 +76,7 @@ export class GlobalEventService {
       );
     }
 
-    if (data.broadcast && data.runtimeId === this.runtimeId) {
+    if (data.ignoreSelf && data.sender === this.runtimeId) {
       // Ignore messages sent by this runtime
       return;
     }
@@ -78,10 +101,9 @@ export class GlobalEventService {
     options?: EmitOptions,
   ): void {
     const payload: GlobalEventPayload = {
-      runtimeId: this.runtimeId,
+      sender: this.runtimeId,
       event,
       data,
-      broadcast: options?.broadcast,
       sentryTrace: options?.sentry?.trace,
       sentryBaggage: options?.sentry?.baggage,
     };
