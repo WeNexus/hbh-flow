@@ -40,6 +40,7 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
 
     return flodeskSegments;
   }
+
   async getBigCommerceCustomers(contact) {
     const channels = ['hbh', 'dispomart'];
     const customers = [];
@@ -62,6 +63,7 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
 
     return customers;
   }
+
   async upsertMetafield(channel: string, customerId: string, contact, account) {
     try {
       await this.bigCommerceService.post(
@@ -288,41 +290,103 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
       await client.close();
     }
 
-    const { data: flodeskSubscriptionResult } = await this.flodeskService.post(
-      '/subscribers',
-      {
-        email: contact.Email,
-        first_name: contact.First_Name,
-        last_name: contact.Last_Name,
-      },
-      {
-        connection: 'default',
-      },
-    );
+    let flodeskSubscriptionResult;
+    let flodeskSegmentResult;
 
-    const { data: flodeskSegmentResult } = await this.flodeskService.post(
-      `/subscribers/${contact.Email}/segments`,
-      {
-        segment_ids: [
-          enableHbh
-            ? flodeskSegments.find(
-                (s) => s.name === group.replace('Teir', 'Tier'),
-              )?.id
-            : null,
-          enableHbh
-            ? flodeskSegments.find(
-                (s) => s.name === 'honeybeeherbwholesale.com',
-              )?.id
-            : null,
-          enableDispomart
-            ? flodeskSegments.find((s) => s.name === 'dispomart.supply')?.id
-            : null,
-        ].filter(Boolean),
-      },
-      {
-        connection: 'default',
-      },
-    );
+    try {
+      const { data } = await this.flodeskService.post(
+        '/subscribers',
+        {
+          email: contact.Email,
+          first_name: contact.First_Name,
+          last_name: contact.Last_Name,
+        },
+        {
+          connection: 'default',
+        },
+      );
+
+      flodeskSubscriptionResult = data;
+    } catch (e) {
+      await this.sendResponseMeta({
+        statusCode: 400,
+        headers: {
+          'Content-type': 'application/json',
+        },
+      });
+
+      await this.sendResponse(
+        JSON.stringify({
+          success: false,
+          hasAccount: true,
+          message: `The contact has been ${hasAccount ? 're-synced with the website' : 'created in the website'} successfully, but couldn't push the contact to Flodesk as ${contact.Email} is considered invalid by Flodesk.`,
+        }),
+      );
+    }
+
+    try {
+      const { data } = await this.flodeskService.post(
+        `/subscribers/${contact.Email}/segments`,
+        {
+          segment_ids: [
+            enableHbh
+              ? flodeskSegments.find(
+                  (s) => s.name === group.replace('Teir', 'Tier'),
+                )?.id
+              : null,
+            enableHbh
+              ? flodeskSegments.find(
+                  (s) => s.name === 'honeybeeherbwholesale.com',
+                )?.id
+              : null,
+            enableDispomart
+              ? flodeskSegments.find((s) => s.name === 'dispomart.supply')?.id
+              : null,
+          ].filter(Boolean),
+        },
+        {
+          connection: 'default',
+        },
+      );
+
+      flodeskSegmentResult = data;
+    } catch (e) {
+      if (!this.responseMetaSent) {
+        await this.sendResponseMeta({
+          statusCode: 400,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        await this.sendResponse(
+          JSON.stringify({
+            success: false,
+            hasAccount: true,
+            message: `The contact has been ${hasAccount ? 're-synced with the website' : 'created in the website'} successfully, but couldn't add the contact to Flodesk segments.`,
+          }),
+        );
+      }
+    }
+
+    if (!this.responseMetaSent) {
+      await this.sendResponseMeta({
+        statusCode: 201,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Has-Account': hasAccount ? 'true' : 'false',
+        },
+      });
+
+      await this.sendResponse(
+        JSON.stringify({
+          success: true,
+          message: hasAccount
+            ? `The contact has been re-synced with the website successfully.`
+            : `The contact has been created in the website successfully.`,
+        }),
+      );
+    }
 
     return {
       flodeskSubscriptionResult,
