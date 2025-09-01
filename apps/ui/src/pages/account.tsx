@@ -1,9 +1,11 @@
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { ShowWhen } from '@/components/show-when.tsx';
 import { useSnackbar } from '@/hooks/use-snackbar.ts';
+import { RoleIcon } from '@/components/role-icon.tsx';
 import type { Role } from '@/types/backend-types.ts';
 import type { UserSchema } from '@/types/schema.ts';
 import { SaveBar } from '@/components/save-bar.tsx';
+import { Activities } from '@/pages/activities.tsx';
 import { roleColor } from '@/modules/role-color.ts';
 import { useHeader } from '@/hooks/use-header.ts';
 import { useApi } from '@/hooks/use-api.ts';
@@ -42,9 +44,8 @@ import {
 
 import {
   CameraAltOutlined as CameraAltIcon,
-  CloseOutlined as CancelIcon,
   PersonOutlined as PersonIcon,
-  ShieldOutlined as ShieldIcon,
+  CloseOutlined as CancelIcon,
   EditOutlined as EditIcon,
   MailOutlined as MailIcon,
   KeyOutlined as KeyIcon,
@@ -62,7 +63,6 @@ import {
   useFormState,
   type UseFormStateOptions,
 } from '@/hooks/use-form-state.ts';
-import { Activities } from '@/pages/activities.tsx';
 
 interface FormState extends Omit<UserSchema, 'id' | 'createdAt'> {
   password: string;
@@ -284,7 +284,7 @@ export function Account() {
     state,
   } = formState;
 
-  const isSelf = Number(params.id) === currentUser?.id;
+  const isSelf = Number(user?.id) === currentUser?.id;
   const canEdit = isSelf || api.isPowerUser;
   const canEditRole =
     mode === 'create' ||
@@ -548,7 +548,10 @@ export function Account() {
                 src={avatar ?? ''}
                 alt={user?.name}
               />
-              <ShowWhen when={mode === 'edit'} animation="zoom">
+              <ShowWhen
+                when={mode === 'edit' || mode === 'create'}
+                animation="zoom"
+              >
                 <Tooltip title="Change avatar">
                   <IconButton
                     component="label"
@@ -579,53 +582,56 @@ export function Account() {
                 </Tooltip>
               </ShowWhen>
             </Box>
-            <Box>
-              <Stack
-                alignItems="center"
-                sx={{ mb: 0.5 }}
-                direction="row"
-                spacing={1}
-              >
-                <Typography variant="h5" fontWeight={700}>
-                  {user?.name ?? '---'}
-                </Typography>
-                <Chip
-                  color={roleColor(user?.role ?? 'OBSERVER')}
-                  label={user?.role ?? '---'}
-                  icon={<ShieldIcon />}
-                  variant="outlined"
-                  size="small"
-                />
-              </Stack>
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                sx={{ color: 'text.secondary' }}
-                alignItems="flex-start"
-                spacing={1.5}
-              >
-                <Stack direction="row" spacing={0.5} alignItems="center">
-                  <MailIcon fontSize="small" />
-                  <Typography variant="body2">
-                    {user?.email ?? '---'}
+            <ShowWhen when={mode !== 'create'}>
+              <Box>
+                <Stack
+                  alignItems="center"
+                  sx={{ mb: 0.5 }}
+                  direction="row"
+                  spacing={1}
+                >
+                  <Typography variant="h5" fontWeight={700}>
+                    {user?.name ?? '---'}
                   </Typography>
+                  <Chip
+                    icon={<RoleIcon role={user?.role ?? 'OBSERVER'} />}
+                    color={roleColor(user?.role ?? 'OBSERVER')}
+                    label={user?.role ?? '---'}
+                    variant="outlined"
+                    sx={{ px: 0.8 }}
+                    size="small"
+                  />
                 </Stack>
-                <Divider
-                  sx={{ display: { xs: 'none', sm: 'block' } }}
-                  orientation="vertical"
-                  flexItem
-                />
-                {user && (
-                  <Typography variant="body2">
-                    Created: {new Date(user.createdAt).toLocaleString()}
-                  </Typography>
-                )}
-                <Divider
-                  sx={{ display: { xs: 'none', sm: 'block' } }}
-                  orientation="vertical"
-                  flexItem
-                />
-              </Stack>
-            </Box>
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  sx={{ color: 'text.secondary' }}
+                  alignItems="flex-start"
+                  spacing={1.5}
+                >
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <MailIcon fontSize="small" />
+                    <Typography variant="body2">
+                      {user?.email ?? '---'}
+                    </Typography>
+                  </Stack>
+                  <Divider
+                    sx={{ display: { xs: 'none', sm: 'block' } }}
+                    orientation="vertical"
+                    flexItem
+                  />
+                  {user && (
+                    <Typography variant="body2">
+                      Created: {new Date(user.createdAt).toLocaleString()}
+                    </Typography>
+                  )}
+                  <Divider
+                    sx={{ display: { xs: 'none', sm: 'block' } }}
+                    orientation="vertical"
+                    flexItem
+                  />
+                </Stack>
+              </Box>
+            </ShowWhen>
           </Stack>
 
           {mode !== 'create' && (
@@ -714,11 +720,6 @@ export function Account() {
               <FormControl fullWidth disabled={!canEditRole}>
                 <FormLabel htmlFor="role">Role</FormLabel>
                 <Select
-                  startAdornment={
-                    <InputAdornment position="start" sx={{ pl: 1 }}>
-                      <ShieldIcon fontSize="small" />
-                    </InputAdornment>
-                  }
                   onChange={(e) => {
                     addChange({ role: e.target.value as Role });
                   }}
@@ -730,12 +731,9 @@ export function Account() {
                   {ROLES.map((r) => (
                     <MenuItem key={r} value={r} disabled={r === 'SYSTEM'}>
                       <Stack alignItems="center" direction="row" spacing={1}>
-                        <Chip
-                          variant="outlined"
-                          color={roleColor(r)}
-                          size="small"
-                          label={r}
-                        />
+                        <RoleIcon role={r} />
+
+                        <Typography>{r}</Typography>
                       </Stack>
                     </MenuItem>
                   ))}

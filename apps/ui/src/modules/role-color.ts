@@ -13,6 +13,6 @@ export const roleColor = (role: Role) => {
     case 'OBSERVER':
       return 'info';
     default:
-      return 'default';
+      return 'primary';
   }
 };

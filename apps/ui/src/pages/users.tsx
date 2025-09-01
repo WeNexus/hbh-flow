@@ -5,6 +5,7 @@ import { useConfirmation } from '@/hooks/use-confirmation.ts';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ErrorState } from '@/components/error-state.tsx';
 import { EmptyState } from '@/components/empty-state.tsx';
+import { RoleIcon } from '@/components/role-icon.tsx';
 import { ShowWhen } from '@/components/show-when.tsx';
 import { useSnackbar } from '@/hooks/use-snackbar.ts';
 import { roleColor } from '@/modules/role-color.ts';
@@ -38,7 +39,6 @@ import {
 
 import {
   CalendarMonthOutlined as CalendarMonthIcon,
-  VerifiedUserRounded as ChipIcon,
   RefreshRounded as RefreshIcon,
   FileOpenRounded as ViewIcon,
   DeleteRounded as DeleteIcon,
@@ -155,10 +155,10 @@ function UserCard({
             </Typography>
             <Chip
               label={(user.role || 'USER').toUpperCase()}
+              icon={<RoleIcon role={user.role} />}
               color={roleColor(user.role)}
-              icon={<ChipIcon />}
-              sx={{ height: 22 }}
               variant="outlined"
+              sx={{ px: 0.8 }}
               size="small"
             />
           </Stack>
