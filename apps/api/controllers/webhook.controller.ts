@@ -155,6 +155,177 @@ export class WebhookController {
     );
   }
 
+  @Post('/trigger')
+  @ApiOperation({
+    summary: 'Trigger webhook endpoint',
+    description:
+      'Triggers the specified webhook by validating a JWT token and optionally validating request hashes.',
+  })
+  @ApiQuery({
+    name: 'token',
+    description: 'JWT token for authenticating the webhook request.',
+    required: true,
+    type: String,
+  })
+  @ApiQuery({
+    name: 'waitUntilCompleted',
+    description:
+      'If set, the request will wait for the workflow execution to complete before responding.',
+    required: false,
+    type: Boolean,
+  })
+  @ApiQuery({
+    name: 'needResponse',
+    description:
+      'If set, the response from the workflow will be sent back to the requester.',
+    required: false,
+    type: Boolean,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Token is missing or request is malformed.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Token invalid or hash verification failed.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Webhook not found.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Webhook executed successfully.',
+  })
+  async trigger(
+    @Res() res: express.Response,
+    @Req() req: RawBodyRequest<express.Request>,
+    @Query('token') token: string,
+    @Query('waitUntilCompleted') waitUntilCompleted?: boolean,
+    @Query('needResponse') needResponse?: boolean,
+  ): Promise<any> {
+    if (!token) {
+      throw new BadRequestException(
+        'JWT token is required in the query string.',
+      );
+    }
+
+    try {
+      const jwt = await this.jwtService.verifyAsync<{ wid: number }>(token, {
+        subject: 'access',
+        audience: 'workflow',
+        issuer: 'webhook',
+      });
+
+      const { result: webhook } = await this.prisma.webhook.findUnique({
+        where: { id: jwt.wid },
+        cache: {
+          key: `webhook:${jwt.wid}`,
+        },
+      });
+
+      if (!webhook) {
+        throw new NotFoundException('Webhook not found.');
+      }
+
+      const flow = await this.workflowService.resolveClass(
+        webhook.workflowId,
+        true,
+      );
+      const config = await this.workflowService.getConfig(flow);
+
+      if (!config?.webhook) {
+        throw new BadRequestException(
+          'The associated workflow does not support webhook triggers.',
+        );
+      }
+
+      const { hashLocation, hashAlgorithm, hashKey, secret } = webhook;
+
+      if (secret && hashLocation && hashAlgorithm && hashKey) {
+        let hash: string | undefined;
+
+        if (hashLocation === 'HEADER') {
+          hash = req.header(hashKey);
+        } else {
+          hash = req.query[hashKey] as string;
+        }
+
+        if (!hash) {
+          throw new BadRequestException(
+            `Missing hash in ${hashLocation.toLowerCase()} (${hashKey}).`,
+          );
+        }
+
+        const digest = crypto
+          .createHmac(hashAlgorithm, secret)
+          .update(req.rawBody!.toString('utf-8'))
+          .digest('hex');
+
+        const isValid = crypto.timingSafeEqual(
+          Buffer.from(digest),
+          Buffer.from(hash),
+        );
+
+        if (!isValid) {
+          throw new UnauthorizedException(
+            'Hash validation failed. You are not authorized to trigger this webhook.',
+          );
+        }
+      }
+
+      let jobId: number;
+      const trace = Sentry.getTraceData();
+      const options: RunOptions = {
+        draft: !webhook.active,
+        needResponse: Boolean(needResponse),
+        trigger: 'WEBHOOK',
+        triggerId: webhook.id.toString(),
+        payload: req.body as unknown,
+        sentry: {
+          trace: trace['sentry-trace'],
+          baggage: trace.baggage,
+        },
+        beforeQueue: (job) => {
+          jobId = job.id;
+
+          if (needResponse && webhook.active) {
+            this.responses.set(jobId!, {
+              res,
+              metaSent: false,
+            });
+          }
+        },
+      };
+
+      const { bullJob } = await this.workflowService
+        .run(flow, options)
+        .catch((e: Error) => {
+          this.cleanupResponse(jobId ?? -1, 500);
+
+          throw e;
+        });
+
+      if (webhook.active && (needResponse || waitUntilCompleted)) {
+        await bullJob!
+          .waitUntilFinished(flow.queueEvents)
+          .then(() => this.cleanupResponse(jobId, 201))
+          .catch((e: Error) => {
+            Sentry.captureException(e);
+            this.cleanupResponse(jobId, 201);
+          });
+      }
+    } catch (e: any) {
+      if (e instanceof JsonWebTokenError) {
+        throw new UnauthorizedException(
+          'Invalid or expired token. Access denied.',
+        );
+      }
+
+      throw e;
+    }
+  }
+
   @Get('/:id')
   @Protected('OBSERVER')
   @ApiParam({
@@ -380,182 +551,6 @@ export class WebhookController {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       throw new NotFoundException('Webhook not found.');
-    }
-  }
-
-  @Post('/:id/trigger')
-  @ApiOperation({
-    summary: 'Trigger webhook endpoint',
-    description:
-      'Triggers the specified webhook by validating a JWT token and optionally validating request hashes.',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'The ID of the webhook to trigger.',
-    type: Number,
-  })
-  @ApiQuery({
-    name: 'token',
-    description: 'JWT token for authenticating the webhook request.',
-    required: true,
-    type: String,
-  })
-  @ApiQuery({
-    name: 'waitUntilCompleted',
-    description:
-      'If set, the request will wait for the workflow execution to complete before responding.',
-    required: false,
-    type: Boolean,
-  })
-  @ApiQuery({
-    name: 'needResponse',
-    description:
-      'If set, the response from the workflow will be sent back to the requester.',
-    required: false,
-    type: Boolean,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Token is missing or request is malformed.',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - Token invalid or hash verification failed.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Webhook not found.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Webhook executed successfully.',
-  })
-  async trigger(
-    @Res() res: express.Response,
-    @Req() req: RawBodyRequest<express.Request>,
-    @Query('token') token: string,
-    @Query('waitUntilCompleted') waitUntilCompleted?: boolean,
-    @Query('needResponse') needResponse?: boolean,
-  ): Promise<any> {
-    if (!token) {
-      throw new BadRequestException(
-        'JWT token is required in the query string.',
-      );
-    }
-
-    try {
-      const jwt = await this.jwtService.verifyAsync<{ wid: number }>(token, {
-        subject: 'access',
-        audience: 'workflow',
-        issuer: 'webhook',
-      });
-
-      const { result: webhook } = await this.prisma.webhook.findUnique({
-        where: { id: jwt.wid },
-        cache: {
-          key: `webhook:${jwt.wid}`,
-        },
-      });
-
-      if (!webhook) {
-        throw new NotFoundException('Webhook not found.');
-      }
-
-      const flow = await this.workflowService.resolveClass(
-        webhook.workflowId,
-        true,
-      );
-      const config = await this.workflowService.getConfig(flow);
-
-      if (!config?.webhook) {
-        throw new BadRequestException(
-          'The associated workflow does not support webhook triggers.',
-        );
-      }
-
-      const { hashLocation, hashAlgorithm, hashKey, secret } = webhook;
-
-      if (secret && hashLocation && hashAlgorithm && hashKey) {
-        let hash: string | undefined;
-
-        if (hashLocation === 'HEADER') {
-          hash = req.header(hashKey);
-        } else {
-          hash = req.query[hashKey] as string;
-        }
-
-        if (!hash) {
-          throw new BadRequestException(
-            `Missing hash in ${hashLocation.toLowerCase()} (${hashKey}).`,
-          );
-        }
-
-        const digest = crypto
-          .createHmac(hashAlgorithm, secret)
-          .update(req.rawBody!.toString('utf-8'))
-          .digest('hex');
-
-        const isValid = crypto.timingSafeEqual(
-          Buffer.from(digest),
-          Buffer.from(hash),
-        );
-
-        if (!isValid) {
-          throw new UnauthorizedException(
-            'Hash validation failed. You are not authorized to trigger this webhook.',
-          );
-        }
-      }
-
-      let jobId: number;
-      const trace = Sentry.getTraceData();
-      const options: RunOptions = {
-        draft: !webhook.active,
-        needResponse: Boolean(needResponse),
-        trigger: 'WEBHOOK',
-        triggerId: webhook.id.toString(),
-        payload: req.body as unknown,
-        sentry: {
-          trace: trace['sentry-trace'],
-          baggage: trace.baggage,
-        },
-        beforeQueue: (job) => {
-          jobId = job.id;
-
-          if (needResponse && webhook.active) {
-            this.responses.set(jobId!, {
-              res,
-              metaSent: false,
-            });
-          }
-        },
-      };
-
-      const { bullJob } = await this.workflowService
-        .run(flow, options)
-        .catch((e: Error) => {
-          this.cleanupResponse(jobId ?? -1, 500);
-
-          throw e;
-        });
-
-      if (webhook.active && (needResponse || waitUntilCompleted)) {
-        await bullJob!
-          .waitUntilFinished(flow.queueEvents)
-          .then(() => this.cleanupResponse(jobId, 201))
-          .catch((e: Error) => {
-            Sentry.captureException(e);
-            this.cleanupResponse(jobId, 201);
-          });
-      }
-    } catch (e: any) {
-      if (e instanceof JsonWebTokenError) {
-        throw new UnauthorizedException(
-          'Invalid or expired token. Access denied.',
-        );
-      }
-
-      throw e;
     }
   }
 }
