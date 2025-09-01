@@ -1,9 +1,12 @@
 import type { WorkflowService } from '#lib/workflow/workflow.service';
+import type { InputJsonValue } from '@prisma/client/runtime/client';
+import { JobPayload, JobResMeta } from '#lib/workflow/types';
+import { jobResEndSignal } from './job-res-end-signal';
 import { StepInfoSchema } from '#lib/workflow/schema';
 import { PrismaService } from '#lib/core/services';
-import { JobPayload } from '#lib/workflow/types';
 import { Job as DBJob } from '@prisma/client';
 import { ModuleRef } from '@nestjs/core';
+import { Redis } from 'ioredis';
 
 import {
   Job as BullJob,
@@ -40,7 +43,9 @@ export abstract class WorkflowBase<P = any, C = any> {
   public static worker: Worker<JobPayload>;
 
   protected workflowService: WorkflowService;
+  protected prisma: PrismaService;
   protected moduleRef: ModuleRef;
+  protected redisPub: Redis;
 
   protected needsRerun: boolean = false;
   protected cancelled: boolean = false;
@@ -53,6 +58,9 @@ export abstract class WorkflowBase<P = any, C = any> {
   public static steps: StepInfoSchema[];
   public bullJob: BullJob<JobPayload>;
   public dbJob: DBJob;
+
+  protected responseMetaSent = false;
+  protected responseEndSent = false;
 
   /**
    * The progress of the workflow.
@@ -207,17 +215,15 @@ export abstract class WorkflowBase<P = any, C = any> {
    * @returns A promise that resolves to the result of the step.
    */
   async getResult<T = any>(step: string): Promise<T | null> {
-    const { result: row } = await this.moduleRef
-      .get(PrismaService, { strict: false })
-      .jobStep.findFirst({
-        where: {
-          jobId: this.dbJob.id,
-          name: step,
-        },
-        select: {
-          result: true,
-        },
-      });
+    const { result: row } = await this.prisma.jobStep.findFirst({
+      where: {
+        jobId: this.dbJob.id,
+        name: step,
+      },
+      select: {
+        result: true,
+      },
+    });
 
     return (row?.result as T) ?? null;
   }
@@ -230,18 +236,114 @@ export abstract class WorkflowBase<P = any, C = any> {
    * @returns A promise that resolves to the resume data of the step.
    */
   async getResumeData<T = any>(step: string): Promise<T | null> {
-    const { result: row } = await this.moduleRef
-      .get(PrismaService, { strict: false })
-      .jobStep.findFirst({
-        where: {
-          jobId: this.dbJob.id,
-          name: step,
-        },
-        select: {
-          resume: true,
-        },
-      });
+    const { result: row } = await this.prisma.jobStep.findFirst({
+      where: {
+        jobId: this.dbJob.id,
+        name: step,
+      },
+      select: {
+        resume: true,
+      },
+    });
 
     return (row?.resume as T) ?? null;
+  }
+
+  /**
+   * Sends metadata about the job response.
+   * This method publishes the metadata to a Redis channel specific to the job and requester.
+   *
+   * @param meta The metadata to be sent.
+   * @returns A promise that resolves when the metadata has been published.
+   */
+  async sendResponseMeta(meta: JobResMeta) {
+    if (!this.bullJob.data.needResponse) {
+      return;
+    }
+
+    if (this.responseMetaSent) {
+      throw new Error('Response meta has already been sent.');
+    }
+
+    this.responseMetaSent = true;
+
+    await this.prisma.job.update({
+      where: { id: this.dbJob.id },
+      data: {
+        responseMeta: meta as InputJsonValue,
+      },
+      select: {
+        id: true,
+      },
+      uncache: {
+        uncacheKeys: [`job:${this.dbJob.id}`],
+      },
+    });
+
+    await this.redisPub.publish(
+      `jr:${this.bullJob.data.requesterRuntimeId}:${this.dbJob.id}`,
+      Buffer.from(JSON.stringify(meta)),
+    );
+  }
+
+  /**
+   * Sends chunks of the job response body.
+   * This method publishes each chunk to a Redis channel specific to the job and requester.
+   * After all chunks are sent, it can optionally send an end signal.
+   *
+   * @param chunks An array of strings or Buffers representing the chunks of the response body.
+   * @param end A boolean indicating whether to send an end signal after the chunks. Defaults to true.
+   * @returns A promise that resolves when all chunks (and optionally the end signal) have been published.
+   */
+  async sendResponse(
+    chunks?: (string | Buffer) | (string | Buffer)[],
+    end = true,
+  ) {
+    if (!this.bullJob.data.needResponse) {
+      return;
+    }
+
+    if (this.responseEndSent) {
+      throw new Error('Response has already ended.');
+    }
+
+    if (!this.responseMetaSent) {
+      throw new Error(
+        "Response meta hasn't been sent yet. Call sendResponseMeta first.",
+      );
+    }
+
+    if (end) {
+      this.responseEndSent = true;
+    }
+
+    if (chunks) {
+      const _chunks = (Array.isArray(chunks) ? chunks : [chunks]).map((c) =>
+        typeof c === 'string' ? Buffer.from(c) : c,
+      );
+
+      if (_chunks && _chunks.length > 0) {
+        for (const chunk of _chunks) {
+          await this.redisPub.publish(
+            `jr:${this.bullJob.data.requesterRuntimeId}:${this.dbJob.id}`,
+            chunk,
+          );
+        }
+      }
+
+      await this.prisma.jobResponseChunk.createMany({
+        data: _chunks.map((c) => ({
+          jobId: this.dbJob.id,
+          data: c,
+        })),
+      });
+    }
+
+    if (end) {
+      await this.redisPub.publish(
+        `jr:${this.bullJob.data.requesterRuntimeId}:${this.dbJob.id}`,
+        jobResEndSignal,
+      );
+    }
   }
 }

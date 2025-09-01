@@ -1,13 +1,15 @@
 import { ApiOperation, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
-import { listData, PrismaWhereExceptionFilter } from '#lib/core/misc';
 import { ActivityService, PrismaService } from '#lib/core/services';
+import type { JobResMeta, RunOptions } from '#lib/workflow/types';
 import { WorkflowService } from '#lib/workflow/workflow.service';
 import { JsonWebTokenError, JwtService } from '@nestjs/jwt';
 import { Auth, Protected } from '#lib/auth/decorators';
-import type { RunOptions } from '#lib/workflow/types';
+import { jobResEndSignal } from '#lib/workflow/misc';
 import { ListInputSchema } from '#lib/core/schema';
 import type { AuthContext } from '#lib/auth/types';
+import { REDIS_SUB } from '#lib/core/redis';
 import * as Sentry from '@sentry/nestjs';
+import { Redis } from 'ioredis';
 import express from 'express';
 import crypto from 'crypto';
 
@@ -17,6 +19,12 @@ import {
   WebhookListOutputSchema,
   WebhookSchema,
 } from '../schema';
+
+import {
+  PrismaWhereExceptionFilter,
+  RUNTIME_ID,
+  listData,
+} from '#lib/core/misc';
 
 import {
   UnauthorizedException,
@@ -34,16 +42,89 @@ import {
   Post,
   Req,
   Get,
+  Res,
+  Inject,
 } from '@nestjs/common';
 
 @Controller('api/webhooks')
 export class WebhookController {
   constructor(
+    @Inject(RUNTIME_ID) private readonly runtimeId: string,
     private readonly workflowService: WorkflowService,
     private readonly activityService: ActivityService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
-  ) {}
+    @Inject(REDIS_SUB) redisSub: Redis,
+  ) {
+    const redis = redisSub.duplicate();
+
+    void redis
+      .psubscribe(`jr:${this.runtimeId}:*`)
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      .then(() => redis.on('pmessageBuffer', this.handleMessage.bind(this)));
+  }
+
+  private responses = new Map<
+    number,
+    {
+      res: express.Response;
+      metaSent: boolean;
+    }
+  >();
+
+  private handleMessage(_: string, channel: Buffer, message: Buffer) {
+    const jobId = Number(channel.toString().split(':').pop());
+
+    if (!jobId || !this.responses.has(jobId)) {
+      return;
+    }
+
+    const response = this.responses.get(jobId)!;
+    const { res, metaSent } = response;
+
+    if (!metaSent) {
+      // First message is always meta
+      response.metaSent = true;
+
+      const meta = JSON.parse(message.toString()) as JobResMeta;
+
+      if (meta.statusCode) {
+        res.status(meta.statusCode);
+      }
+
+      if (meta.headers) {
+        res.set(meta.headers);
+      }
+
+      return;
+    }
+
+    if (!jobResEndSignal.equals(message)) {
+      res.write(message);
+    } else {
+      if (!res.writableEnded) {
+        res.end();
+      }
+
+      this.responses.delete(jobId);
+    }
+  }
+
+  private cleanupResponse(jobId: number, statusCode?: number) {
+    if (this.responses.has(jobId)) {
+      const response = this.responses.get(jobId)!;
+
+      if (!response.res.writableEnded) {
+        if (statusCode && !response.metaSent) {
+          response.res.status(statusCode);
+        }
+
+        response.res.end();
+      }
+
+      this.responses.delete(jobId);
+    }
+  }
 
   @Get('/')
   @Protected('OBSERVER')
@@ -320,9 +401,16 @@ export class WebhookController {
     type: String,
   })
   @ApiQuery({
-    name: 'wait',
+    name: 'waitUntilCompleted',
     description:
       'If set, the request will wait for the workflow execution to complete before responding.',
+    required: false,
+    type: Boolean,
+  })
+  @ApiQuery({
+    name: 'needResponse',
+    description:
+      'If set, the response from the workflow will be sent back to the requester.',
     required: false,
     type: Boolean,
   })
@@ -343,9 +431,11 @@ export class WebhookController {
     description: 'Webhook executed successfully.',
   })
   async trigger(
+    @Res() res: express.Response,
     @Req() req: RawBodyRequest<express.Request>,
     @Query('token') token: string,
-    @Query('wait') wait?: any,
+    @Query('waitUntilCompleted') waitUntilCompleted?: boolean,
+    @Query('needResponse') needResponse?: boolean,
   ): Promise<any> {
     if (!token) {
       throw new BadRequestException(
@@ -417,9 +507,11 @@ export class WebhookController {
         }
       }
 
+      let jobId: number;
       const trace = Sentry.getTraceData();
-      const options = {
+      const options: RunOptions = {
         draft: !webhook.active,
+        needResponse: Boolean(needResponse),
         trigger: 'WEBHOOK',
         triggerId: webhook.id.toString(),
         payload: req.body as unknown,
@@ -427,24 +519,35 @@ export class WebhookController {
           trace: trace['sentry-trace'],
           baggage: trace.baggage,
         },
-      } satisfies RunOptions;
+        beforeQueue: (job) => {
+          jobId = job.id;
 
-      if (
-        !wait ||
-        wait === 'false' ||
-        wait === '0' ||
-        wait === 'no' ||
-        wait === 'off' ||
-        wait === 'disable'
-      ) {
-        this.workflowService.run(flow, options);
-        return;
+          if (needResponse && webhook.active) {
+            this.responses.set(jobId!, {
+              res,
+              metaSent: false,
+            });
+          }
+        },
+      };
+
+      const { bullJob } = await this.workflowService
+        .run(flow, options)
+        .catch((e: Error) => {
+          this.cleanupResponse(jobId ?? -1, 500);
+
+          throw e;
+        });
+
+      if (webhook.active && (needResponse || waitUntilCompleted)) {
+        await bullJob!
+          .waitUntilFinished(flow.queueEvents)
+          .then(() => this.cleanupResponse(jobId, 201))
+          .catch((e: Error) => {
+            Sentry.captureException(e);
+            this.cleanupResponse(jobId, 201);
+          });
       }
-
-      const { job } = await this.workflowService.run(flow, options);
-      await this.workflowService.waitForJob(job.id);
-
-      return this.workflowService.getResults(job.id);
     } catch (e: any) {
       if (e instanceof JsonWebTokenError) {
         throw new UnauthorizedException(

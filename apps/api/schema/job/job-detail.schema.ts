@@ -69,6 +69,18 @@ export class JobDetailSchema extends JobSchema {
   })
   payload: JsonValue;
 
+  @ApiProperty({
+    description: 'The response metadata from the job execution.',
+    example: {
+      statusCode: '201',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Custom-Header': 'value',
+      },
+    },
+  })
+  responseMeta: JsonValue;
+
   // Steps
   @ApiProperty({
     description: 'The steps executed by the job.',

@@ -1,9 +1,8 @@
+import type { DBJobSlim } from '#lib/workflow/types/db-job-slim';
 import { ApiProperty } from '@nestjs/swagger';
-import { $Enums, Job } from '@prisma/client';
+import { $Enums } from '@prisma/client';
 
-export class JobSchema
-  implements Omit<Job, 'sentryTrace' | 'sentryBaggage' | 'payload' | 'options'>
-{
+export class JobSchema implements Omit<DBJobSlim, 'options'> {
   @ApiProperty({
     description: 'A unique numeric identifier for the job.',
     example: 101,

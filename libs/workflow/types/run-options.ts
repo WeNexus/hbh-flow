@@ -1,3 +1,4 @@
+import { DBJobSlim } from '#lib/workflow/types/db-job-slim';
 import { DeduplicationOptions } from 'bullmq';
 import { Trigger } from '@prisma/client';
 
@@ -7,6 +8,7 @@ export interface RunOptions<P = any> {
    * If not provided, the run will be associated with the system user.
    */
   userId?: number;
+  needResponse?: boolean;
   // Sentry
   sentry?: {
     trace?: string;
@@ -17,6 +19,7 @@ export interface RunOptions<P = any> {
   scheduledAt?: Date;
   maxRetries?: number;
   deduplication?: DeduplicationOptions;
+  beforeQueue?: (job: DBJobSlim) => any;
   priority?: number;
   // Data
   /**

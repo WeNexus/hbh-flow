@@ -222,12 +222,13 @@ model Job {
   dedupeId   String?
   workflowId Int
 
-  status      JobStatus @default(WAITING)
-  trigger     Trigger   @default(MANUAL) // Which trigger initiated the job
-  triggerId   String? // Identifier for the trigger (e.g., webhook ID, event, schedule ID)
-  scheduledAt DateTime? @db.Timestamptz()
-  payload     Json?
-  options     Json?
+  status       JobStatus @default(WAITING)
+  trigger      Trigger   @default(MANUAL) // Which trigger initiated the job
+  triggerId    String? // Identifier for the trigger (e.g., webhook ID, event, schedule ID)
+  scheduledAt  DateTime? @db.Timestamptz()
+  payload      Json?
+  responseMeta Json?
+  options      Json?
 
   sentryTrace   String?
   sentryBaggage String?
@@ -235,11 +236,24 @@ model Job {
   createdAt DateTime  @default(now()) @db.Timestamptz()
   updatedAt DateTime? @updatedAt @db.Timestamptz()
 
-  Workflow Workflow? @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  Steps    JobStep[]
+  Workflow       Workflow?          @relation(fields: [workflowId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  Steps          JobStep[]
+  ResponseChunks JobResponseChunk[]
 
   @@index([status])
   @@index([workflowId])
+}
+
+model JobResponseChunk {
+  id    Int   @id @default(autoincrement())
+  jobId Int
+  data  Bytes @db.ByteA
+
+  createdAt DateTime @default(now()) @db.Timestamptz()
+
+  Job Job @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([jobId])
 }
 
 model JobStep {

@@ -8,12 +8,13 @@ import { RepeatOptions } from '#lib/workflow/types/repeat-options';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base';
 import { RunOptions } from '#lib/workflow/types/run-options';
 import { JobPayload } from '#lib/workflow/types/job-payload';
+import { DBJobSlim } from '#lib/workflow/types/db-job-slim';
 import { WorkflowNotFoundException } from './exceptions';
+import { APP_TYPE, RUNTIME_ID } from '#lib/core/misc';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { REDIS_PUB } from '#lib/core/redis';
 import { EnvService } from '#lib/core/env';
 import { isEmpty, merge } from 'lodash-es';
-import { APP_TYPE } from '#lib/core/misc';
 import { AppType } from '#lib/core/types';
 import { JwtService } from '@nestjs/jwt';
 import * as Sentry from '@sentry/nestjs';
@@ -46,6 +47,7 @@ import {
 @Injectable()
 export class WorkflowService implements OnApplicationBootstrap {
   constructor(
+    @Inject(RUNTIME_ID) private readonly runtimeId: string,
     private readonly discoveryService: DiscoveryService,
     @Inject(APP_TYPE) private readonly appType: AppType,
     private readonly activityService: ActivityService,
@@ -204,6 +206,10 @@ export class WorkflowService implements OnApplicationBootstrap {
           instance.moduleRef = this.moduleRef;
           // @ts-expect-error - protected property
           instance.workflowService = this;
+          // @ts-expect-error - protected property
+          instance.redisPub = this.redis;
+          // @ts-expect-error - protected property
+          instance.prisma = this.prisma;
 
           const dbFlow = await this.getDBFlow(flow);
 
@@ -961,7 +967,7 @@ export class WorkflowService implements OnApplicationBootstrap {
     options?: RunOptions,
   ): Promise<{
     bullJob: BullJob | null;
-    job: Omit<DBJob, 'payload' | 'sentryBaggage' | 'sentryTrace'>;
+    job: DBJobSlim;
   }> {
     const dbFlow = await this.getDBFlow(identifier);
     const flow = await this.resolveClass(identifier, true);
@@ -972,8 +978,7 @@ export class WorkflowService implements OnApplicationBootstrap {
       throw new Error(`Queue not found for workflow: ${flow.name}`);
     }
 
-    let dbJob: Omit<DBJob, 'payload' | 'sentryBaggage' | 'sentryTrace'> | null =
-      null;
+    let dbJob: DBJobSlim | null = null;
 
     if (options?.deduplication?.id) {
       dbJob = (
@@ -992,6 +997,12 @@ export class WorkflowService implements OnApplicationBootstrap {
               ],
             },
           },
+          omit: {
+            payload: true,
+            sentryBaggage: true,
+            sentryTrace: true,
+            responseMeta: true,
+          },
         })
       ).result;
     }
@@ -1006,7 +1017,7 @@ export class WorkflowService implements OnApplicationBootstrap {
             trigger: options?.trigger ?? 'MANUAL',
             triggerId: options?.triggerId ?? null,
             payload: options?.payload as InputJsonValue,
-            options: options?.draft ? undefined : (options as InputJsonValue),
+            options: !options?.draft ? undefined : (options as InputJsonValue),
             sentryBaggage: options?.sentry?.baggage,
             sentryTrace: options?.sentry?.trace,
             dedupeId: options?.deduplication?.id,
@@ -1015,6 +1026,7 @@ export class WorkflowService implements OnApplicationBootstrap {
             payload: true,
             sentryBaggage: true,
             sentryTrace: true,
+            responseMeta: true,
           },
         })
       ).result;
@@ -1047,12 +1059,18 @@ export class WorkflowService implements OnApplicationBootstrap {
       };
     }
 
+    if (options?.beforeQueue) {
+      await options.beforeQueue(dbJob);
+    }
+
     const id = `#${dbJob.id}`;
 
     const bullJob = await queue.add(
       flow.name,
       {
         dbJobId: dbJob.id,
+        requesterRuntimeId: this.runtimeId,
+        needResponse: options?.needResponse,
         context: options?.context as unknown,
       },
       {
@@ -1194,6 +1212,7 @@ export class WorkflowService implements OnApplicationBootstrap {
         payload: true,
         sentryBaggage: true,
         sentryTrace: true,
+        responseMeta: true,
       },
       cache: {
         key: `job:${jobId}`,
@@ -1336,7 +1355,7 @@ export class WorkflowService implements OnApplicationBootstrap {
    * @param ttl - The time-to-live in milliseconds to wait for the job to finish.
    * @returns A promise that resolves when the job is completed.
    */
-  async waitForJob(jobId: number, ttl = 1000 * 60 * 5) {
+  async waitForJob(jobId: number, ttl?: number) {
     const { bullJob, job } = await this.getJob(jobId);
 
     if (await bullJob.isCompleted()) {
