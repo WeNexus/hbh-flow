@@ -5,6 +5,8 @@ import { ErrorState } from '@/components/error-state.tsx';
 import type { Theme } from '@mui/material/styles';
 import { useHeader } from '@/hooks/use-header.ts';
 import { useApi } from '@/hooks/use-api.ts';
+import Avatar from '@mui/material/Avatar';
+import { Link } from 'react-router';
 import { memoize } from 'lodash-es';
 import { api } from '@/modules/api';
 import { AxiosError } from 'axios';
@@ -38,14 +40,16 @@ import type {
 } from '@mui/x-data-grid';
 
 import {
-  PersonRemoveOutlined as PersonRemoveIcon,
+  AccountTreeOutlined as AccountTreeIcon,
   AccessTimeOutlined as AccessTimeIcon,
-  PersonAddOutlined as PersonAddIcon,
   CategoryOutlined as CategoryIcon,
   EditOutlined as EditOutlinedIcon,
+  ScheduleOutlined as ScheduleIcon,
   RefreshOutlined as RefreshIcon,
   LinkOffOutlined as LinkOffIcon,
+  WebhookOutlined as WebhookIcon,
   PlayArrowOutlined as PlayIcon,
+  FolderOutlined as FolderIcon,
   CancelOutlined as CancelIcon,
   DeleteOutlined as DeleteIcon,
   ReplayOutlined as ReplayIcon,
@@ -60,8 +64,6 @@ import {
   EditOutlined as EditIcon,
   AddOutlined as AddIcon,
 } from '@mui/icons-material';
-import Avatar from '@mui/material/Avatar';
-import { Link } from 'react-router';
 
 export interface ActivitiesProps {
   defaultPageSize?: number;
@@ -106,27 +108,6 @@ const Actions: EnumDef[] = [
     label: 'Profile updated',
     icon: <EditIcon />,
     color: '#00a6a0',
-  },
-  {
-    resource: 'USER',
-    action: 'CREATE',
-    label: 'User created',
-    icon: <PersonAddIcon />,
-    color: '#a6a100',
-  },
-  {
-    resource: 'USER',
-    action: 'UPDATE',
-    label: 'User updated',
-    icon: <EditIcon />,
-    color: '#00a6a0',
-  },
-  {
-    resource: 'USER',
-    action: 'DELETE',
-    label: 'User deleted',
-    icon: <PersonRemoveIcon />,
-    color: '#a60000',
   },
   {
     resource: 'OAUTH2_AUTH_STATE',
@@ -239,6 +220,30 @@ const Resources: EnumDef[] = [
     label: 'Job',
     icon: <PlayIcon />,
     color: '#008000',
+  },
+  {
+    resource: 'WEBHOOK',
+    label: 'Webhook',
+    icon: <WebhookIcon />,
+    color: '#00277a',
+  },
+  {
+    resource: 'FOLDER',
+    label: 'Folder',
+    icon: <FolderIcon />,
+    color: '#7a4f00',
+  },
+  {
+    resource: 'SCHEDULE',
+    label: 'Schedule',
+    icon: <ScheduleIcon />,
+    color: '#7a007a',
+  },
+  {
+    resource: 'WORKFLOW',
+    label: 'Workflow',
+    icon: <AccountTreeIcon />,
+    color: '#7a3f00',
   },
 ];
 
