@@ -240,8 +240,8 @@ export function Users() {
       const { data } = await api.get<UserListOutputSchema>('/users', {
         params: {
           search: query.trim() || undefined,
-          sortField: 'createdAt',
-          sortOrder: 'desc',
+          sortField: 'name',
+          sortOrder: 'asc',
           page,
           limit,
         },

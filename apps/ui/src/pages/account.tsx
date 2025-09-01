@@ -346,7 +346,10 @@ export function Account() {
       }
 
       showSnackbar({
-        message: 'Profile updated successfully',
+        message:
+          mode === 'create'
+            ? 'User created successfully'
+            : 'Profile updated successfully',
         severity: 'success',
       });
     } catch (e) {
@@ -360,6 +363,7 @@ export function Account() {
       setSaving(false);
     }
   }, [
+    mode,
     api,
     canEditRole,
     isCreatePage,
