@@ -52,7 +52,7 @@ export class BigCommerceService extends TokenHttpClient {
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      timeout: 10000, // 10 seconds
+      timeout: 1000 * 60 * 15, // 15 minutes
       validateStatus: (status) => status >= 200 && status < 300, // Accept only 2xx responses
     };
   }
