@@ -43,10 +43,10 @@ export default function SidebarMobile({ open, toggleDrawer }: SideMenuMobileProp
             sx={{ gap: 1, alignItems: 'center', flexGrow: 1, p: 1 }}
           >
             <Avatar
-              sizes="small"
-              src={`/api/users/${user?.id}/avatar`}
+              src={`/api/users/${user?.id}/avatar?t=${user?.updatedAt}`}
               alt={user?.name || 'Anonymous'}
               sx={{ width: 24, height: 24 }}
+              sizes="small"
             />
             <Typography component="p" variant="h6">
               {user?.name || 'User Name'}

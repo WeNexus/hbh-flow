@@ -29,6 +29,14 @@ export class UserSchema {
   name: string;
 
   @ApiProperty({
+    description: 'The date and time when the user account was last updated.',
+    format: 'date-time',
+    example: '2023-10-15T15:30:00Z',
+    required: false,
+  })
+  updatedAt?: Date | null;
+
+  @ApiProperty({
     description: 'The date and time when the user account was created.',
     format: 'date-time',
     example: '2023-10-01T12:00:00Z',

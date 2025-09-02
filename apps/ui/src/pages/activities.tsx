@@ -34,6 +34,7 @@ import type {
 } from '@/types/schema.ts';
 
 import type {
+  GridColumnVisibilityModel,
   GridRenderCellParams,
   GridDataSource,
   GridColDef,
@@ -67,6 +68,7 @@ import {
 
 export interface ActivitiesProps {
   defaultPageSize?: number;
+  hideColumns?: string[];
   embedded?: boolean;
   userId?: number;
 }
@@ -462,8 +464,8 @@ function UserCell({
       ) : (
         <>
           <Avatar
+            src={`/api/users/${user.id}/avatar?t=${user.updatedAt}`}
             alt={user.name ?? user.email ?? 'User'}
-            src={`/api/users/${user.id}/avatar`}
             sx={{ width: 35, height: 35 }}
           />
 
@@ -674,6 +676,18 @@ export function Activities(props: ActivitiesProps) {
     [props.embedded],
   );
 
+  const columnVisibilityModel = useMemo(
+    () =>
+      props.hideColumns?.reduce(
+        (model, col) => {
+          model[col] = false;
+          return model;
+        },
+        {} as GridColumnVisibilityModel,
+      ),
+    [props.hideColumns],
+  );
+
   useEffect(() => {
     updateHeaderUI({
       search: false,
@@ -690,6 +704,7 @@ export function Activities(props: ActivitiesProps) {
         <ErrorState error={error} />
       ) : (
         <DataGrid
+          columnVisibilityModel={columnVisibilityModel}
           autosizeOptions={autosizeOptions}
           getRowClassName={getRowClassName}
           onDataSourceError={console.error}

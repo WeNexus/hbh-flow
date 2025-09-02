@@ -241,7 +241,7 @@ export class ConnectionController {
         connectedBy = (
           await this.prisma.user.findFirstOrThrow({
             where: {
-              role: 'SYSTEM',
+              id: 1,
             },
             select: {
               id: true,
@@ -249,6 +249,10 @@ export class ConnectionController {
               email: true,
               role: true,
               createdAt: true,
+              updatedAt: true,
+            },
+            cache: {
+              key: 'system-user',
             },
           })
         ).result;
@@ -458,6 +462,7 @@ export class ConnectionController {
           email: true,
           role: true,
           createdAt: true,
+          updatedAt: true,
         },
         cache: {
           key: 'system-user',

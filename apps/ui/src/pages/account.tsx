@@ -224,6 +224,8 @@ const formStateOptionsWithCreateMode: UseFormStateOptions<FormState> = {
   },
 };
 
+const hideActivitiesColumns = ['user'];
+
 export function Account() {
   const showSnackbar = useSnackbar();
   const params = useParams();
@@ -254,7 +256,7 @@ export function Account() {
             name: user.name,
             email: user.email,
             role: user.role,
-            avatar: `/api/users/${user.id}/avatar`,
+            avatar: `/api/users/${user.id}/avatar?t=${user.updatedAt}`,
             confirmPassword: '',
             password: '',
           }
@@ -862,6 +864,7 @@ export function Account() {
           <CardContent>
             <Activities
               userId={Number(params.id ?? user?.id ?? currentUser?.id)!}
+              hideColumns={hideActivitiesColumns}
               defaultPageSize={10}
               embedded
             />

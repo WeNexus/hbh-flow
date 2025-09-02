@@ -79,7 +79,6 @@ export class UserController {
   async list(@Query() input: ListInputSchema): Promise<UserListOutputSchema> {
     return listData(this.prisma, 'user', input, ['email', 'name'], {
       omit: {
-        updatedAt: true,
         password: true,
         avatar: true,
       },
@@ -197,7 +196,7 @@ export class UserController {
       updated: user,
     });
 
-    return omit(user, 'password', 'updatedAt');
+    return omit(user, 'password');
   }
 
   @Patch('/:id')
@@ -302,7 +301,7 @@ export class UserController {
       updated,
     });
 
-    return omit(updated, 'password', 'updatedAt');
+    return omit(updated, 'password');
   }
 
   @Delete('/:id')

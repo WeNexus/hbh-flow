@@ -140,7 +140,7 @@ function UserCard({
               fontWeight: 700,
               boxShadow: 1,
             }}
-            src={`/api/users/${user.id}/avatar`}
+            src={`/api/users/${user.id}/avatar?t=${user.updatedAt}`}
             alt={user.name}
           />
         }

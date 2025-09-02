@@ -359,9 +359,7 @@ export function Connections() {
                         </Tooltip>
                       ) : connection.working ? (
                         <Tooltip title={`Working${testedAt}`}>
-                          <CheckIcon
-                            sx={{ color: 'success.main' }}
-                          />
+                          <CheckIcon sx={{ color: 'success.main' }} />
                         </Tooltip>
                       ) : (
                         <Tooltip title={`Not working${testedAt}`}>
@@ -402,9 +400,9 @@ export function Connections() {
                           title={`Connected by ${connection.connectedBy.name}`}
                         >
                           <Avatar
+                            src={`/api/users/${connection.connectedBy.id}/avatar?t=${connection.connectedBy.updatedAt}`}
                             alt={connection.connectedBy.name || 'Anonymous'}
                             sx={{ width: 24, height: 24 }}
-                            src={`/api/users/${connection.connectedBy.id}/avatar`}
                             sizes="small"
                           />
                         </Tooltip>

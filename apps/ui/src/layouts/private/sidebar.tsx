@@ -102,7 +102,7 @@ export default function Sidebar() {
         }}
       >
         <Avatar
-          src={`/api/users/${user?.id}/avatar`}
+          src={`/api/users/${user?.id}/avatar?t=${user?.updatedAt}`}
           alt={user?.name || 'Anonymous'}
           sx={{ width: 36, height: 36 }}
           sizes="small"
