@@ -15,7 +15,6 @@ import {
   NotFoundException,
   UseInterceptors,
   UploadedFile,
-  ParseIntPipe,
   Controller,
   UseFilters,
   HttpCode,
@@ -256,7 +255,12 @@ export class UserController {
 
     const isSelfUpdate = auth.user.id === id;
 
-    if (!auth.isPowerUser && !isSelfUpdate) {
+    if (
+      (!auth.isPowerUser && !isSelfUpdate) ||
+      (!isSelfUpdate &&
+        auth.user.role === 'DEVELOPER' &&
+        user.role === 'DEVELOPER')
+    ) {
       throw new ForbiddenException(
         'You are not authorized to update this user.',
       );
@@ -348,8 +352,13 @@ export class UserController {
       throw new ForbiddenException('You cannot delete your own account.');
     }
 
-    if (auth.user.role === 'DEVELOPER' && user.role === 'ADMIN') {
-      throw new ForbiddenException('DEVELOPERS cannot delete ADMIN users.');
+    if (
+      auth.user.role === 'DEVELOPER' &&
+      (user.role === 'ADMIN' || user.role === 'DEVELOPER')
+    ) {
+      throw new ForbiddenException(
+        'You do not have permission to delete this user.',
+      );
     }
 
     await this.prisma.user.delete({ where: { id } });

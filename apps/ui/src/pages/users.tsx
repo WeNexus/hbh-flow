@@ -111,7 +111,8 @@ function UserCard({
           isSelf ||
           !api.isPowerUser ||
           user.role === 'SYSTEM' ||
-          (user.role === 'ADMIN' && currentUser?.role !== 'SYSTEM'),
+          (user.role === 'ADMIN' && currentUser?.role !== 'SYSTEM') ||
+          (user.role === 'DEVELOPER' && currentUser?.role === 'DEVELOPER'),
         onClick: deleteUser,
       },
     ],

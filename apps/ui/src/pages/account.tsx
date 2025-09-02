@@ -285,7 +285,9 @@ export function Account() {
   } = formState;
 
   const isSelf = Number(user?.id) === currentUser?.id;
-  const canEdit = isSelf || api.isPowerUser;
+  const canEdit =
+    (isSelf || api.isPowerUser) &&
+    !(user?.role === 'DEVELOPER' && currentUser?.role === 'DEVELOPER');
   const canEditRole =
     mode === 'create' ||
     (!isSelf &&
@@ -342,7 +344,10 @@ export function Account() {
         navigate(`/users/${res.data.id}`, { replace: true });
       } else {
         setUser(res.data);
-        api.loadUser(res.data).catch(console.error);
+
+        if (isSelf) {
+          api.loadUser(res.data).catch(console.error);
+        }
       }
 
       showSnackbar({
@@ -363,6 +368,7 @@ export function Account() {
       setSaving(false);
     }
   }, [
+    isSelf,
     mode,
     api,
     canEditRole,
