@@ -1,5 +1,4 @@
 import { Typography, Stack, Box, type SxProps, Skeleton } from '@mui/material';
-import { DataGrid, type DataGridProps } from '@mui/x-data-grid';
 import { CustomChip } from '@/components/custom-chip.tsx';
 import { ErrorState } from '@/components/error-state.tsx';
 import type { Theme } from '@mui/material/styles';
@@ -10,6 +9,8 @@ import { Link } from 'react-router';
 import { memoize } from 'lodash-es';
 import { api } from '@/modules/api';
 import { AxiosError } from 'axios';
+
+import { type DataGridProps, useGridApiRef, DataGrid } from '@mui/x-data-grid';
 
 import type {
   ActivityWhereInput,
@@ -549,8 +550,7 @@ const getRowClassName: Exclude<DataGridProps['getRowClassName'], undefined> = (
 
 const tableStyle: SxProps<Theme> = {
   '& .odd': {
-    bgcolor: (theme) =>
-      theme.palette.mode === 'dark' ? 'action.hover' : 'grey.50',
+    bgcolor: (theme) => theme.palette.action.hover,
   },
 };
 
@@ -588,7 +588,8 @@ const autosizeOptions: DataGridProps['autosizeOptions'] = {
 const pageSizeOptions = [10, 20, 30];
 
 export function Activities(props: ActivitiesProps) {
-  const { UI: updateHeaderUI } = useHeader();
+  const gridApiRef = useGridApiRef();
+  const { UI: updateHeaderUI, state } = useHeader();
   const { api } = useApi();
 
   const [error, setError] = useState<AxiosError | string | null>(null);
@@ -598,6 +599,29 @@ export function Activities(props: ActivitiesProps) {
       try {
         const { page, pageSize } = params.paginationModel ?? {};
         const filter: ActivityWhereInput[] = [];
+
+        if (state.date) {
+          const start = state.date
+            .set('hour', 0)
+            .set('minute', 0)
+            .set('second', 0)
+            .set('millisecond', 0);
+
+          const end = state.date
+            .set('hour', 23)
+            .set('minute', 59)
+            .set('second', 59)
+            .set('millisecond', 999);
+
+          filter.push({
+            createdAt: {
+              gte: start.toDate(),
+              lte: end.toDate(),
+            },
+          });
+
+          console.log('Filtering by date:', start.toDate(), end.toDate());
+        }
 
         for (const item of params.filterModel.items) {
           if (
@@ -649,7 +673,7 @@ export function Activities(props: ActivitiesProps) {
         throw e; // Rethrow the error to be handled by the DataGrid
       }
     },
-    [api, props.defaultPageSize, props.userId],
+    [api, props.defaultPageSize, props.userId, state.date],
   );
 
   const dataSource = useMemo<DataGridProps['dataSource']>(
@@ -678,15 +702,14 @@ export function Activities(props: ActivitiesProps) {
 
   const columnVisibilityModel = useMemo(
     () =>
-      props.hideColumns?.reduce(
-        (model, col) => {
-          model[col] = false;
-          return model;
-        },
-        {} as GridColumnVisibilityModel,
-      ),
+      props.hideColumns?.reduce((model, col) => {
+        model[col] = false;
+        return model;
+      }, {} as GridColumnVisibilityModel),
     [props.hideColumns],
   );
+
+  useEffect(() => gridApiRef.current?.restoreState(initialState), [state.date]);
 
   useEffect(() => {
     updateHeaderUI({
@@ -714,6 +737,7 @@ export function Activities(props: ActivitiesProps) {
           slotProps={slotProps}
           rowSelection={false}
           sortingMode="server"
+          apiRef={gridApiRef}
           filterMode="server"
           getRowId={getRowId}
           columns={columns}

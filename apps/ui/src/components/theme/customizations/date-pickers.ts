@@ -147,8 +147,8 @@ export const datePickersCustomizations: PickerComponents<Theme> = {
           fontWeight: theme.typography.fontWeightMedium,
         },
         '&:focus': {
-          outline: `3px solid ${alpha(brand[500], 0.5)}`,
-          outlineOffset: '2px',
+          outline: `2px solid ${alpha(brand[500], 0.5)}`,
+          outlineOffset: '1px',
           backgroundColor: 'transparent',
           [`&.${pickersDayClasses.selected}`]: { backgroundColor: gray[700] },
         },

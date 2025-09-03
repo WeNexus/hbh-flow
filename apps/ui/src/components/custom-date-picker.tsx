@@ -4,7 +4,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { useForkRef } from '@mui/material/utils';
 import Button from '@mui/material/Button';
 import dayjs, { Dayjs } from 'dayjs';
-import * as React from 'react';
+import { useMemo } from 'react';
 
 import {
   type DatePickerFieldProps,
@@ -12,6 +12,7 @@ import {
 } from '@mui/x-date-pickers/DatePicker';
 
 import {
+  type DatePickerSlotProps,
   useSplitFieldProps,
   usePickerContext,
   useParsedFormat,
@@ -31,34 +32,61 @@ function ButtonField(props: ButtonFieldProps) {
 
   return (
     <Button
+      onClick={() => pickerContext.setOpen((prev) => !prev)}
+      startIcon={<CalendarTodayRoundedIcon fontSize="small" />}
+      sx={{ minWidth: 'fit-content' }}
       {...forwardedProps}
       variant="outlined"
       ref={handleRef}
       size="small"
-      startIcon={<CalendarTodayRoundedIcon fontSize="small" />}
-      sx={{ minWidth: 'fit-content' }}
-      onClick={() => pickerContext.setOpen((prev) => !prev)}
     >
       {pickerContext.label ?? valueStr}
     </Button>
   );
 }
 
-export default function CustomDatePicker() {
-  const [value, setValue] = React.useState<Dayjs | null>(dayjs('2023-04-17'));
+const slotProps: DatePickerSlotProps<true> = {
+  nextIconButton: { size: 'small' },
+  previousIconButton: { size: 'small' },
+};
+const views = ['year', 'month', 'day'] as const;
+const slots = { field: ButtonField };
+
+export default function CustomDatePicker({
+  value: _value,
+  onChange,
+}: {
+  value?: Dayjs | null;
+  onChange?: (date: Dayjs | null) => void;
+}) {
+  const value = useMemo(() => {
+    if (!_value) {
+      return dayjs(new Date());
+    }
+
+    return _value;
+  }, [_value]);
+
+  const label = useMemo(() => {
+    if (!value) {
+      return null;
+    }
+
+    return value.format('MMM DD, YYYY');
+  }, [value]);
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <DatePicker
+        showDaysOutsideCurrentMonth={false}
+        slotProps={slotProps}
+        onAccept={onChange}
+        closeOnSelect
+        disableFuture
+        slots={slots}
+        views={views}
+        label={label}
         value={value}
-        label={value == null ? null : value.format('MMM DD, YYYY')}
-        onChange={(newValue) => setValue(newValue)}
-        slots={{ field: ButtonField }}
-        slotProps={{
-          nextIconButton: { size: 'small' },
-          previousIconButton: { size: 'small' },
-        }}
-        views={['day', 'month', 'year']}
       />
     </LocalizationProvider>
   );

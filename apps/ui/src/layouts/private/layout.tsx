@@ -2,12 +2,13 @@ import { HeaderContext, type HeaderState } from '@/hooks/use-header.ts';
 import { useDebounceCallback } from '@/hooks/use-debounce-callback.ts';
 import { Outlet, useNavigate, useSearchParams } from 'react-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { alpha, type Theme } from '@mui/material/styles';
 import HeaderMobile from './header-mobile.tsx';
 import { LoginForm } from '@/pages/login.tsx';
-import { alpha, type Theme } from '@mui/material/styles';
 import { useApi } from '@/hooks/use-api.ts';
 import Sidebar from './sidebar.tsx';
 import Header from './header.tsx';
+import dayjs from 'dayjs';
 
 import {
   DialogContent,
@@ -20,13 +21,16 @@ import {
   Box,
 } from '@mui/material';
 
+const today = dayjs(new Date());
+
 export function PrivateLayout() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { api, user } = useApi();
 
-  const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [query, setQuery] = useState(searchParams.get('q') || '');
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
+  const [date, setDate] = useState<dayjs.Dayjs | null>(today);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -73,18 +77,20 @@ export function PrivateLayout() {
       search: showSearch,
       loading,
       query,
+      date,
     }),
-    [showDatePicker, showSearch, loading, query],
+    [showDatePicker, showSearch, date, loading, query],
   );
 
   const context = useMemo<HeaderContext>(
     () => ({
-      state: state,
       loading: setLoading,
-      setQuery: setQuery,
       setQueryThrottled,
+      state: state,
       UI: updateUI,
       submitQuery,
+      setQuery,
+      setDate,
     }),
     [setQueryThrottled, state, submitQuery, updateUI],
   );

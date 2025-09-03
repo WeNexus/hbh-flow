@@ -15,7 +15,7 @@ import {
 import { type KeyboardEvent, type ChangeEvent, useCallback } from 'react';
 
 export default function Header() {
-  const { state, setQuery, submitQuery } = useHeader();
+  const { state, setQuery, submitQuery, setDate } = useHeader();
 
   const onQueryChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value),
@@ -67,7 +67,7 @@ export default function Header() {
               }}
             />
           )}
-          {state.datePicker && <CustomDatePicker />}
+          {state.datePicker && <CustomDatePicker onChange={setDate} value={state.date} />}
           <ColorModeIconDropdown />
         </Stack>
       </Stack>

@@ -1,3 +1,5 @@
+import type { Dayjs } from 'dayjs';
+
 import {
   type SetStateAction,
   createContext,
@@ -10,6 +12,7 @@ export interface HeaderState {
   datePicker: boolean;
   loading: boolean;
   query: string;
+  date: Dayjs | null;
 }
 
 export interface HeaderContext {
@@ -17,6 +20,7 @@ export interface HeaderContext {
   UI: (state: Partial<HeaderState>) => void;
   loading: (loading: boolean) => void;
   setQuery: Dispatch<SetStateAction<string>>;
+  setDate: Dispatch<SetStateAction<Dayjs | null>>;
   setQueryThrottled: Dispatch<SetStateAction<string>>;
   submitQuery: (value: string) => void;
 }
