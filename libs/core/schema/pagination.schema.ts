@@ -1,4 +1,4 @@
-import { IsOptional, IsPositive, Max } from 'class-validator';
+import { IsOptional, IsPositive, Max, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class PaginationSchema {
@@ -18,7 +18,7 @@ export class PaginationSchema {
     required: false,
   })
   @IsOptional()
-  @IsPositive()
+  @Min(0)
   @Max(250)
   limit?: number;
 }
