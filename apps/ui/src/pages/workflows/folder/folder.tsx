@@ -88,6 +88,7 @@ const slots: DataGridProps['slots'] = {
 
 const autosizeOptions: DataGridProps['autosizeOptions'] = {
   expand: true,
+  includeHeaders: true,
 };
 
 const pageSizeOptions = [10, 20];

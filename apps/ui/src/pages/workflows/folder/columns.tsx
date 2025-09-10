@@ -38,6 +38,7 @@ export const columns: GridColDef<Row>[] = [
     sortable: false,
     filterable: false,
     type: 'string',
+    width: 80,
     renderCell: ({ row }) =>
       row.type === 'folder' ? (
         <FolderIcon color="info" fontSize="large" />
@@ -47,7 +48,6 @@ export const columns: GridColDef<Row>[] = [
           fontSize="small"
         />
       ),
-    maxWidth: 120,
   },
   {
     field: 'name',
@@ -62,8 +62,8 @@ export const columns: GridColDef<Row>[] = [
   {
     field: 'children',
     headerName: 'Children',
-    type: 'custom',
     flex: 1,
+    type: 'custom',
     headerAlign: 'center',
     align: 'center',
     sortable: false,
@@ -75,8 +75,8 @@ export const columns: GridColDef<Row>[] = [
   {
     field: 'status',
     headerName: 'Status',
-    type: 'string',
     flex: 1,
+    type: 'string',
     headerAlign: 'center',
     align: 'center',
     sortable: false,
@@ -88,8 +88,8 @@ export const columns: GridColDef<Row>[] = [
   {
     field: 'options',
     headerName: '',
-    type: 'actions',
     flex: 1,
+    type: 'actions',
     align: 'right',
     sortable: false,
     filterable: false,
