@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import type { UserListOutputSchema, UserSchema } from '@/types/schema.ts';
 import { SearchEmptyState } from '@/components/search-empty-state.tsx';
-import { useConfirmation } from '@/hooks/use-confirmation.ts';
+import { useConfirmation } from '@/hooks/use-confirmation.tsx';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ErrorState } from '@/components/error-state.tsx';
 import { EmptyState } from '@/components/empty-state.tsx';
@@ -20,7 +20,7 @@ import OptionsMenu, {
 import {
   type CSSProperties,
   CardContent,
-  CardActions,
+  // CardActions,
   Typography,
   Pagination,
   CardHeader,
@@ -194,10 +194,10 @@ function UserCard({
           </Typography>
         </Stack>
       </CardContent>
-      <CardActions sx={{ px: 2, pb: 2, pt: 0 }}>
-        {/* Reserved for future quick actions */}
+      {/*<CardActions sx={{ px: 2, pb: 2, pt: 0 }}>
+         Reserved for future quick actions
         <Box sx={{ flexGrow: 1 }} />
-      </CardActions>
+      </CardActions>*/}
     </Card>
   );
 }
@@ -414,7 +414,7 @@ export function Users() {
       </Box>
 
       <ShowWhen style={fabStyle} when={api.isPowerUser} animation="zoom">
-        <Tooltip title="Add User" placement="left">
+        <Tooltip title="Add user" placement="left">
           <Fab
             onClick={() => navigate('/users/create')}
             variant="circular"
