@@ -6,7 +6,6 @@ import { Link as MUILink } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { useMemo } from 'react';
 
-
 const StyledBreadcrumbs = styled(Breadcrumbs)(({ theme }) => ({
   margin: theme.spacing(1, 0),
   [`& .${breadcrumbsClasses.separator}`]: {
@@ -42,7 +41,7 @@ export default function HeaderBreadcrumbs() {
         .split('/')
         .filter(Boolean)
         .map((part, index, arr) => {
-          const subParts = part.split('-');
+          const subParts = part.split('__')[0].split('-');
 
           const label = subParts
             .map(
@@ -57,7 +56,7 @@ export default function HeaderBreadcrumbs() {
             .join('/')}`;
 
           return {
-            label,
+            label: decodeURIComponent(label),
             link,
             isLast: index === arr.length - 1,
           };

@@ -2,6 +2,7 @@ import { SnackbarContext, type SnackbarState } from '@/hooks/use-snackbar.ts';
 import { PrivateLayout } from '@/layouts/private/layout.tsx';
 import AppTheme from '@/components/theme/app-theme.tsx';
 import { useCallback, useMemo, useState } from 'react';
+import { Workflows } from '@/pages/workflows/page.tsx';
 import { Connections } from '@/pages/connections.tsx';
 import CssBaseline from '@mui/material/CssBaseline';
 import { PublicLayout } from '@/layouts/public.tsx';
@@ -14,20 +15,17 @@ import { Login } from '@/pages/login.tsx';
 import { Users } from '@/pages/users.tsx';
 
 import {
-  type ConfirmationState,
-  ConfirmationContext,
-} from '@/hooks/use-confirmation.ts';
-
-import {
-  DialogContentText,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
+  type DialogProps,
   Snackbar,
   Dialog,
   Alert,
-  Button,
 } from '@mui/material';
+
+import {
+  type DialogContextType,
+  type DialogState,
+  DialogContext,
+} from '@/hooks/use-dialog.ts';
 
 export default function App(props: { disableCustomTheme?: boolean }) {
   const [snackbarState, setSnackbarState] = useState<SnackbarState>({
@@ -40,13 +38,9 @@ export default function App(props: { disableCustomTheme?: boolean }) {
     },
   });
 
-  const [confirmationState, setConfirmationState] = useState<ConfirmationState>(
-    {
-      open: false,
-      title: '',
-      message: '',
-    },
-  );
+  const [dialogState, setDialogState] = useState<DialogState>({
+    open: false,
+  });
 
   const snackbarContext = useMemo(
     () => ({
@@ -61,52 +55,53 @@ export default function App(props: { disableCustomTheme?: boolean }) {
     [],
   );
 
-  const confirmationContext = useMemo(
+  const dialogContext = useMemo<DialogContextType>(
     () => ({
-      showConfirmation: (
-        state: Omit<ConfirmationState, 'open' | 'callback'>,
-      ) => {
-        return new Promise<boolean>((resolve) => {
-          setConfirmationState({
-            ...state,
+      showDialog: (stateOrRender) => {
+        if (typeof stateOrRender === 'function') {
+          setDialogState({
             open: true,
-            callback: (confirmed: boolean) => {
-              resolve(confirmed);
-              setConfirmationState((s) => ({
-                ...s,
-                open: false,
-                callback: undefined,
-              }));
-            },
+            render: stateOrRender as any,
           });
+        } else {
+          setDialogState({
+            open: true,
+            ...stateOrRender,
+          });
+        }
+      },
+      hideDialog: (event = null, reason = 'other') => {
+        setDialogState((s) => {
+          s.onHide?.(event, reason);
+
+          return {
+            open: false,
+          };
         });
       },
     }),
     [],
   );
 
+  const dialogContent = useMemo(
+    () => (dialogState.render ? dialogState.render() : null),
+    [dialogState],
+  );
+
+  const handleDialogClose = useCallback<
+    Exclude<DialogProps['onClose'], undefined>
+  >((event, reason) => {
+    setDialogState((s) => {
+      s.onHide?.(event, reason);
+
+      return {
+        open: false,
+      };
+    });
+  }, []);
+
   const onSnackbarClose = useCallback(() => {
     setSnackbarState((s) => ({ ...s, open: false }));
-  }, []);
-
-  const onConfirmationClose = useCallback(() => {
-    setConfirmationState((s) => ({ ...s, open: false, callback: undefined }));
-  }, []);
-
-  const onConfirmationCancel = useCallback(() => {
-    setConfirmationState((s) => {
-      s.callback?.(false);
-
-      return { ...s, open: false, callback: undefined };
-    });
-  }, []);
-
-  const onConfirmationConfirm = useCallback(() => {
-    setConfirmationState((s) => {
-      s.callback?.(true);
-
-      return { ...s, open: false, callback: undefined };
-    });
   }, []);
 
   return (
@@ -128,35 +123,10 @@ export default function App(props: { disableCustomTheme?: boolean }) {
         </Alert>
       </Snackbar>
 
-      <Dialog onClose={onConfirmationClose} open={confirmationState.open}>
-        <DialogTitle>{confirmationState.title || 'Are you sure?'}</DialogTitle>
-
-        <DialogContent>
-          <DialogContentText>
-            {confirmationState.message || 'This action cannot be undone.'}
-          </DialogContentText>
-        </DialogContent>
-
-        <DialogActions>
-          <Button
-            onClick={onConfirmationCancel}
-            variant="outlined"
-          >
-            Cancel
-          </Button>
-
-          <Button
-            onClick={onConfirmationConfirm}
-            variant="contained"
-            color="error"
-          >
-            Confirm
-          </Button>
-        </DialogActions>
-      </Dialog>
-
       <SnackbarContext value={snackbarContext}>
-        <ConfirmationContext value={confirmationContext}>
+        <DialogContext value={dialogContext}>
+          <Dialog open={dialogState.open} onClose={handleDialogClose} {...dialogState.props} children={dialogContent} />
+
           <Routes>
             <Route element={<PublicLayout />}>
               <Route path="/login" element={<Login />} />
@@ -164,16 +134,17 @@ export default function App(props: { disableCustomTheme?: boolean }) {
 
             <Route element={<PrivateLayout />}>
               <Route element={<Dashboard />} path="/" index />
-              <Route element={<Account />} path="/account" />
+              <Route element={<Workflows />} path="/workflows/*" />
               <Route element={<Connections />} path="/connections" />
               <Route element={<Users />} path="/users" />
               <Route element={<Account />} path="/users/:id?" />
+              <Route element={<Account />} path="/account" />
               <Route element={<Activities />} path="/activities" />
             </Route>
 
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </ConfirmationContext>
+        </DialogContext>
       </SnackbarContext>
     </AppTheme>
   );
