@@ -1504,8 +1504,12 @@ export class WorkflowService implements OnApplicationBootstrap {
     } catch (e) {
       const { result: dbFlow } = await this.prisma.workflow.upsert({
         where: { key },
-        create: { key, folderId: config?.internal ? 1 : null },
-        update: { key },
+        create: {
+          key,
+          folderId: config?.internal ? 1 : null,
+          name: config?.name ?? key,
+        },
+        update: { key, name: config?.name ?? key },
         uncache: {
           uncacheKeys: [`workflow:key:${key}`],
         },

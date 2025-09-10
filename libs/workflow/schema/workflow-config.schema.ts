@@ -28,6 +28,14 @@ export class WorkflowConfigSchema {
 
   @ApiProperty({
     description:
+      'A human-readable name for the workflow, used for display purposes.',
+    required: true,
+    example: 'Sync Shopify Orders',
+  })
+  name?: string;
+
+  @ApiProperty({
+    description:
       'The maximum number of jobs that can run concurrently in the workflow.',
     required: false,
     default: Infinity,

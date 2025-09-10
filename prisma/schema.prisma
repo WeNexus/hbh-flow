@@ -144,6 +144,7 @@ model Folder {
 model Workflow {
   id       Int    @id @default(autoincrement())
   folderId Int?
+  name     String
   key      String @unique
 
   active Boolean @default(true) // Indicates if the workflow is active, when inactive jobs will be kept in the queue but not executed
@@ -154,7 +155,7 @@ model Workflow {
   Jobs      Job[]
   Webhooks  Webhook[]
   Events    Event[]
-  Folder    Folder?    @relation(fields: [folderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  Folder    Folder?    @relation(fields: [folderId], references: [id], onUpdate: Cascade, onDelete: SetDefault)
   Schedules Schedule[]
 }
 

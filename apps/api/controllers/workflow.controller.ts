@@ -26,6 +26,7 @@ import {
   WorkflowUpdateInputSchema,
   WorkflowListOutputSchema,
   WorkflowDetailSchema,
+  WorkflowBasicSchema,
   WorkflowSchema,
 } from '../schema';
 
@@ -57,7 +58,47 @@ export class WorkflowController {
   async list(
     @Query() input: ListInputSchema,
   ): Promise<WorkflowListOutputSchema> {
-    return listData(this.prisma, 'workflow', input, ['key']);
+    const result = await listData(
+      this.prisma,
+      'workflow',
+      input,
+      ['key', 'name'],
+      {
+        include: {
+          _count: {
+            select: { Jobs: true },
+          },
+        },
+      },
+    );
+
+    const data: WorkflowSchema[] = [];
+
+    for (const w of result.data) {
+      const queue = await this.workflowService.getQueue(w.key);
+
+      const { result: counts } = await this.prisma.job.groupBy({
+        by: ['status'],
+        where: { workflowId: w.id, status: { in: ['SUCCEEDED', 'FAILED'] } },
+        _count: { status: true },
+      });
+
+      data.push({
+        ...omit(w, '_count'),
+        count: w._count.Jobs,
+        waitingCount: await queue.count(),
+        activeCount: await queue.getActiveCount(),
+        completedCount:
+          counts.find((c) => c.status === 'SUCCEEDED')?._count.status ?? 0,
+        failedCount:
+          counts.find((c) => c.status === 'FAILED')?._count.status ?? 0,
+      });
+    }
+
+    return {
+      ...result,
+      data: data,
+    };
   }
 
   @Get('/:idOrKey')
@@ -111,7 +152,7 @@ export class WorkflowController {
     @Req() req: express.Request,
     @Auth() auth: AuthContext,
     @Body() input: WorkflowUpdateInputSchema,
-  ): Promise<WorkflowSchema> {
+  ): Promise<WorkflowBasicSchema> {
     const workflow = await this.getWorkflowByIdOrKey(idOrKey);
 
     const { result: updated } = await this.prisma.workflow.update({
@@ -202,8 +243,8 @@ export class WorkflowController {
     return {
       id: workflow.id,
       key: workflow.key,
+      name: workflow.name,
       folderId: workflow.folderId,
-      name: flow.name,
       paused: await queue.isPaused(),
       active: workflow.active,
       steps: flow.steps,

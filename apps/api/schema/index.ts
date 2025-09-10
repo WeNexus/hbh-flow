@@ -19,6 +19,7 @@ export * from './revision/revision-detail.schema';
 export * from './workflow/workflow-detail.schema';
 export * from './hub/provider-list-output.schema';
 export * from './event/event-update-input.schema';
+export * from './workflow/workflow-basic.schema';
 export * from './event/event-list-output.schema';
 export * from './user/user-create-input.schema';
 export * from './user/user-update-input.schema';
