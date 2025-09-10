@@ -9,6 +9,13 @@ export class FolderSchema extends FolderCreateInputSchema {
   id: number;
 
   @ApiProperty({
+    description:
+      'The number of immediate child folders contained within this folder.',
+    example: 5,
+  })
+  childrenCount: number;
+
+  @ApiProperty({
     description: 'The date and time when the folder was initially created.',
     format: 'date-time',
     example: '2023-10-01T12:00:00Z',
@@ -16,7 +23,8 @@ export class FolderSchema extends FolderCreateInputSchema {
   createdAt: Date;
 
   @ApiProperty({
-    description: 'The date and time when the folder was last updated. May be null if no updates have occurred.',
+    description:
+      'The date and time when the folder was last updated. May be null if no updates have occurred.',
     format: 'date-time',
     example: '2023-10-01T12:00:00Z',
   })

@@ -4,6 +4,7 @@ import { ActivityService, PrismaService } from '#lib/core/services';
 import { Auth, Protected } from '#lib/auth/decorators';
 import { ListInputSchema } from '#lib/core/schema';
 import type { AuthContext } from '#lib/auth/types';
+import { omit } from 'lodash-es';
 import express from 'express';
 
 import {
@@ -48,7 +49,30 @@ export class FolderController {
     type: FolderListOutputSchema,
   })
   async list(@Query() input: ListInputSchema): Promise<FolderListOutputSchema> {
-    return listData(this.prisma, 'folder', input, ['name', 'description']);
+    const data = await listData(
+      this.prisma,
+      'folder',
+      input,
+      ['name', 'description'],
+      {
+        include: {
+          _count: {
+            select: {
+              Children: true,
+              Workflows: true,
+            },
+          },
+        },
+      },
+    );
+
+    return {
+      ...data,
+      data: data.data.map((folder) => ({
+        ...omit(folder, ['_count']),
+        childrenCount: folder._count.Children + folder._count.Workflows,
+      })),
+    };
   }
 
   @Get('/:id')
@@ -75,9 +99,20 @@ export class FolderController {
     try {
       const { result: folder } = await this.prisma.folder.findUniqueOrThrow({
         where: { id },
+        include: {
+          _count: {
+            select: {
+              Children: true,
+              Workflows: true,
+            },
+          },
+        },
       });
 
-      return folder;
+      return {
+        ...omit(folder, ['_count']),
+        childrenCount: folder._count.Children + folder._count.Workflows,
+      };
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       throw new NotFoundException('The requested folder was not found.');
@@ -114,7 +149,10 @@ export class FolderController {
       updated: folder,
     });
 
-    return folder;
+    return {
+      ...folder,
+      childrenCount: 0,
+    };
   }
 
   @Patch('/:id')
@@ -151,6 +189,14 @@ export class FolderController {
       const { result: updated } = await this.prisma.folder.update({
         where: { id },
         data: input,
+        include: {
+          _count: {
+            select: {
+              Children: true,
+              Workflows: true,
+            },
+          },
+        },
       });
 
       // Record the update activity
@@ -164,7 +210,10 @@ export class FolderController {
         updated,
       });
 
-      return folder;
+      return {
+        ...omit(updated, ['_count']),
+        childrenCount: updated._count.Children + updated._count.Workflows,
+      };
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       throw new NotFoundException(
