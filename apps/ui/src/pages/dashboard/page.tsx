@@ -113,13 +113,15 @@ export default function Dashboard() {
   const fetchData = useCallback(() => {
     const abortController = new AbortController();
 
+    const startDate = headerState.date
+      ? headerState.date.set('date', headerState.date.date() - 30)
+      : new Date(new Date().setDate(new Date().getDate() - 30));
+
     api
       .get<DashboardOutputSchema>('/dashboard', {
         signal: abortController.signal,
         params: {
-          startDate: new Date(
-            new Date().setDate(new Date().getDate() - 30),
-          ).toISOString(),
+          startDate: startDate.toISOString(),
         },
       })
       .then((res) => {
@@ -138,7 +140,7 @@ export default function Dashboard() {
     return () => {
       abortController.abort();
     };
-  }, [api, updateHeaderUI]);
+  }, [api, headerState.date, updateHeaderUI]);
 
   useEffect(() => {
     updateHeaderUI({
