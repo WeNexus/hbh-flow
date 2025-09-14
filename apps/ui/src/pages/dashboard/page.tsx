@@ -114,14 +114,18 @@ export default function Dashboard() {
     const abortController = new AbortController();
 
     const startDate = headerState.date
-      ? headerState.date.set('date', headerState.date.date() - 30)
+      ? headerState.date.set('date', headerState.date.date() - 30).toDate()
       : new Date(new Date().setDate(new Date().getDate() - 30));
+
+    const endDate = headerState.date ? headerState.date.toDate() : new Date();
+    endDate.setHours(23, 59, 59, 999);
 
     api
       .get<DashboardOutputSchema>('/dashboard', {
         signal: abortController.signal,
         params: {
           startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
         },
       })
       .then((res) => {
