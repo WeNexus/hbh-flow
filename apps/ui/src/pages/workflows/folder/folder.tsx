@@ -100,9 +100,9 @@ const fabStyle: CSSProperties = {
 };
 
 export function Folder(props: WorkflowsProps) {
+  const { UI: updateHeaderUI, state: headerState } = useHeader();
   const apiRef = useGridApiRef();
   const navigate = useNavigate();
-  const { UI: updateHeaderUI } = useHeader();
   const { showDialog } = useDialog();
   const { api } = useApi();
 
@@ -123,6 +123,7 @@ export function Folder(props: WorkflowsProps) {
             params: {
               page: folderPage, // API is 1-based, DataGrid is 0-based
               limit: folderPageSize,
+              search: headerState.query,
               sortField: 'createdAt',
               sortOrder: gridParams.sortModel[0]?.sort ?? 'desc',
               filter: JSON.stringify({
@@ -144,6 +145,7 @@ export function Folder(props: WorkflowsProps) {
             params: {
               page: workflowPage, // API is 1-based, DataGrid is 0-based
               limit: workflowPageSize,
+              search: headerState.query,
               sortField: 'createdAt',
               sortOrder: gridParams.sortModel[0]?.sort ?? 'desc',
               filter: JSON.stringify({
@@ -195,7 +197,7 @@ export function Folder(props: WorkflowsProps) {
         throw e; // Rethrow the error to be handled by the DataGrid
       }
     },
-    [api, props.defaultPageSize, props.folderId],
+    [api, props.defaultPageSize, props.folderId, headerState.query],
   );
 
   const navigateToRow = useCallback(
@@ -255,6 +257,12 @@ export function Folder(props: WorkflowsProps) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    apiRef.current?.restoreState(initialState);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [headerState.query]);
 
   return (
     <>

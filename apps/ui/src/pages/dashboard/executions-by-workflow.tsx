@@ -1,6 +1,3 @@
-import LinearProgress, {
-  linearProgressClasses,
-} from '@mui/material/LinearProgress';
 import { useDrawingArea } from '@mui/x-charts/hooks';
 import CardContent from '@mui/material/CardContent';
 import { PieChart } from '@mui/x-charts/PieChart';
@@ -11,14 +8,24 @@ import Card from '@mui/material/Card';
 import Box from '@mui/material/Box';
 import * as React from 'react';
 
-const data = [
-  { label: 'Order Synchronization', value: 50000 },
-  { label: 'Inventory Synchronization', value: 35000 },
-  { label: 'Maintenance Workflow', value: 10000 },
-];
+import LinearProgress, {
+  linearProgressClasses,
+} from '@mui/material/LinearProgress';
+import type { DashboardOutputSchema } from '@/types/schema.ts';
+import { useMemo } from 'react';
 
 interface StyledTextProps {
   variant: 'primary' | 'secondary';
+}
+
+interface PieCenterLabelProps {
+  primaryText: string;
+  secondaryText: string;
+}
+
+interface ExecutionsByWorkflowProps {
+  workflows: DashboardOutputSchema['executions']['workflows'];
+  total: number | string;
 }
 
 const StyledText = styled('text', {
@@ -59,11 +66,6 @@ const StyledText = styled('text', {
   ],
 }));
 
-interface PieCenterLabelProps {
-  primaryText: string;
-  secondaryText: string;
-}
-
 function PieCenterLabel({ primaryText, secondaryText }: PieCenterLabelProps) {
   const { width, height, left, top } = useDrawingArea();
   const primaryY = top + height / 2 - 10;
@@ -88,7 +90,29 @@ const colors = [
   'hsl(220, 20%, 25%)',
 ];
 
-export default function ChartExecutionsByWorkflow() {
+export default function ExecutionsByWorkflow({
+  workflows,
+  total,
+}: ExecutionsByWorkflowProps) {
+  const data = useMemo(() => {
+    const _total = Number(total);
+    const knownTotal = workflows.reduce((acc, wf) => acc + Number(wf.count), 0);
+
+    const _data = workflows.map((wf) => ({
+      label: wf.name,
+      value: Math.round((Number(wf.count) / _total) * 100),
+    }));
+
+    if (knownTotal < _total) {
+      _data.push({
+        label: 'Other',
+        value: Math.round(((_total - knownTotal) / _total) * 100),
+      });
+    }
+
+    return _data;
+  }, [total, workflows]);
+
   return (
     <Card
       variant="outlined"
@@ -96,11 +120,11 @@ export default function ChartExecutionsByWorkflow() {
     >
       <CardContent>
         <Typography component="h2" variant="subtitle2">
-          Executions by workflow
+          Top {workflows.length} Workflows by Executions
         </Typography>
+
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <PieChart
-            colors={colors}
             margin={{
               left: 80,
               right: 80,
@@ -116,18 +140,22 @@ export default function ChartExecutionsByWorkflow() {
                 highlightScope: { fade: 'global', highlight: 'item' },
               },
             ]}
+            colors={colors}
             height={260}
             width={260}
             hideLegend
           >
-            <PieCenterLabel primaryText="98.5K" secondaryText="Total" />
+            <PieCenterLabel
+              primaryText={total.toString()}
+              secondaryText="Total"
+            />
           </PieChart>
         </Box>
         {data.map((item, index) => (
           <Stack
+            sx={{ alignItems: 'center', gap: 2, pb: 2 }}
             key={index}
             direction="row"
-            sx={{ alignItems: 'center', gap: 2, pb: 2 }}
           >
             <Stack sx={{ gap: 1, flexGrow: 1 }}>
               <Stack

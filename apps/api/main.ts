@@ -1,4 +1,5 @@
 import { ConnectionController } from './controllers/connection.controller';
+import { DashboardController } from './controllers/dashboard.controller';
 import { ActivityController } from './controllers/activity.controller';
 import { ProviderController } from './controllers/provider.controller';
 import { ScheduleController } from './controllers/schedule.controller';
@@ -38,5 +39,6 @@ await bootstrap({
     ScheduleController,
     ActivityController,
     RevisionController,
+    DashboardController,
   ],
 });

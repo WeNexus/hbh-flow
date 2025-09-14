@@ -8,7 +8,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { PublicLayout } from '@/layouts/public.tsx';
 import { Activities } from '@/pages/activities.tsx';
 import { NotFound } from '@/pages/not-found.tsx';
-import Dashboard from '@/pages/dashboard.tsx';
+import Dashboard from '@/pages/dashboard/page.tsx';
 import { Account } from '@/pages/account.tsx';
 import { Route, Routes } from 'react-router';
 import { Login } from '@/pages/login.tsx';

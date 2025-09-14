@@ -7,30 +7,19 @@ import Stack from '@mui/material/Stack';
 import Card from '@mui/material/Card';
 import Chip from '@mui/material/Chip';
 import Box from '@mui/material/Box';
+import { useMemo } from 'react';
+import { Skeleton } from '@mui/material';
 
 export type StatCardProps = {
   title: string;
-  value: string;
+  value?: string;
   interval: string;
-  trend: 'up' | 'down' | 'neutral';
-  sentiment: 'positive' | 'negative' | 'neutral';
-  data: number[];
+  sentiment?: 'positive' | 'negative' | 'neutral';
+  trend?: 'up' | 'down' | 'neutral';
+  data?: number[];
+  labels?: string[];
+  loading?: boolean;
 };
-
-function getDaysInMonth(month: number, year: number) {
-  const date = new Date(year, month, 0);
-  const monthName = date.toLocaleDateString('en-US', {
-    month: 'short',
-  });
-  const daysInMonth = date.getDate();
-  const days = [];
-  let i = 1;
-  while (days.length < daysInMonth) {
-    days.push(`${monthName} ${i}`);
-    i += 1;
-  }
-  return days;
-}
 
 function AreaGradient({ color, id }: { color: string; id: string }) {
   return (
@@ -44,40 +33,45 @@ function AreaGradient({ color, id }: { color: string; id: string }) {
 }
 
 export default function StatCard({
+  loading = false,
+  sentiment,
+  interval,
+  labels,
   title,
   value,
-  interval,
   trend,
   data,
-  sentiment,
 }: StatCardProps) {
   const theme = useTheme();
-  const daysInWeek = getDaysInMonth(4, 2024);
+  const sentimentColors = useMemo(
+    () => ({
+      positive:
+        theme.palette.mode === 'light'
+          ? theme.palette.success.main
+          : theme.palette.success.dark,
+      negative:
+        theme.palette.mode === 'light'
+          ? theme.palette.error.main
+          : theme.palette.error.dark,
+      neutral:
+        theme.palette.mode === 'light'
+          ? theme.palette.grey[400]
+          : theme.palette.grey[700],
+    }),
+    [theme],
+  );
 
-  const trendColors = {
-    positive:
-      theme.palette.mode === 'light'
-        ? theme.palette.success.main
-        : theme.palette.success.dark,
-    negative:
-      theme.palette.mode === 'light'
-        ? theme.palette.error.main
-        : theme.palette.error.dark,
-    neutral:
-      theme.palette.mode === 'light'
-        ? theme.palette.grey[400]
-        : theme.palette.grey[700],
-  };
+  const labelColors = useMemo(
+    () => ({
+      positive: 'success' as const,
+      negative: 'error' as const,
+      neutral: 'default' as const,
+    }),
+    [],
+  );
 
-  const labelColors = {
-    positive: 'success' as const,
-    negative: 'error' as const,
-    neutral: 'default' as const,
-  };
-
-  const color = labelColors[sentiment];
-  const chartColor = trendColors[sentiment];
-  const trendValues = { up: '+25%', down: '-25%', neutral: '+5%' };
+  const color = labelColors[sentiment ?? 'neutral'];
+  const chartColor = sentimentColors[sentiment ?? 'neutral'];
 
   return (
     <Card variant="outlined" sx={{ height: '100%', flexGrow: 1 }}>
@@ -97,31 +91,45 @@ export default function StatCard({
               <Typography variant="h4" component="p">
                 {value}
               </Typography>
-              <Chip size="small" color={color} label={trendValues[trend]} />
+
+              {!loading && sentiment !== 'neutral' && trend != 'neutral' && (
+                <Chip
+                  label={trend === 'down' ? '-' : '+'}
+                  color={color}
+                  size="small"
+                />
+              )}
             </Stack>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
               {interval}
             </Typography>
           </Stack>
           <Box sx={{ width: '100%', height: 50 }}>
-            <SparkLineChart
-              color={chartColor}
-              data={data}
-              area
-              showHighlight
-              showTooltip
-              xAxis={{
-                scaleType: 'band',
-                data: daysInWeek, // Use the correct property 'data' for xAxis
-              }}
-              sx={{
-                [`& .${areaElementClasses.root}`]: {
-                  fill: `url(#area-gradient-${value})`,
-                },
-              }}
-            >
-              <AreaGradient color={chartColor} id={`area-gradient-${value}`} />
-            </SparkLineChart>
+            {!loading ? (
+              <SparkLineChart
+                color={chartColor}
+                showHighlight
+                data={data!}
+                showTooltip
+                area
+                xAxis={{
+                  scaleType: 'band',
+                  data: labels, // Use the correct property 'data' for xAxis
+                }}
+                sx={{
+                  [`& .${areaElementClasses.root}`]: {
+                    fill: `url(#area-gradient-${value})`,
+                  },
+                }}
+              >
+                <AreaGradient
+                  color={chartColor}
+                  id={`area-gradient-${value}`}
+                />
+              </SparkLineChart>
+            ) : (
+              <Skeleton variant="rectangular" width="100%" height={50} />
+            )}
           </Box>
         </Stack>
       </CardContent>

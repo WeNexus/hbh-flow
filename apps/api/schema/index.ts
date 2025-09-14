@@ -26,6 +26,7 @@ export * from './user/user-update-input.schema';
 export * from './connection/connection.schema';
 export * from './user/user-list-output.schema';
 export * from './job/job-replay.input.schema';
+export * from './dashboard/dashboard-output.schema';
 export * from './job/job-list-output.schema';
 export * from './hub/provider-detail.schema';
 export * from './activity/activity.schema';

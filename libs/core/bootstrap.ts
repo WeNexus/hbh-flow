@@ -49,6 +49,11 @@ export async function bootstrap(
 ): Promise<NestExpressApplication | INestApplicationContext> {
   const { appType } = metadata;
 
+  // @ts-expect-error toJSON is not a standard method on BigInt
+  BigInt.prototype.toJSON = function () {
+    return (this as bigint).toString();
+  };
+
   initSentry(appType);
   // @ts-expect-error appType is not a valid property of ModuleMetadata
   delete metadata.appType;

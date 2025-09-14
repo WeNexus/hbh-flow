@@ -1,3 +1,4 @@
+import { Workflow } from './workflow/workflow.tsx';
 import { Folder } from './folder/folder.tsx';
 import { useParams } from 'react-router';
 import { useMemo } from 'react';
@@ -33,5 +34,5 @@ export function Workflows() {
     return <Folder folderId={entity?.id ?? null} />;
   }
 
-  return <div>Workflow {entity.id}</div>;
+  return <Workflow workflowId={entity.id} />;
 }
