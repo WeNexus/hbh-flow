@@ -41,9 +41,14 @@ const slotProps: DataGridProps['slotProps'] = {
   },
 };
 
+const visibilityModel = {
+  __check__: false,
+};
+
 export default function Workflows({ data, loading = false }: WorkflowsProps) {
   return (
     <DataGrid
+      columnVisibilityModel={visibilityModel}
       getRowClassName={getRowClassName}
       pageSizeOptions={[10, 20, 50]}
       initialState={initialState}
