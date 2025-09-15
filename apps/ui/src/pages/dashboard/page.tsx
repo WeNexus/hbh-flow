@@ -69,26 +69,6 @@ export default function Dashboard() {
     };
   }, [data]);
 
-  const successfulExecutions = useMemo(() => {
-    if (!data) {
-      return null;
-    }
-
-    const items = data.executions.byStatusDay.SUCCEEDED ?? [];
-    const counts = items.map((d) => Number(d.count));
-    const trend = calculateTrend(counts);
-
-    return {
-      trend,
-      data: counts,
-      value: counts.reduce((a, b) => a + b, 0).toString(),
-      sentiment: (trend === 'down'
-        ? 'negative'
-        : 'positive') as StatCardProps['sentiment'],
-      labels: items.map((d) => new Date(d.date).toDateString()),
-    };
-  }, [data]);
-
   const failedExecutions = useMemo(() => {
     if (!data) {
       return null;
@@ -110,7 +90,28 @@ export default function Dashboard() {
     };
   }, [data]);
 
-  const fetchData = useCallback(() => {
+  const successfulExecutions = useMemo(() => {
+    if (!data) {
+      return null;
+    }
+
+    const items = data.executions.byStatusDay.SUCCEEDED ?? [];
+    const counts = items.map((d) => Number(d.count));
+    const trend = calculateTrend(counts);
+
+    return {
+      trend,
+      data: counts,
+      value: counts.reduce((a, b) => a + b, 0).toString(),
+      sentiment: (trend === 'down' &&
+      (executions?.trend === 'neutral' || executions?.trend === 'up')
+        ? 'negative'
+        : 'positive') as StatCardProps['sentiment'],
+      labels: items.map((d) => new Date(d.date).toDateString()),
+    };
+  }, [data, executions]);
+
+  const fetchData = useCallback((cb?: (data: DashboardOutputSchema) => any) => {
     const abortController = new AbortController();
 
     const startDate = headerState.date
@@ -134,6 +135,10 @@ export default function Dashboard() {
         updateHeaderUI({
           loading: false,
         });
+
+        if (cb) {
+          cb(res.data);
+        }
       })
       .catch((err) => {
         if (err.name !== 'CanceledError') {
@@ -153,7 +158,26 @@ export default function Dashboard() {
       loading: !!data,
     });
 
-    return fetchData();
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let cancelFetch: (() => void) | null = null;
+
+    const doFetchData = () => {
+      cancelFetch = fetchData(() => {
+        timeoutId = setTimeout(doFetchData, 5000);
+      });
+    };
+
+    doFetchData();
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+
+      if (cancelFetch) {
+        cancelFetch();
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [headerState.date]);
 

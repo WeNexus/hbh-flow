@@ -83,7 +83,7 @@ export default function ExecutionsByStatusLine({
       id: index === 0 ? 'first' : index === 1 ? 'second' : 'third',
       label: wf.name,
       showMark: false,
-      curve: index === 0 ? 'natural' : 'linear',
+      curve: 'natural',
       stack: 'total',
       area: true,
       stackOrder: 'ascending',
