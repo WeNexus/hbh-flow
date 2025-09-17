@@ -81,12 +81,12 @@ export default function ExecutionsByStatusLine({
   const series = useMemo<LineChartProps['series']>(() => {
     return workflows.slice(0, 3).map((wf, index) => ({
       id: index === 0 ? 'first' : index === 1 ? 'second' : 'third',
-      label: wf.name,
+      stackOrder: 'ascending',
+      curve: 'monotoneX',
       showMark: false,
-      curve: 'natural',
+      label: wf.name,
       stack: 'total',
       area: true,
-      stackOrder: 'ascending',
       data: wf.dailyCounts.map((d) => Number(d.count)),
     }));
   }, [workflows]);

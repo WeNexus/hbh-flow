@@ -1,6 +1,6 @@
 import { DataGrid, type DataGridProps } from '@mui/x-data-grid';
 import type { DashboardOutputSchema } from '@/types/schema.ts';
-import { columns } from './grid-data.tsx';
+import { columns } from './columns.tsx';
 
 interface WorkflowsProps {
   data: DashboardOutputSchema['executions']['workflows'];

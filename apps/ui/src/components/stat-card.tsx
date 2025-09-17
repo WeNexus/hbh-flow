@@ -108,6 +108,8 @@ export default function StatCard({
             {!loading ? (
               <SparkLineChart
                 color={chartColor}
+                curve="monotoneX"
+                disableClipping
                 showHighlight
                 data={data!}
                 showTooltip
