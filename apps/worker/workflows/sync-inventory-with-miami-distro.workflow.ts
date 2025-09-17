@@ -26,6 +26,8 @@ export class SyncInventoryWithMiamiDistroWorkflow extends WorkflowBase {
     if (this.env.isProd) {
       const jobToken = await this.pause();
       callbackUrl = `${this.env.getString('APP_URL')}/api/jobs/${this.dbJob.id}/resume?token=${jobToken}`;
+    } else {
+      this.delay(1000 * 20);
     }
 
     const params = encodeURIComponent(
@@ -49,8 +51,6 @@ export class SyncInventoryWithMiamiDistroWorkflow extends WorkflowBase {
         },
       },
     );
-
-    this.delay(1000 * 20);
 
     return res.data;
   }
