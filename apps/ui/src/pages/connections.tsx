@@ -210,11 +210,13 @@ export function Connections() {
     }
 
     for (const item of connections) {
-      result[item.id] = [];
+      const id = `${item.provider.id}-${item.id}`;
+
+      result[id] = [];
 
       if (item.connectedBy) {
         if (item.provider.type === 'oauth2' && !item.working) {
-          result[item.id].push({
+          result[id].push({
             label: 'Disconnect',
             onClick: disconnect,
             icon: <LinkOffIcon />,
@@ -222,7 +224,7 @@ export function Connections() {
           });
         }
       } else if (item.provider.type === 'oauth2') {
-        result[item.id].push({
+        result[id].push({
           label: 'Connect',
           onClick: connect,
           icon: <PowerIcon />,
@@ -231,7 +233,7 @@ export function Connections() {
       }
 
       if (item.provider.type === 'token' || item.connectedBy) {
-        result[item.id].push({
+        result[id].push({
           label: 'Test connection',
           onClick: testConnection,
           icon: <BugReportIcon />,
@@ -411,8 +413,12 @@ export function Connections() {
                       )}
 
                       <OptionsMenu
+                        items={
+                          menuItems[
+                            `${connection.provider.id}-${connection.id}`
+                          ]
+                        }
                         title="Manage integration"
-                        items={menuItems[connection.id]}
                         sx={{ ml: 'auto' }}
                       />
                     </Stack>
