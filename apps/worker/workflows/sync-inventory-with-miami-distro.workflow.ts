@@ -109,6 +109,10 @@ export class SyncInventoryWithMiamiDistroWorkflow extends WorkflowBase {
       }
     }
 
+    if (adjustments.length === 0) {
+      return { message: 'No adjustments needed' };
+    }
+
     const { data } = await this.zohoService.post(
       `/inventory/v1/inventoryadjustments`,
       {
