@@ -116,7 +116,7 @@ export abstract class WorkflowBase<P = any, C = any> {
    * @param block If true, no other jobs will be processed until the workflow is resumed.
    * @returns A JWT token that can be used to resume the workflow later.
    */
-  async pause(block?: boolean): Promise<void> {
+  async pause(block?: boolean): Promise<string> {
     if (this.delayed > 0) {
       throw new Error("Can't pause a workflow that is already delayed.");
     }
@@ -135,6 +135,8 @@ export abstract class WorkflowBase<P = any, C = any> {
 
     this.delayed = 1000 * 60 * 60 * 24 * 365 * 10; // 10 years
     this.paused = true;
+
+    return this.workflowService.getJobToken(this.dbJob.id, '12h');
   }
 
   /**

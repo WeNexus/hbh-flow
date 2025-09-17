@@ -1,3 +1,4 @@
+import { WoocommerceModule } from '#lib/woocommerce/woocommerce.module';
 import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { BigCommerceModule } from '#lib/bigcommerce/bigcommerce.module';
@@ -99,6 +100,7 @@ export async function bootstrap(
       FujimausaModule,
       BigCommerceModule,
       FlodeskModule,
+      WoocommerceModule,
     ],
     providers: [
       {
@@ -171,6 +173,7 @@ export async function bootstrap(
       BigCommerceModule,
       FujimausaModule,
       FlodeskModule,
+      WoocommerceModule,
     ],
   })
   class WrapperModule {}

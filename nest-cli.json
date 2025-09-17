@@ -81,6 +81,15 @@
       "compilerOptions": {
         "tsConfigPath": "libs/fujimausa/tsconfig.lib.json"
       }
+    },
+    "woocommerce": {
+      "type": "library",
+      "root": "libs/woocommerce",
+      "entryFile": "index",
+      "sourceRoot": "libs/woocommerce",
+      "compilerOptions": {
+        "tsConfigPath": "libs/woocommerce/tsconfig.lib.json"
+      }
     }
   }
 }

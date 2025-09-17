@@ -275,7 +275,9 @@ export class WebhookController {
       }
 
       let jobId: number;
+
       const trace = Sentry.getTraceData();
+
       const options: RunOptions = {
         draft: !webhook.active,
         needResponse: Boolean(needResponse),
@@ -306,14 +308,18 @@ export class WebhookController {
           throw e;
         });
 
-      if (webhook.active && (needResponse || waitUntilCompleted)) {
-        await bullJob!
-          .waitUntilFinished(flow.queueEvents)
-          .then(() => this.cleanupResponse(jobId, 201))
-          .catch((e: Error) => {
-            Sentry.captureException(e);
-            this.cleanupResponse(jobId, 201);
-          });
+      if (webhook.active) {
+        if (needResponse || waitUntilCompleted) {
+          await bullJob!
+            .waitUntilFinished(flow.queueEvents)
+            .then(() => this.cleanupResponse(jobId, 201))
+            .catch((e: Error) => {
+              Sentry.captureException(e);
+              this.cleanupResponse(jobId, 201);
+            });
+        } else {
+          res.status(201).send();
+        }
       }
     } catch (e: any) {
       if (e instanceof JsonWebTokenError) {

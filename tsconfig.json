@@ -71,6 +71,12 @@
       "#lib/flodesk/*": [
         "libs/flodesk/*"
       ],
+      "#lib/woocommerce": [
+        "libs/woocommerce"
+      ],
+      "#lib/woocommerce/*": [
+        "libs/woocommerce/*"
+      ],
       "#app/api": [
         "apps/api"
       ],

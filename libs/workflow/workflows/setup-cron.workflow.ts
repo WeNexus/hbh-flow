@@ -1,9 +1,7 @@
-import { ActivityService, PrismaService } from '#lib/core/services';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base';
 import { Workflow, Step } from '#lib/workflow/decorators';
 import { TriggerType } from '#lib/workflow/misc';
 import { Logger } from '@nestjs/common';
-import { omit } from 'lodash-es';
 
 /**
  * This is an internal workflow, which should run every time the app starts up.
@@ -14,13 +12,6 @@ import { omit } from 'lodash-es';
 
 @Workflow({ internal: true })
 export class SetupCronWorkflow extends WorkflowBase {
-  constructor(
-    private readonly activityService: ActivityService,
-    private readonly prisma: PrismaService,
-  ) {
-    super();
-  }
-
   private readonly logger = new Logger(SetupCronWorkflow.name);
 
   @Step(1)
