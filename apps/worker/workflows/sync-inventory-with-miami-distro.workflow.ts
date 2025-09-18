@@ -95,6 +95,7 @@ export class SyncInventoryWithMiamiDistroWorkflow extends WorkflowBase {
           adjustments.push({
             item_id: zohoItem.id,
             quantity_adjusted: wooQty - zohoQty,
+            location_id: '3195387000000083052',
           });
         }
       }
@@ -115,7 +116,6 @@ export class SyncInventoryWithMiamiDistroWorkflow extends WorkflowBase {
           timeZone: 'America/New_York',
         }).format(new Date()),
         reason: 'Sync with the source',
-        location_id: '3195387000000083052',
         line_items: adjustments,
       },
       {
