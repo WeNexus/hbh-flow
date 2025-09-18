@@ -101,11 +101,12 @@ export class GlobalEventService {
     options?: EmitOptions,
   ): void {
     const payload: GlobalEventPayload = {
-      sender: this.runtimeId,
       event,
       data,
+      sender: this.runtimeId,
       sentryTrace: options?.sentry?.trace,
       sentryBaggage: options?.sentry?.baggage,
+      ignoreSelf: options?.ignoreSelf ?? false,
     };
 
     const traceData = Sentry.getTraceData();
@@ -115,8 +116,10 @@ export class GlobalEventService {
       payload.sentryBaggage = traceData.baggage;
     }
 
+    const channel = options?.receiver ? `ge:${options.receiver}` : 'ge';
+
     this.redisPub
-      .publish('global-events', JSON.stringify(payload))
+      .publish(channel, JSON.stringify(payload))
       .catch((e: Error) =>
         this.logger.error(`Failed to publish global event ${event}`, e.stack),
       );

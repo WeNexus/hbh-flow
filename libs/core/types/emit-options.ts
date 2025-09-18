@@ -1,5 +1,6 @@
 export interface EmitOptions {
-  broadcast?: boolean;
+  ignoreSelf?: boolean;
+  receiver?: string;
   sentry?: {
     trace?: string;
     baggage?: string;
