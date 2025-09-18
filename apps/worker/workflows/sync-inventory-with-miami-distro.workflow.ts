@@ -8,7 +8,7 @@ import { chunk } from 'lodash-es';
 @Workflow({
   webhook: true,
   name: 'Sync HBH Inventory with Miami Distro',
-  triggers: [cron('*/15 * * * *')], // every 15 minutes
+  triggers: [cron('0 */4 * * *', { timezone: 'America/New_York' })], // every 4 hours
 })
 export class SyncInventoryWithMiamiDistroWorkflow extends WorkflowBase {
   constructor(
@@ -21,14 +21,8 @@ export class SyncInventoryWithMiamiDistroWorkflow extends WorkflowBase {
 
   @Step(1)
   async pullSKUsFromInventory() {
-    let callbackUrl: string | undefined = undefined;
-
-    if (this.env.isProd) {
-      const jobToken = await this.pause();
-      callbackUrl = `${this.env.getString('APP_URL')}/api/jobs/${this.dbJob.id}/resume?token=${jobToken}`;
-    } else {
-      this.delay(1000 * 20);
-    }
+    const jobToken = await this.pause();
+    const callbackUrl = `${this.env.getString('APP_URL')}/api/jobs/${this.dbJob.id}/resume?token=${jobToken}`;
 
     const params = encodeURIComponent(
       JSON.stringify({
@@ -57,13 +51,10 @@ export class SyncInventoryWithMiamiDistroWorkflow extends WorkflowBase {
 
   @Step(2)
   async updateInventory() {
-    const { data: exportJob } = await this.getResult<any>(
-      'pullSKUsFromInventory',
-    );
-    const exportJobId = exportJob.jobId;
+    const exportJob = await this.getResumeData<any>('pullSKUsFromInventory');
 
     const { data: zohoItems } = await this.zohoService.get(
-      `/restapi/v2/bulk/workspaces/2556056000000249007/exportjobs/${exportJobId}/data`,
+      exportJob.downloadUrl,
       {
         baseURL: 'https://analyticsapi.zoho.com',
         connection: 'hbh',

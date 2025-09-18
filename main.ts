@@ -53,6 +53,21 @@ async function dev() {
     };
   };
 
+  if (process.env.NGROK_AUTHTOKEN && process.env.NGROK_DOMAIN) {
+    const ngrok = await import('@ngrok/ngrok');
+
+    const listener = await ngrok.connect({
+      addr: Number(process.env.API_PORT || '3001'),
+      authtoken: process.env.NGROK_AUTHTOKEN,
+      domain: process.env.NGROK_DOMAIN,
+    });
+
+    console.log(
+      '\n',
+      chalk.green(`Ngrok tunnel established at: ${listener.url()}`),
+    );
+  }
+
   // start api and worker
   for (const app of nestApps) {
     execa(
