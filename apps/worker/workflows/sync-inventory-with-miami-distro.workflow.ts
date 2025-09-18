@@ -21,6 +21,10 @@ export class SyncInventoryWithMiamiDistroWorkflow extends WorkflowBase {
 
   @Step(1)
   async pullSKUsFromInventory() {
+    if (!this.env.isProd) {
+      return this.cancel('Not running in development environment');
+    }
+
     const jobToken = await this.pause();
     const callbackUrl = `${this.env.getString('APP_URL')}/api/jobs/${this.dbJob.id}/resume?token=${jobToken}`;
 
