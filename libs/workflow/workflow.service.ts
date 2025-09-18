@@ -521,6 +521,11 @@ export class WorkflowService implements OnApplicationBootstrap {
           steps.find((s) => s.index === bullJob.data.stepIndex) ?? steps[0];
 
         for (let i = 0; i < totalSteps; i++) {
+          // @ts-expect-error private property
+          if (instance.cancelled) {
+            break;
+          }
+
           const stepInfo = steps[i];
 
           if (stepInfo.index < currentStep.index) {
