@@ -62,6 +62,12 @@ import { merge } from 'lodash-es';
       authorizationURL: 'https://accounts.zoho.com/oauth/v2/auth',
       tokenURL: 'https://accounts.zoho.com/oauth/v2/token',
     },
+    {
+      id: 'miami_distro',
+      description: 'Miami Distro Zoho Connection',
+      authorizationURL: 'https://accounts.zoho.com/oauth/v2/auth',
+      tokenURL: 'https://accounts.zoho.com/oauth/v2/token',
+    },
   ],
 })
 export class ZohoService extends OAuth2HttpClient {
