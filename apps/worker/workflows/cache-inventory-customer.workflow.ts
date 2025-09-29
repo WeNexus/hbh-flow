@@ -232,7 +232,7 @@ export class CacheInventoryCustomerWorkflow extends WorkflowBase {
   }
 
   @Step(2)
-  async upsertCustomer({ steps }) {
+  async upsertCustomer() {
     let {
       inventoryAddresses,
       contactPersons: contactPersonsToUpsert,
