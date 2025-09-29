@@ -24,6 +24,10 @@ export class CacheBigcommerceProductsWorkflow extends WorkflowBase {
 
   @Step(1)
   async execute() {
+    if (!this.envService.isProd) {
+      return;
+    }
+
     const channels = ['hbh', 'dispomart'];
 
     const groups = await Promise.all(
