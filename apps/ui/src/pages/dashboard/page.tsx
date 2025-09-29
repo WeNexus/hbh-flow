@@ -1,17 +1,22 @@
 import ExecutionsByStatusLine from '@/pages/dashboard/executions-by-status-line.tsx';
 import ExecutionsByStatusBar from '@/pages/dashboard/executions-by-status-bar.tsx';
+import {
+  Skeleton,
+  Stack,
+  Grid,
+  Box,
+  Typography,
+  Checkbox,
+} from '@mui/material';
 import ExecutionsByWorkflow from '@/pages/dashboard/executions-by-workflow.tsx';
 import StatCard, { type StatCardProps } from '@/components/stat-card.tsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DashboardOutputSchema } from '@/types/schema.ts';
 import Workflows from '@/pages/dashboard/workflows.tsx';
 import Copyright from '@/components/copyright.tsx';
-import Typography from '@mui/material/Typography';
 import { useHeader } from '@/hooks/use-header.ts';
+import { useSearchParams } from 'react-router';
 import { useApi } from '@/hooks/use-api.ts';
-import { Skeleton } from '@mui/material';
-import Grid from '@mui/material/Grid';
-import Box from '@mui/material/Box';
 
 function calculateTrend(data: number[]): StatCardProps['trend'] {
   if (data.length < 2) {
@@ -33,6 +38,7 @@ function calculateTrend(data: number[]): StatCardProps['trend'] {
 export default function Dashboard() {
   const [data, setData] = useState<DashboardOutputSchema | null>(null);
   const { UI: updateHeaderUI, state: headerState } = useHeader();
+  const [searchParams] = useSearchParams();
   const { api } = useApi();
 
   const webhookHits = useMemo(() => {
@@ -111,45 +117,55 @@ export default function Dashboard() {
     };
   }, [data, executions]);
 
-  const fetchData = useCallback((cb?: (data: DashboardOutputSchema) => any) => {
-    const abortController = new AbortController();
+  const fetchData = useCallback(
+    (cb?: (data: DashboardOutputSchema) => any) => {
+      const abortController = new AbortController();
 
-    const startDate = headerState.date
-      ? headerState.date.set('date', headerState.date.date() - 30).toDate()
-      : new Date(new Date().setDate(new Date().getDate() - 30));
+      const startDate = headerState.date
+        ? headerState.date.set('date', headerState.date.date() - 30).toDate()
+        : new Date(new Date().setDate(new Date().getDate() - 30));
 
-    const endDate = headerState.date ? headerState.date.toDate() : new Date();
-    endDate.setHours(23, 59, 59, 999);
+      const endDate = headerState.date ? headerState.date.toDate() : new Date();
+      endDate.setHours(23, 59, 59, 999);
 
-    api
-      .get<DashboardOutputSchema>('/dashboard', {
-        signal: abortController.signal,
-        params: {
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-        },
-      })
-      .then((res) => {
-        setData(res.data);
+      const showInternal = searchParams.get('showInternal');
 
-        updateHeaderUI({
-          loading: false,
+      api
+        .get<DashboardOutputSchema>('/dashboard', {
+          signal: abortController.signal,
+          params: {
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+            hideInternal: !(
+              showInternal === 'true' ||
+              showInternal === '1' ||
+              showInternal === 'yes'
+            ),
+          },
+        })
+        .then((res) => {
+          setData(res.data);
+
+          updateHeaderUI({
+            loading: false,
+          });
+
+          if (cb) {
+            cb(res.data);
+          }
+        })
+        .catch((err) => {
+          if (err.name !== 'CanceledError') {
+            console.error(err);
+          }
         });
 
-        if (cb) {
-          cb(res.data);
-        }
-      })
-      .catch((err) => {
-        if (err.name !== 'CanceledError') {
-          console.error(err);
-        }
-      });
-
-    return () => {
-      abortController.abort();
-    };
-  }, [api, headerState.date, updateHeaderUI]);
+      return () => {
+        abortController.abort();
+      };
+    },
+    [api, headerState.date, searchParams, updateHeaderUI],
+  );
 
   useEffect(() => {
     updateHeaderUI({
@@ -177,7 +193,7 @@ export default function Dashboard() {
       if (cancelFetch) {
         cancelFetch();
       }
-    }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [headerState.date]);
 

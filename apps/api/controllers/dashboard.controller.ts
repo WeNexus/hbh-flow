@@ -1,6 +1,7 @@
 import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { DayAndCount } from '../schema/dashboard/executions.schema';
+import { WorkflowService } from '#lib/workflow/workflow.service';
 import { PrismaService } from '#lib/core/services';
 import { DashboardOutputSchema } from '../schema';
 import { Protected } from '#lib/auth/decorators';
@@ -8,7 +9,10 @@ import { Prisma } from '@prisma/client';
 
 @Controller('api/dashboard')
 export class DashboardController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly workflowService: WorkflowService,
+  ) {}
 
   @Get('/')
   @Protected('OBSERVER')
@@ -30,6 +34,12 @@ export class DashboardController {
     description: 'The end date for the dashboard data (ISO 8601 format)',
     example: '2023-01-31T23:59:59.999Z',
   })
+  @ApiQuery({
+    name: 'hideInternal',
+    required: false,
+    description: 'Whether to hide internal workflows',
+    example: false,
+  })
   @ApiOperation({
     summary: 'Get dashboard data',
     description: 'Retrieve various statistics and metrics for the dashboard.',
@@ -42,6 +52,7 @@ export class DashboardController {
   async index(
     @Query('startDate') startDate?: Date,
     @Query('endDate') endDate?: Date,
+    @Query('hideInternal') hideInternal?: string | boolean,
   ): Promise<DashboardOutputSchema> {
     if (!startDate) {
       throw new BadRequestException(`'startDate' and 'timezone' are required`);
@@ -62,9 +73,33 @@ export class DashboardController {
       );
     }
 
+    hideInternal =
+      hideInternal === 'true' ||
+      hideInternal === '1' ||
+      hideInternal === 'yes' ||
+      hideInternal === true;
+
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setUTCMonth(new Date().getUTCMonth() - 5, 1);
     sixMonthsAgo.setUTCHours(0, 0, 0, 0);
+
+    let internalWorkflowIds: number[] | null = null;
+
+    if (hideInternal) {
+      internalWorkflowIds = [];
+
+      for (const flow of this.workflowService.flows) {
+        const config = await this.workflowService.getConfig(flow);
+
+        if (!config?.internal) {
+          continue;
+        }
+
+        const dbFlow = await this.workflowService.getDBFlow(flow);
+
+        internalWorkflowIds.push(dbFlow.id);
+      }
+    }
 
     const { result: totalExecutions } = await this.prisma.job.count({
       where: {
@@ -75,6 +110,13 @@ export class DashboardController {
         status: {
           in: ['FAILED', 'CANCELLED', 'SUCCEEDED'],
         },
+        ...(internalWorkflowIds
+          ? {
+              workflowId: {
+                notIn: internalWorkflowIds,
+              },
+            }
+          : {}),
       },
     });
 
@@ -118,6 +160,7 @@ export class DashboardController {
       from "Workflow" w
              left join job_base jb on jb."workflowId" = w.id
              left join daily_json dj on dj."workflowId" = w.id
+        ${internalWorkflowIds ? Prisma.sql`where w.id not in (${Prisma.join(internalWorkflowIds)})` : Prisma.empty}
       group by w.id,
                w.name,
                w.active,
@@ -131,6 +174,7 @@ export class DashboardController {
       where "createdAt" >= ${startDate}
         and "createdAt" <= ${endDate}
         and "status" in ('FAILED', 'CANCELLED', 'SUCCEEDED')
+        ${internalWorkflowIds ? Prisma.sql`and "workflowId" not in (${Prisma.join(internalWorkflowIds)})` : Prisma.empty}
       group by date
       order by date;
     `;
@@ -140,6 +184,7 @@ export class DashboardController {
       from "Job"
       where "createdAt" >= ${startDate} ${endDate ? Prisma.sql`and "createdAt" <= ${endDate}` : Prisma.empty}
       and "status" in ('FAILED', 'CANCELLED', 'SUCCEEDED')
+      ${internalWorkflowIds ? Prisma.sql`and "workflowId" not in (${Prisma.join(internalWorkflowIds)})` : Prisma.empty}
       group by date, status
       order by date;
     `.then((rows: Array<{ date: Date; status: string; count: number }>) => {
@@ -163,6 +208,7 @@ export class DashboardController {
       from "Job"
       where "createdAt" >= ${startDate}
         and "createdAt" <= ${endDate}
+        ${internalWorkflowIds ? Prisma.sql`and "workflowId" not in (${Prisma.join(internalWorkflowIds)})` : Prisma.empty}
       group by date, trigger
       order by date;
     `.then((rows: Array<{ date: Date; trigger: string; count: number }>) => {
@@ -186,6 +232,7 @@ export class DashboardController {
       from "Job"
       where "createdAt" >= ${sixMonthsAgo}
         and "status" in ('FAILED', 'CANCELLED', 'SUCCEEDED')
+        ${internalWorkflowIds ? Prisma.sql`and "workflowId" not in (${Prisma.join(internalWorkflowIds)})` : Prisma.empty}
       group by date, status
       order by date;
     `.then((rows: Array<{ date: Date; status: string; count: number }>) => {
