@@ -2,9 +2,9 @@ import { SyncInventoryWithMiamiDistroWorkflow } from './sync-inventory-with-miam
 import { PushCrmContactToBigcommerceWorkflow } from './push-crm-contact-to-bigcommerce.workflow';
 import { MiamiDistroInventorySyncWorkflow } from './miami-distro-inventory-sync.workflow';
 import { CacheBigcommerceProductsWorkflow } from './cache-bigcommerce-products.workflow';
+import { CacheInventoryCustomerWorkflow } from './cache-inventory-customer.workflow';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base.js';
 import { Type } from '@nestjs/common';
-import { CacheInventoryCustomerWorkflow } from '#app/worker/workflows/cache-inventory-customer.workflow';
 
 export const workflows: Type<WorkflowBase>[] = [
   SyncInventoryWithMiamiDistroWorkflow,
