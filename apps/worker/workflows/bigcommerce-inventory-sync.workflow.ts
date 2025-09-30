@@ -30,6 +30,10 @@ export class BigCommerceInventorySyncWorkflow extends WorkflowBase {
 
   @Step(1)
   async fetchInventorySummary() {
+    if (!this.envService.isProd) {
+      return this.cancel('Not running in development environment');
+    }
+
     const data: any = [];
 
     let page = 1;
