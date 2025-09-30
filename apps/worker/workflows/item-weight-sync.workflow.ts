@@ -6,7 +6,10 @@ import mongodb from 'mongodb';
 
 const MongoClient = mongodb.MongoClient;
 
-@Workflow({ webhook: true })
+@Workflow({
+  webhook: true,
+  name: 'Push Item Weight to BigCommerce',
+})
 export class ItemWeightSyncWorkflow extends WorkflowBase {
   constructor(
     private readonly bigCommerceService: BigCommerceService,

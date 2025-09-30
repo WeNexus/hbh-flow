@@ -7,7 +7,10 @@ import mongodb from 'mongodb';
 
 const MongoClient = mongodb.MongoClient;
 
-@Workflow({ webhook: true })
+@Workflow({
+  webhook: true,
+  name: 'Cache Inventory Customer to MongoDB',
+})
 export class CacheInventoryCustomerWorkflow extends WorkflowBase {
   constructor(
     private readonly bigCommerceService: BigCommerceService,
