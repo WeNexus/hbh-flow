@@ -2,6 +2,7 @@ import { SyncInventoryWithMiamiDistroWorkflow } from './sync-inventory-with-miam
 import { PushCrmContactToBigcommerceWorkflow } from './push-crm-contact-to-bigcommerce.workflow';
 import { MiamiDistroInventorySyncWorkflow } from './miami-distro-inventory-sync.workflow';
 import { CacheBigcommerceProductsWorkflow } from './cache-bigcommerce-products.workflow';
+import { BigCommerceInventorySyncWorkflow } from './bigcommerce-inventory-sync.workflow';
 import { PushInventoryAdjustmentWorkflow } from './push-inventory-adjustment.workflow';
 import { CacheInventoryCustomerWorkflow } from './cache-inventory-customer.workflow';
 import { ItemWeightSyncWorkflow } from './item-weight-sync.workflow';
@@ -12,6 +13,7 @@ export const workflows: Type<WorkflowBase>[] = [
   SyncInventoryWithMiamiDistroWorkflow,
   PushCrmContactToBigcommerceWorkflow,
   MiamiDistroInventorySyncWorkflow,
+  BigCommerceInventorySyncWorkflow,
   CacheBigcommerceProductsWorkflow,
   PushInventoryAdjustmentWorkflow,
   CacheInventoryCustomerWorkflow,
