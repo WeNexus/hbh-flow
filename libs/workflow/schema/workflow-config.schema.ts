@@ -1,5 +1,6 @@
 import { TriggerMetaSchema } from '#lib/workflow/schema/trigger-meta.schema';
 import { RateLimiterOptions as RateLimiterOptionsBase } from 'bullmq';
+import { WebhookPayloadType } from '#lib/workflow/types';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class RateLimiterSchema implements RateLimiterOptionsBase {
@@ -83,6 +84,15 @@ export class WorkflowConfigSchema {
     example: true,
   })
   webhook?: boolean;
+
+  @ApiProperty({
+    description: 'The type of payload expected when triggered via webhook.',
+    enum: WebhookPayloadType,
+    required: false,
+    example: 'Query',
+    default: WebhookPayloadType.Body,
+  })
+  webhookPayloadType?: WebhookPayloadType;
 
   @ApiProperty({
     description:

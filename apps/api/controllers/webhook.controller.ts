@@ -1,6 +1,10 @@
 import { ApiOperation, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { ActivityService, PrismaService } from '#lib/core/services';
-import type { JobResMeta, RunOptions } from '#lib/workflow/types';
+import {
+  JobResMeta,
+  RunOptions,
+  WebhookPayloadType,
+} from '#lib/workflow/types';
 import { WorkflowService } from '#lib/workflow/workflow.service';
 import { JsonWebTokenError, JwtService } from '@nestjs/jwt';
 import { Auth, Protected } from '#lib/auth/decorators';
@@ -15,35 +19,35 @@ import crypto from 'crypto';
 
 import {
   WebhookCreateInputSchema,
-  WebhookUpdateInputSchema,
   WebhookListOutputSchema,
   WebhookSchema,
+  WebhookUpdateInputSchema,
 } from '../schema';
 
 import {
+  listData,
   PrismaWhereExceptionFilter,
   RUNTIME_ID,
-  listData,
 } from '#lib/core/misc';
 
 import {
-  UnauthorizedException,
   BadRequestException,
-  type RawBodyRequest,
-  NotFoundException,
+  Body,
   Controller,
-  UseFilters,
-  HttpCode,
   Delete,
-  Query,
+  Get,
+  HttpCode,
+  Inject,
+  NotFoundException,
   Param,
   Patch,
-  Body,
   Post,
+  Query,
+  type RawBodyRequest,
   Req,
-  Get,
   Res,
-  Inject,
+  UnauthorizedException,
+  UseFilters,
 } from '@nestjs/common';
 
 @Controller('api/webhooks')
@@ -278,12 +282,35 @@ export class WebhookController {
 
       const trace = Sentry.getTraceData();
 
+      let payload: unknown;
+
+      switch (config.webhookPayloadType) {
+        case WebhookPayloadType.Body:
+          payload = req.body;
+          break;
+        case WebhookPayloadType.Headers:
+          payload = req.headers;
+          break;
+        case WebhookPayloadType.Query:
+          payload = req.query;
+          break;
+        case WebhookPayloadType.Full:
+          payload = {
+            body: req.body as unknown as Record<string, any>,
+            headers: req.headers,
+            query: req.query,
+          };
+          break;
+        default:
+          payload = (req.body ?? {}) as Record<string, any>;
+      }
+
       const options: RunOptions = {
         draft: !webhook.active,
         needResponse: Boolean(needResponse),
         trigger: 'WEBHOOK',
         triggerId: webhook.id.toString(),
-        payload: req.body as unknown,
+        payload: payload,
         sentry: {
           trace: trace['sentry-trace'],
           baggage: trace.baggage,
