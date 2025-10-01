@@ -7,6 +7,7 @@ import { RevisionController } from './controllers/revision.controller';
 import { WorkflowController } from './controllers/workflow.controller';
 import { WebhookController } from './controllers/webhook.controller';
 import { FolderController } from './controllers/folder.controller';
+import { SystemController } from './controllers/system.controller';
 import { WorkflowModule } from '#lib/workflow/workflow.module.js';
 import { EventController } from './controllers/event.controller';
 import { UserController } from './controllers/user.controller';
@@ -40,5 +41,6 @@ await bootstrap({
     ActivityController,
     RevisionController,
     DashboardController,
+    SystemController,
   ],
 });
