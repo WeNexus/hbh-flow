@@ -2,10 +2,10 @@ import { BigCommerceService } from '#lib/bigcommerce/bigcommerce.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { cron, WorkflowBase } from '#lib/workflow/misc';
 import { ZohoService } from '#lib/zoho/zoho.service';
+import { safeJsonStringify } from '#lib/core/misc';
 import { EnvService } from '#lib/core/env';
 import { chunk, keyBy } from 'lodash-es';
 import mongodb from 'mongodb';
-import { safeJsonStringify } from '#lib/core/misc';
 
 const MongoClient = mongodb.MongoClient;
 
@@ -337,7 +337,7 @@ export class BigCommerceInventorySyncWorkflow extends WorkflowBase {
             },
           );
 
-          adjustmentResults.push(adjustmentResult);
+          adjustmentResults.push(adjustmentResult.data);
         }
 
         return {
@@ -351,6 +351,6 @@ export class BigCommerceInventorySyncWorkflow extends WorkflowBase {
 
     await client.close();
 
-    return results;
+    return JSON.parse(safeJsonStringify(results));
   }
 }
