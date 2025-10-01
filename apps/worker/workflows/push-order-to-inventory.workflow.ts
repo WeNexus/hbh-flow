@@ -775,48 +775,51 @@ export class PushOrderToInventoryWorkflow extends WorkflowBase<
         0,
       );
 
-      return await this.zohoService.post(
-        `/inventory/v1/salesorders`,
-        {
-          customer_id: contactPerson.customerId,
-          // pricebook_id: "3195387000029936072",
-          reference_number: `${channel === 'hbh' ? 'WS' : 'DM'}_Online_Order_${bigCommerceOrder.id}`,
-          notes: bigCommerceOrder.customer_message,
-          salesperson_name: salesPerson.name,
-          pricebook_id: group?.pricelistId,
-          shipping_charge: Number(bigCommerceOrder.shipping_cost_ex_tax),
-          discount_type: 'entity_level',
-          discount: (price - discountedPrice).toFixed(2),
-          billing_address_id: billingAddress.address_id,
-          shipping_address_id: shippingAddresses[0].inventoryAddress.address_id,
-          location_id: '3195387000000247111',
-          line_items: bigCommerceOrder.products
-            .map((p) => ({
-              item_id: p.inventory_item.id,
-              quantity: p.quantity,
-              rate: p.price_ex_tax,
-              location_id: '3195387000000083052',
-            }))
-            .reduce((a, b) => {
-              const existing = a.find((i) => i.item_id === b.item_id);
+      return await this.zohoService
+        .post(
+          `/inventory/v1/salesorders`,
+          {
+            customer_id: contactPerson.customerId,
+            // pricebook_id: "3195387000029936072",
+            reference_number: `${channel === 'hbh' ? 'WS' : 'DM'}_Online_Order_${bigCommerceOrder.id}`,
+            notes: bigCommerceOrder.customer_message,
+            salesperson_name: salesPerson.name,
+            pricebook_id: group?.pricelistId,
+            shipping_charge: Number(bigCommerceOrder.shipping_cost_ex_tax),
+            discount_type: 'entity_level',
+            discount: (price - discountedPrice).toFixed(2),
+            billing_address_id: billingAddress.address_id,
+            shipping_address_id:
+              shippingAddresses[0].inventoryAddress.address_id,
+            location_id: '3195387000000247111',
+            line_items: bigCommerceOrder.products
+              .map((p) => ({
+                item_id: p.inventory_item.id,
+                quantity: p.quantity,
+                rate: p.price_ex_tax,
+                location_id: '3195387000000083052',
+              }))
+              .reduce((a, b) => {
+                const existing = a.find((i) => i.item_id === b.item_id);
 
-              if (existing) {
-                existing.quantity += b.quantity;
-              } else {
-                a.push(b);
-              }
+                if (existing) {
+                  existing.quantity += b.quantity;
+                } else {
+                  a.push(b);
+                }
 
-              return a;
-            }, []),
-        },
-        {
-          connection: channel,
-          params: {
-            organization_id: '776003162',
-            ignore_auto_number_generation: false,
+                return a;
+              }, []),
           },
-        },
-      );
+          {
+            connection: channel,
+            params: {
+              organization_id: '776003162',
+              ignore_auto_number_generation: false,
+            },
+          },
+        )
+        .then((r) => r.data);
     };
 
     return await createOrder();
@@ -847,7 +850,7 @@ export class PushOrderToInventoryWorkflow extends WorkflowBase<
 
   @Step(6)
   async createInvoices() {
-    const { bigCommerceOrder, salesPerson, group, channel } =
+    const { bigCommerceOrder, salesPerson, group } =
       await this.getResult('fetchData');
     const { shippingAddresses } = await this.getResult('ensureAddresses');
     const { contactPerson } = await this.getResult('ensureCustomer');
