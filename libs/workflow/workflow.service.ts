@@ -100,7 +100,7 @@ export class WorkflowService implements OnApplicationBootstrap {
       this.flows.push(flow);
       this.flowsByKey.set(config!.key ?? flow.name, flow);
       // Store the DB flow by key and ID for quick access
-      void this.getDBFlow(flow);
+      void this.getDBFlow(flow, true);
     }
 
     await this.extractSteps();
@@ -1468,9 +1468,10 @@ export class WorkflowService implements OnApplicationBootstrap {
    *
    * @param identifier - The identifier for the workflow
    * Can be a workflow name, an instance of WorkflowBase, or a class extending it.
+   * @param forceUpsert - Whether to force an upsert operation.
    * @returns A promise that resolves to the DBWorkflow object.
    */
-  async getDBFlow(identifier: any) {
+  async getDBFlow(identifier: any, forceUpsert = false) {
     if (typeof identifier === 'number') {
       // Careful not to use `this.resolveClass` anywhere outside this scope in this method
       // because you may end up with an infinite loop
@@ -1497,6 +1498,10 @@ export class WorkflowService implements OnApplicationBootstrap {
     const key = config?.key ?? flow.name;
 
     try {
+      if (forceUpsert) {
+        throw new Error('Force upsert');
+      }
+
       const { result: dbFlow } = await this.prisma.workflow.findUniqueOrThrow({
         where: { key },
         cache: {
