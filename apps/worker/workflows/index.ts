@@ -19,5 +19,6 @@ export const workflows: Type<WorkflowBase>[] = [
   PushInventoryAdjustmentWorkflow,
   CacheInventoryCustomerWorkflow,
   PushOrderToInventoryWorkflow,
+  PushOrderToInventoryWorkflow,
   ItemWeightSyncWorkflow,
 ];
