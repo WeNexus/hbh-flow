@@ -1,3 +1,4 @@
+import { PushFulfillmentUpdatesToBigcommerceWorkflow } from './push-fulfillment-updates-to-bigcommerce.workflow';
 import { SyncInventoryWithMiamiDistroWorkflow } from './sync-inventory-with-miami-distro.workflow';
 import { PushCrmContactToBigcommerceWorkflow } from './push-crm-contact-to-bigcommerce.workflow';
 import { PushOrderUpdateToInventoryWorkflow } from './push-order-update-to-inventory.workflow';
@@ -12,6 +13,7 @@ import { WorkflowBase } from '#lib/workflow/misc/workflow-base.js';
 import { Type } from '@nestjs/common';
 
 export const workflows: Type<WorkflowBase>[] = [
+  PushFulfillmentUpdatesToBigcommerceWorkflow,
   SyncInventoryWithMiamiDistroWorkflow,
   PushCrmContactToBigcommerceWorkflow,
   PushOrderUpdateToInventoryWorkflow,
