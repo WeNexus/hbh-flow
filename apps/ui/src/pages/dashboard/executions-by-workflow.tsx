@@ -7,12 +7,12 @@ import Stack from '@mui/material/Stack';
 import Card from '@mui/material/Card';
 import Box from '@mui/material/Box';
 import * as React from 'react';
+import { useMemo } from 'react';
 
 import LinearProgress, {
   linearProgressClasses,
 } from '@mui/material/LinearProgress';
 import type { DashboardOutputSchema } from '@/types/schema.ts';
-import { useMemo } from 'react';
 
 interface StyledTextProps {
   variant: 'primary' | 'secondary';
@@ -92,26 +92,23 @@ const colors = [
 
 export default function ExecutionsByWorkflow({
   workflows,
-  total,
 }: ExecutionsByWorkflowProps) {
+  const _workflows = useMemo(
+    () => workflows.slice(1, 6).filter((wf) => Number(wf.count) > 0),
+    [workflows],
+  );
+
+  const total = useMemo(
+    () => _workflows.reduce((acc, wf) => acc + Number(wf.count), 0),
+    [_workflows],
+  );
+
   const data = useMemo(() => {
-    const _total = Number(total);
-    const knownTotal = workflows.reduce((acc, wf) => acc + Number(wf.count), 0);
-
-    const _data = workflows.map((wf) => ({
+    return _workflows.map((wf) => ({
       label: wf.name,
-      value: Math.round((Number(wf.count) / _total) * 100),
+      value: Math.round((Number(wf.count) / total) * 100),
     }));
-
-    if (knownTotal < _total) {
-      _data.push({
-        label: 'Other',
-        value: Math.round(((_total - knownTotal) / _total) * 100),
-      });
-    }
-
-    return _data;
-  }, [total, workflows]);
+  }, [_workflows, total]);
 
   return (
     <Card
@@ -120,7 +117,7 @@ export default function ExecutionsByWorkflow({
     >
       <CardContent>
         <Typography component="h2" variant="subtitle2">
-          Top {workflows.length} Workflows by Executions
+          Top 5 Workflows by Executions
         </Typography>
 
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
