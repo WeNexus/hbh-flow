@@ -231,12 +231,11 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     return this.cancel();
   }
 
-  @Step(4)
-  async ensureCustomer() {
+  @Step(3)
+  async createCRMAccount() {
     const client = this.wooService.getClient('miami_distro');
-
-    const order = this.payload;
     const { data: wooCustomer } = await client.getCustomer(order.customer_id);
+    const order = this.payload;
 
     let crmContact = await this.queryCRM(
       `select Account_Name.id as accountId
@@ -245,71 +244,76 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
        limit 1`,
     );
 
-    let inventoryAccount;
-
-    if (!crmContact) {
-      // Create new account in Zoho CRM
-      const { data: accountResults } = await this.zohoService.post(
-        '/crm/v8/Accounts',
-        {
-          data: [
-            {
-              Account_Name:
-                wooCustomer.billing.company ||
-                `${wooCustomer.first_name} ${wooCustomer.last_name}`,
-              Email: (
-                wooCustomer.billing.email || wooCustomer.email
-              ).toLowerCase(),
-              Phone: wooCustomer.billing.phone,
-              Billing_City: wooCustomer.billing.city,
-              Billing_State: wooCustomer.billing.state,
-              Billing_Country: wooCustomer.billing.country,
-              Billing_Code: wooCustomer.billing.postcode,
-              Billing_Street: `${wooCustomer.billing.address_2}, ${wooCustomer.billing.address_1}`,
-              Shipping_City: wooCustomer.shipping.city,
-              Shipping_State: wooCustomer.shipping.state,
-              Shipping_Country: wooCustomer.shipping.country,
-              Shipping_Code: wooCustomer.shipping.postcode,
-              Shipping_Street: `${wooCustomer.shipping.address_2}, ${wooCustomer.shipping.address_1}`,
-            },
-          ],
-        },
-        {
-          connection: 'miami_distro',
-        },
-      );
-
-      const accountId = accountResults.data[0]?.details?.id;
-
-      // Create new contact in Zoho CRM
-      const { data: contactResults } = await this.zohoService.post(
-        '/crm/v8/Contacts',
-        {
-          data: [
-            {
-              First_Name: wooCustomer.first_name,
-              Last_Name: wooCustomer.last_name || '.',
-              Email: wooCustomer.email.toLowerCase(),
-              Account_Name: {
-                id: accountId,
-              },
-            },
-          ],
-        },
-        {
-          connection: 'miami_distro',
-        },
-      );
-
-      crmContact = {
-        id: contactResults.data[0]?.details?.id,
-        accountId: accountId,
-      };
+    if (crmContact) {
+      return crmContact;
     }
 
-    await new Promise((r) => setTimeout(r, 5000));
+    // Create new account in Zoho CRM
+    const { data: accountResults } = await this.zohoService.post(
+      '/crm/v8/Accounts',
+      {
+        data: [
+          {
+            Account_Name:
+              wooCustomer.billing.company ||
+              `${wooCustomer.first_name} ${wooCustomer.last_name}`,
+            Email: (
+              wooCustomer.billing.email || wooCustomer.email
+            ).toLowerCase(),
+            Phone: wooCustomer.billing.phone,
+            Billing_City: wooCustomer.billing.city,
+            Billing_State: wooCustomer.billing.state,
+            Billing_Country: wooCustomer.billing.country,
+            Billing_Code: wooCustomer.billing.postcode,
+            Billing_Street: `${wooCustomer.billing.address_2}, ${wooCustomer.billing.address_1}`,
+            Shipping_City: wooCustomer.shipping.city,
+            Shipping_State: wooCustomer.shipping.state,
+            Shipping_Country: wooCustomer.shipping.country,
+            Shipping_Code: wooCustomer.shipping.postcode,
+            Shipping_Street: `${wooCustomer.shipping.address_2}, ${wooCustomer.shipping.address_1}`,
+          },
+        ],
+      },
+      {
+        connection: 'miami_distro',
+      },
+    );
 
-    inventoryAccount = await this.importIntoBooks(
+    const accountId = accountResults.data[0]?.details?.id;
+
+    // Create new contact in Zoho CRM
+    const { data: contactResults } = await this.zohoService.post(
+      '/crm/v8/Contacts',
+      {
+        data: [
+          {
+            First_Name: wooCustomer.first_name,
+            Last_Name: wooCustomer.last_name || '.',
+            Email: wooCustomer.email.toLowerCase(),
+            Account_Name: {
+              id: accountId,
+            },
+          },
+        ],
+      },
+      {
+        connection: 'miami_distro',
+      },
+    );
+
+    this.delay(5000);
+
+    return {
+      id: contactResults.data[0]?.details?.id,
+      accountId: accountId,
+    };
+  }
+
+  @Step(4)
+  async ensureCustomer() {
+    const crmContact = await this.getResult('createCRMAccount');
+
+    const inventoryAccount = await this.importIntoBooks(
       crmContact.accountId,
       'account',
     );
