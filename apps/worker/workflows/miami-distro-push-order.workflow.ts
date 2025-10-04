@@ -234,8 +234,8 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
   @Step(3)
   async createCRMAccount() {
     const client = this.wooService.getClient('miami_distro');
-    const { data: wooCustomer } = await client.getCustomer(order.customer_id);
     const order = this.payload;
+    const { data: wooCustomer } = await client.getCustomer(order.customer_id);
 
     let crmContact = await this.queryCRM(
       `select Account_Name.id as accountId
