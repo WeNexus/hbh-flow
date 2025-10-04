@@ -199,7 +199,9 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     const db = client.db('hbh');
 
     await db.collection('miami_distro_order').updateOne(
-      { _id: existing._id },
+      {
+        wooOrderId: this.payload.id,
+      },
       {
         $set: {
           void: true,
