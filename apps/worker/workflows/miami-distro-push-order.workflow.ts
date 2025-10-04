@@ -141,6 +141,13 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       return this.cancel();
     }
 
+    if (
+      this.payload.status !== 'cancelled' &&
+      this.payload.status !== 'processing'
+    ) {
+      return this.cancel();
+    }
+
     const client = await MongoClient.connect(
       this.envService.getString('MONGO_URL'),
     );
