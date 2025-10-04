@@ -5,6 +5,7 @@ import { WorkflowBase } from '#lib/workflow/misc';
 import { EnvService } from '#lib/core/env';
 import { keyBy } from 'lodash-es';
 import mongodb from 'mongodb';
+import { AxiosError } from 'axios';
 
 const MongoClient = mongodb.MongoClient;
 
@@ -130,8 +131,11 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
 
       return booksResponse.contacts[0];
     } catch (e) {
-      console.log(e.response?.data ?? e);
-      throw new Error(`Could not import Account into Books`);
+      if (e instanceof AxiosError) {
+        throw new Error(JSON.stringify(e.response.data));
+      } else {
+        throw e;
+      }
     }
   }
 
