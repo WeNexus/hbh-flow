@@ -165,6 +165,10 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
 
     await client.close();
 
+    if (!existing && this.payload.status === 'cancelled') {
+      return this.cancel();
+    }
+
     return existing;
   }
 
