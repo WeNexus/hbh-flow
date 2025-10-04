@@ -12,6 +12,7 @@ const MongoClient = mongodb.MongoClient;
 @Workflow({
   name: 'Push Order to Miami Distro Zoho Inventory',
   webhook: true,
+  concurrency: 1,
 })
 export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
   constructor(
