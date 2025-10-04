@@ -231,7 +231,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     return this.cancel();
   }
 
-  @Step(3)
+  @Step(4)
   async ensureCustomer() {
     const client = this.wooService.getClient('miami_distro');
 
@@ -307,6 +307,8 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       };
     }
 
+    await new Promise((r) => setTimeout(r, 5000));
+
     inventoryAccount = await this.importIntoBooks(
       crmContact.accountId,
       'account',
@@ -325,7 +327,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     return result.contact;
   }
 
-  @Step(4)
+  @Step(5)
   async ensureAddresses() {
     const order = this.payload;
     const customer = await this.getResult('ensureCustomer');
@@ -471,7 +473,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     };
   }
 
-  @Step(5)
+  @Step(6)
   async fetchItems() {
     const order = this.payload;
     const skus = Array.from(
@@ -526,7 +528,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     };
   }
 
-  @Step(6)
+  @Step(7)
   async createOrder() {
     const { zohoItems } = await this.getResult('fetchItems');
     const { billingAddressId, shippingAddressesId } =
@@ -587,7 +589,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     return await createOrder();
   }
 
-  @Step(7)
+  @Step(8)
   async submitForApproval() {
     const { salesorder } = await this.getResult('createOrder');
 
@@ -605,7 +607,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       .then((res) => res.data);
   }
 
-  @Step(8)
+  @Step(9)
   async createInvoice() {
     const { billingAddressId, shippingAddressId } =
       await this.getResult('ensureAddresses');
@@ -651,7 +653,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     }
   }
 
-  @Step(9)
+  @Step(10)
   async storeInDB() {
     const order = this.payload;
     const { salesorder } = await this.getResult('createOrder');
