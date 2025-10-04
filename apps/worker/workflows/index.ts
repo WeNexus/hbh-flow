@@ -8,6 +8,7 @@ import { BigCommerceInventorySyncWorkflow } from './bigcommerce-inventory-sync.w
 import { PushInventoryAdjustmentWorkflow } from './push-inventory-adjustment.workflow';
 import { CacheInventoryCustomerWorkflow } from './cache-inventory-customer.workflow';
 import { PushOrderToInventoryWorkflow } from './push-order-to-inventory.workflow';
+import { MiamiDistroPushOrderWorkflow } from './miami-distro-push-order.workflow';
 import { ItemWeightSyncWorkflow } from './item-weight-sync.workflow';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base.js';
 import { Type } from '@nestjs/common';
@@ -22,6 +23,7 @@ export const workflows: Type<WorkflowBase>[] = [
   CacheBigcommerceProductsWorkflow,
   PushInventoryAdjustmentWorkflow,
   CacheInventoryCustomerWorkflow,
+  MiamiDistroPushOrderWorkflow,
   PushOrderToInventoryWorkflow,
   ItemWeightSyncWorkflow,
 ];
