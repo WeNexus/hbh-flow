@@ -219,7 +219,15 @@ export abstract class OAuth2Client {
       const listener = (payload: GlobalEventPayload<OAuth2Token>) => {
         const token = this.deSerializeToken(payload.data);
 
-        this.tokens.set(connection, token);
+        if (
+          token.provider !== this.clientOptions.id ||
+          token.connection !== connection
+        ) {
+          // Not the token we're waiting for
+          return;
+        }
+
+        this.tokens.set(token.connection, token);
         resolve(token);
       };
       const failedListener = (e?: Error) => {
