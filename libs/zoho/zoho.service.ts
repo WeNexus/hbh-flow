@@ -58,7 +58,7 @@ import { merge } from 'lodash-es';
   connections: [
     {
       id: 'hbh',
-      description: 'Honehbeeherb Zoho Connection',
+      description: 'Honeybee Herb Zoho Connection',
       authorizationURL: 'https://accounts.zoho.com/oauth/v2/auth',
       tokenURL: 'https://accounts.zoho.com/oauth/v2/token',
     },
