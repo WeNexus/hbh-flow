@@ -216,6 +216,8 @@ export abstract class OAuth2Client {
     const traceData = Sentry.getTraceData();
 
     return new Promise<OAuth2Token>((resolve, reject) => {
+      const emitter = this.moduleRef.get(EventEmitter2, { strict: false });
+
       const listener = (payload: GlobalEventPayload<OAuth2Token>) => {
         const token = this.deSerializeToken(payload.data);
 
@@ -227,21 +229,20 @@ export abstract class OAuth2Client {
           return;
         }
 
+        emitter.off('global.hub.refresh', listener);
+        clearTimeout(timeoutId);
         this.tokens.set(token.connection, token);
         resolve(token);
       };
+
       const failedListener = (e?: Error) => {
-        this.moduleRef
-          .get(EventEmitter2, { strict: false })
-          .off('global.hub.refresh', listener);
+        emitter.off('global.hub.refresh', listener);
         clearTimeout(timeoutId);
         reject(new TokenRefreshFailedException(e?.message));
       };
 
       const timeoutId = setTimeout(failedListener, 60000 * 30); // 30 minutes
-      this.moduleRef
-        .get(EventEmitter2, { strict: false })
-        .once('global.hub.refresh', listener);
+      emitter.on('global.hub.refresh', listener);
 
       // Trigger the token refresh workflow
       this.moduleRef
