@@ -232,7 +232,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
   }
 
   @Step(3)
-  async createCRMAccount() {
+  async ensureCRMAccount() {
     const client = this.wooService.getClient('miami_distro');
     const order = this.payload;
     const { data: wooCustomer } = await client.getCustomer(order.customer_id);
@@ -245,7 +245,10 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     );
 
     if (crmContact) {
-      return crmContact;
+      return {
+        ...crmContact,
+        created: false,
+      };
     }
 
     // Create new account in Zoho CRM
@@ -301,17 +304,16 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       },
     );
 
-    this.delay(5000);
-
     return {
       id: contactResults.data[0]?.details?.id,
       accountId: accountId,
+      created: true,
     };
   }
 
   @Step(4)
-  async ensureCustomer() {
-    const crmContact = await this.getResult('createCRMAccount');
+  async ensureInventoryCustomer() {
+    const crmContact = await this.getResult('ensureCRMAccount');
 
     const inventoryAccount = await this.importIntoBooks(
       crmContact.accountId,
@@ -334,7 +336,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
   @Step(5)
   async ensureAddresses() {
     const order = this.payload;
-    const customer = await this.getResult('ensureCustomer');
+    const customer = await this.getResult('ensureInventoryCustomer');
 
     const shippingAddresses = [
       customer.shipping_address,
@@ -537,7 +539,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     const { zohoItems } = await this.getResult('fetchItems');
     const { billingAddressId, shippingAddressesId } =
       await this.getResult('ensureAddresses');
-    const customer = await this.getResult('ensureCustomer');
+    const customer = await this.getResult('ensureInventoryCustomer');
     const order = this.payload;
 
     const createOrder = async () => {
@@ -616,7 +618,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     const { billingAddressId, shippingAddressId } =
       await this.getResult('ensureAddresses');
     const { salesorder } = await this.getResult('createOrder');
-    const customer = await this.getResult('ensureCustomer');
+    const customer = await this.getResult('ensureInventoryCustomer');
 
     try {
       const { data: result } = await this.zohoService.post(
