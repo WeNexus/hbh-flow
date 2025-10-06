@@ -9,7 +9,7 @@ const MongoClient = mongodb.MongoClient;
 
 @Workflow({
   webhook: true,
-  name: 'Cache Inventory Customer to MongoDB',
+  name: 'HBH - Cache Inventory Customer in MongoDB',
 })
 export class CacheInventoryCustomerWorkflow extends WorkflowBase {
   constructor(

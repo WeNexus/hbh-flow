@@ -10,7 +10,7 @@ import { chunk } from 'lodash-es';
 const MongoClient = mongodb.MongoClient;
 
 @Workflow({
-  name: 'Miami Distro Inventory Sync',
+  name: 'Miami Distro - Inventory Sync',
   webhook: true,
   concurrency: 1,
   triggers: [
@@ -33,7 +33,7 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
   @Step(1)
   async execute() {
     if (!this.envService.isProd) {
-      return this.cancel('Not running in production environment');
+      return this.cancel('Not running in development environment');
     }
 
     const res = await this.zohoService.get<Record<string, any>>(

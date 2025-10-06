@@ -7,6 +7,7 @@ import { PrismaExtensionRedis } from '#lib/core/misc/prisma-cache';
 import { FujimausaModule } from '#lib/fujimausa/fujimausa.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { FlodeskModule } from '#lib/flodesk/flodesk.module';
+import { ShopifyModule } from '#lib/shopify/shopify.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { REDIS_SUB, RedisModule } from '#lib/core/redis';
 import { EnvService } from '#lib/core/env/env.service';
@@ -34,6 +35,7 @@ import {
   Module,
   Global,
 } from '@nestjs/common';
+
 /**
  * Bootstraps the NestJS application with the provided metadata.
  * This function initializes the application with necessary modules,
@@ -101,6 +103,7 @@ export async function bootstrap(
       BigCommerceModule,
       FlodeskModule,
       WoocommerceModule,
+      ShopifyModule,
     ],
     providers: [
       {
@@ -174,6 +177,7 @@ export async function bootstrap(
       FujimausaModule,
       FlodeskModule,
       WoocommerceModule,
+      ShopifyModule,
     ],
   })
   class WrapperModule {}

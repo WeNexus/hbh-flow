@@ -7,7 +7,7 @@ import { chunk } from 'lodash-es';
 
 @Workflow({
   webhook: true,
-  name: 'Sync HBH Inventory with Miami Distro',
+  name: 'HBH - Sync Inventory with Miami Distro',
   triggers: [cron('0 */4 * * *', { timezone: 'America/New_York' })], // every 4 hours
 })
 export class SyncInventoryWithMiamiDistroWorkflow extends WorkflowBase {

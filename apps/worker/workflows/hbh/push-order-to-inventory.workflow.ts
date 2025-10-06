@@ -9,7 +9,7 @@ const MongoClient = mongodb.MongoClient;
 
 @Workflow({
   webhook: true,
-  name: 'Push BigCommerce Order to Inventory',
+  name: 'HHB - Push BigCommerce Order to Inventory',
 })
 export class PushOrderToInventoryWorkflow extends WorkflowBase<
   Record<string, any>,

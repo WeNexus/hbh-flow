@@ -90,6 +90,15 @@
       "compilerOptions": {
         "tsConfigPath": "libs/woocommerce/tsconfig.lib.json"
       }
+    },
+    "shopify": {
+      "type": "library",
+      "root": "libs/shopify",
+      "entryFile": "index",
+      "sourceRoot": "libs/shopify",
+      "compilerOptions": {
+        "tsConfigPath": "libs/shopify/tsconfig.lib.json"
+      }
     }
   }
 }

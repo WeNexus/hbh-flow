@@ -8,7 +8,7 @@ const MongoClient = mongodb.MongoClient;
 
 @Workflow({
   webhook: true,
-  name: 'Push Item Weight to BigCommerce',
+  name: 'HBH - Push Item Weight to BigCommerce',
 })
 export class ItemWeightSyncWorkflow extends WorkflowBase {
   constructor(

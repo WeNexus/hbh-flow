@@ -77,6 +77,12 @@
       "#lib/woocommerce/*": [
         "libs/woocommerce/*"
       ],
+      "#lib/shopify": [
+        "libs/shopify"
+      ],
+      "#lib/shopify/*": [
+        "libs/shopify/*"
+      ],
       "#app/api": [
         "apps/api"
       ],

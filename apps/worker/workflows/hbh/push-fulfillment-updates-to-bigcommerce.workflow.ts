@@ -10,7 +10,7 @@ const MongoClient = mongodb.MongoClient;
 @Workflow({
   webhook: true,
   webhookPayloadType: WebhookPayloadType.Full,
-  name: 'Push Fulfillment Updates to BigCommerce',
+  name: 'HBH - Push Fulfillment Updates to BigCommerce',
 })
 export class PushFulfillmentUpdatesToBigcommerceWorkflow extends WorkflowBase<
   Record<string, any>,

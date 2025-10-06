@@ -10,7 +10,7 @@ import { AxiosError } from 'axios';
 const MongoClient = mongodb.MongoClient;
 
 @Workflow({
-  name: 'Push Order to Miami Distro Zoho Inventory',
+  name: 'Miami Distro - Push Order to Zoho Inventory',
   webhook: true,
   concurrency: 1,
 })

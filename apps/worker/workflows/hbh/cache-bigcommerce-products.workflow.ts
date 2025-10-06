@@ -8,7 +8,7 @@ const MongoClient = mongodb.MongoClient;
 
 @Workflow({
   webhook: true,
-  name: 'Cache BigCommerce Products and Variants to MongoDB',
+  name: 'HBH - Cache BigCommerce Products and Variants in MongoDB',
   triggers: [
     cron('*/30 * * * *', {
       timezone: 'America/New_York', // Every 30 minutes

@@ -191,7 +191,7 @@ export abstract class WorkflowBase<P = any, C = any> {
    * @param result The result of the step that is currently being executed.
    * @returns The result of the cancellation.
    */
-  cancel(result?: any): any {
+  cancel<R>(result?: R): R | undefined {
     if (this.paused) {
       throw new Error("Can't cancel a paused workflow.");
     }

@@ -10,7 +10,7 @@ import mongodb from 'mongodb';
 const MongoClient = mongodb.MongoClient;
 
 @Workflow({
-  name: 'BigCommerce Inventory Sync',
+  name: 'HBH - BigCommerce Inventory Sync',
   webhook: true,
   concurrency: 1,
   triggers: [

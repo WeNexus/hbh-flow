@@ -1,0 +1,10 @@
+{
+  "projects": {
+    "shopify-admin": {
+      "schema": "https://shopify.dev/admin-graphql-direct-proxy/2025-10",
+      "documents": [
+        "./apps/worker/**/*{.graphql,.gql,.ts}"
+      ]
+    }
+  }
+}

@@ -10,7 +10,7 @@ const MongoClient = mongodb.MongoClient;
 
 @Workflow({
   webhook: true,
-  name: 'Push Inventory Adjustment to BigCommerce',
+  name: 'HBH - Push Inventory Adjustment to BigCommerce',
 })
 export class PushInventoryAdjustmentWorkflow extends WorkflowBase {
   constructor(

@@ -66,20 +66,22 @@ export class FujimausaService extends TokenHttpClient {
   }
 
   async getUnitOnHand(
-    productCode: string,
+    productCode: string | string[],
     connection = 'default',
-  ): Promise<ProductStock> {
-    const res = await this.post<ProductStock>(
+  ): Promise<ProductStock[]> {
+    const res = await this.post<{ response: ProductStock[] }>(
       '/GetProductStock',
       {
-        ProdCode: productCode,
+        ProdCode: Array.isArray(productCode)
+          ? productCode.join(',')
+          : productCode,
       },
       {
         connection,
       },
     );
 
-    return res.data;
+    return res.data.response;
   }
 
   async testConnection(connection: string): Promise<boolean> {
