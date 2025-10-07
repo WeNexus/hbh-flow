@@ -519,6 +519,16 @@ export class WorkflowService implements OnApplicationBootstrap {
         // Get the step to execute
         const currentStep =
           steps.find((s) => s.index === bullJob.data.stepIndex) ?? steps[0];
+        const lastStep = (() => {
+          const { lastStepIndex: idx, steps: _steps } = bullJob.data;
+          const step = idx
+            ? steps.find((s) => s.index === idx)
+            : _steps
+              ? steps.find((s) => s.method === _steps[_steps.length - 1])
+              : steps[steps.length - 1];
+
+          return step ?? steps[steps.length - 1];
+        })();
 
         for (let i = 0; i < totalSteps; i++) {
           // @ts-expect-error private property
@@ -530,6 +540,14 @@ export class WorkflowService implements OnApplicationBootstrap {
 
           if (stepInfo.index < currentStep.index) {
             // Skip steps that have already been executed
+            continue;
+          }
+
+          if (
+            bullJob.data.steps &&
+            !bullJob.data.steps.includes(stepInfo.method)
+          ) {
+            // Skip steps that are not in the specified steps
             continue;
           }
 
@@ -552,7 +570,8 @@ export class WorkflowService implements OnApplicationBootstrap {
               parentSpan: span,
             },
             async () => {
-              const isLastStep = i === steps.length - 1;
+              const isLastStep = stepInfo.index === lastStep.index;
+              // TODO: i === 0 is not always the first step, because there might be skipped steps
               const isFirstStep = i === 0;
 
               // Create or update the job step in the database
@@ -983,6 +1002,15 @@ export class WorkflowService implements OnApplicationBootstrap {
       throw new Error(`Queue not found for workflow: ${flow.name}`);
     }
 
+    if (options?.steps) {
+      // Sort steps according to the workflow definition
+      options.steps = options.steps.sort((a, b) => {
+        const stepA = flow.steps.find((s) => s.method === a);
+        const stepB = flow.steps.find((s) => s.method === b);
+        return (stepA?.index ?? 0) - (stepB?.index ?? 0);
+      });
+    }
+
     let dbJob: DBJobSlim | null = null;
 
     if (options?.deduplication?.id) {
@@ -1036,6 +1064,50 @@ export class WorkflowService implements OnApplicationBootstrap {
         })
       ).result;
 
+      if (options?.parentId) {
+        // Clone the steps from the parent job to the new job
+
+        // Find the first step to execute
+        // If options.from is set, find the step with that method
+        // If options.steps is set, find the step with the first method in that array
+        // Otherwise, use the first step in the workflow
+        const firstStep = (
+          options?.from
+            ? flow.steps.find((s) => s.method === options.from)
+            : options?.steps
+              ? flow.steps.find((s) => s.method === options.steps![0])
+              : flow.steps[0]
+        )!;
+
+        if (firstStep !== flow.steps[0]) {
+          // We are not starting from the first step, so we need to clone the steps from the parent job
+          // to ensure that the job history is complete
+          const { result: parentSteps } = await this.prisma.jobStep.findMany({
+            where: {
+              jobId: options.parentId,
+              name: {
+                // Only clone steps that are before the first step to execute
+                in: flow.steps
+                  .filter((s) => s.index < firstStep.index)
+                  .map((s) => s.method),
+              },
+            },
+          });
+
+          if (parentSteps.length > 0) {
+            await this.prisma.jobStep.createMany({
+              data: parentSteps.map(
+                (step) =>
+                  ({
+                    ...step,
+                    jobId: dbJob!.id,
+                  }) as Prisma.JobStepCreateManyInput,
+              ),
+            });
+          }
+        }
+      }
+
       /*await this.activityService.recordActivity({
         userId: options?.userId ?? 1, // Fallback to the system user
         action: 'CREATE',
@@ -1070,6 +1142,8 @@ export class WorkflowService implements OnApplicationBootstrap {
 
     const id = `#${dbJob.id}`;
 
+    const flowSteps = flow.steps;
+
     const bullJob = await queue.add(
       flow.name,
       {
@@ -1077,6 +1151,13 @@ export class WorkflowService implements OnApplicationBootstrap {
         requesterRuntimeId: this.runtimeId,
         needResponse: options?.needResponse,
         context: options?.context as unknown,
+        steps: options?.steps,
+        stepIndex: options?.from
+          ? flowSteps.find((s) => s.method === options.from)?.index
+          : flowSteps[0]?.index,
+        lastStepIndex: options?.to
+          ? flowSteps.find((s) => s.method === options.to)?.index
+          : undefined,
       },
       {
         delay: options?.scheduledAt

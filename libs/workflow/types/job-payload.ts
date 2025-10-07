@@ -4,6 +4,8 @@ export interface JobPayload {
   dbJobId?: number;
   scheduleId?: number;
   stepIndex?: number;
+  lastStepIndex?: number;
   context?: any;
   isRetry?: boolean;
+  steps?: string[];
 }

@@ -43,4 +43,16 @@ export interface RunOptions<P = any> {
    * It can be any type of data, but should be serializable.
    */
   payload?: P;
+  /**
+   * Specific steps to execute within the job. If not provided, the entire job will be executed.
+   */
+  steps?: string[];
+  /**
+   * Step identifier to start the execution from. If provided, the job will be executed starting from this step onward. Either "steps" or "from" can be provided, but not both.
+   */
+  from?: string;
+  /**
+   * Step identifier to end the execution at. If provided, the job will be executed up to and including this step. Either "steps" or "to" can be provided, but not both.
+   */
+  to?: string;
 }

@@ -342,12 +342,66 @@ export class JobController {
       );
     }
 
+    if (input.steps && (input.from || input.to)) {
+      throw new BadRequestException(
+        'You can provide either "steps" or "from"/"to", but not both.',
+      );
+    }
+
+    // Validate steps if provided
+    if (input.steps) {
+      const invalidSteps = input.steps.filter(
+        (step) => !flow.steps.some((s) => s.method === step),
+      );
+
+      if (invalidSteps.length > 0) {
+        throw new BadRequestException(
+          `Invalid step(s) provided: ${invalidSteps.join(
+            ', ',
+          )}. Available steps are: ${flow.steps
+            .map((s) => s.method)
+            .join(', ')}.`,
+        );
+      }
+    }
+
+    // Validate from/to if provided
+    if (input.from || input.to) {
+      const stepMethods = flow.steps.map((s) => s.method);
+      if (input.from && !stepMethods.includes(input.from)) {
+        throw new BadRequestException(
+          `Invalid "from" step provided: ${input.from}. Available steps are: ${stepMethods.join(
+            ', ',
+          )}.`,
+        );
+      }
+      if (input.to && !stepMethods.includes(input.to)) {
+        throw new BadRequestException(
+          `Invalid "to" step provided: ${input.to}. Available steps are: ${stepMethods.join(
+            ', ',
+          )}.`,
+        );
+      }
+      if (
+        input.from &&
+        input.to &&
+        stepMethods.indexOf(input.from) > stepMethods.indexOf(input.to)
+      ) {
+        throw new BadRequestException(
+          `"from" step (${input.from}) must come before "to" step (${input.to}).`,
+        );
+      }
+    }
+
     const span = Sentry.getActiveSpan();
     const trace = Sentry.getTraceData({ span });
 
     const { job: newJob } = await this.workflowService.run(flow, {
       userId: auth.user.id,
       parentId: job.id,
+      steps: input.steps,
+      from: input.from,
+      to: input.to,
       context: input.context
         ? (JSON.parse(input.context) as Record<string, any>)
         : undefined,
