@@ -328,7 +328,7 @@ export class PushOrderToInventoryWorkflow extends WorkflowBase<
       }
 
       await this.setContext({
-        runs: (this.context.runs ?? 0) + 1,
+        runs: (this.context?.runs ?? 0) + 1,
       });
       this.rerun(259200000);
 

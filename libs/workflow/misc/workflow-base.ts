@@ -90,7 +90,7 @@ export abstract class WorkflowBase<P = any, C = any> {
    *  The context of the workflow, which can be used to store and retrieve data during the workflow execution.
    *  Avoid using this for large data, as it is stored in Redis and can affect performance.
    */
-  get context(): C {
+  get context(): C | null {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return this.bullJob.data.context;
   }
