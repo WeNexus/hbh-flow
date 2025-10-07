@@ -989,6 +989,77 @@ export class PushOrderToInventoryWorkflow extends WorkflowBase<
   }
 
   @Step(7)
+  async markInvoiceAsPaid() {
+    const { bigCommerceOrder } = await this.getResult('fetchData');
+    const invoices = await this.getResult('createInvoices').then((invoices) =>
+      invoices.map((i) => i.invoice),
+    );
+    const { contactPerson } = await this.getResult('ensureCustomer');
+
+    const paymentResults = [];
+    const sentResults = [];
+
+    for (const invoice of invoices) {
+      const { data: sentResult } = await this.zohoService.post(
+        `/inventory/v1/invoices/${invoice.invoice_id}/status/sent`,
+        {},
+        {
+          connection: 'hbh',
+          params: {
+            organization_id: '776003162',
+          },
+        },
+      );
+
+      sentResults.push(sentResult);
+
+      const paymentMethod = bigCommerceOrder.payment_method;
+
+      if (
+        invoice.total <= 0 ||
+        paymentMethod === 'Invoice' ||
+        paymentMethod === 'Request Invoice'
+      ) {
+        continue;
+      }
+
+      const { data: paymentResult } = await this.zohoService.post(
+        `/inventory/v1/customerpayments`,
+        {
+          customer_id: contactPerson.customerId,
+          payment_mode:
+            bigCommerceOrder.payment_method === 'Authorize.Net'
+              ? 'Authorize.Net'
+              : 'creditcard',
+          date: invoice.date,
+          amount: invoice.total,
+          account_id: '3195387000000000358',
+          reference_number: bigCommerceOrder.payment_provider_id,
+          invoices: [
+            {
+              invoice_id: invoice.invoice_id,
+              amount_applied: invoice.total,
+            },
+          ],
+        },
+        {
+          connection: 'hbh',
+          params: {
+            organization_id: '776003162',
+          },
+        },
+      );
+
+      paymentResults.push(paymentResult);
+    }
+
+    return {
+      sentResults,
+      paymentResults,
+    };
+  }
+
+  @Step(8)
   async storeOrderInMongo() {
     const { bigCommerceOrder, channel } = await this.getResult('fetchData');
     const { salesorder } = await this.getResult('createOrder');
@@ -1032,7 +1103,7 @@ export class PushOrderToInventoryWorkflow extends WorkflowBase<
     return result;
   }
 
-  @Step(8)
+  @Step(9)
   async updateReorderList() {
     const { bigCommerceOrder, channel } = await this.getResult('fetchData');
     const { contactPerson } = await this.getResult('ensureCustomer');
