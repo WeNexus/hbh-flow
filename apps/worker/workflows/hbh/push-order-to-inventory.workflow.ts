@@ -320,13 +320,16 @@ export class PushOrderToInventoryWorkflow extends WorkflowBase<
       bigCommerceOrder.status === 'Incomplete' ||
       bigCommerceOrder.status === 'Pending'
     ) {
-      if (this.context.runs > 1) {
+      if (this.context && this.context.runs > 1) {
         await client.close();
         return this.cancel(
           "It's been 3 days and the order is still incomplete, so skipping it.",
         );
       }
 
+      await this.setContext({
+        runs: (this.context.runs ?? 0) + 1,
+      });
       this.rerun(259200000);
 
       const token = await this.workflowService.getJobToken(this.dbJob.id);
