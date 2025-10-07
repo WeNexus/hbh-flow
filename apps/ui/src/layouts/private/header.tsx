@@ -10,12 +10,13 @@ import {
   OutlinedInput,
   Stack,
   Box,
+  Typography,
 } from '@mui/material';
 
 import { type KeyboardEvent, type ChangeEvent, useCallback } from 'react';
 
 export default function Header() {
-  const { state, setQuery, submitQuery, setDate } = useHeader();
+  const { state, setQuery, submitQuery, setDate, setDate2 } = useHeader();
 
   const onQueryChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value),
@@ -48,7 +49,7 @@ export default function Header() {
         spacing={2}
       >
         <HeaderBreadcrumbs />
-        <Stack direction="row" sx={{ gap: 1 }}>
+        <Stack direction="row" sx={{ gap: 1 }} alignItems="center">
           {state.search && (
             <OutlinedInput
               onChange={onQueryChange}
@@ -67,7 +68,15 @@ export default function Header() {
               }}
             />
           )}
-          {state.datePicker && <CustomDatePicker onChange={setDate} value={state.date} />}
+          {state.datePicker && (
+            <>
+              {state.dateRange && <Typography>From</Typography>}
+              <CustomDatePicker onChange={setDate} value={state.date} />
+
+              {state.dateRange && <Typography>To</Typography>}
+              {state.dateRange && <CustomDatePicker onChange={setDate2} value={state.date2} />}
+            </>
+          )}
           <ColorModeIconDropdown />
         </Stack>
       </Stack>

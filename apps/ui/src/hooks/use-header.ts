@@ -10,17 +10,20 @@ import {
 export interface HeaderState {
   search: boolean;
   datePicker: boolean;
+  dateRange: boolean;
   loading: boolean;
   query: string;
   date: Dayjs | null;
+  date2: Dayjs | null;
 }
 
 export interface HeaderContext {
   state: HeaderState;
-  UI: (state: Partial<HeaderState>) => void;
+  UI: (state: Partial<Omit<HeaderState, 'date' | 'date2' | 'query'>>) => void;
   loading: (loading: boolean) => void;
   setQuery: Dispatch<SetStateAction<string>>;
   setDate: Dispatch<SetStateAction<Dayjs | null>>;
+  setDate2: Dispatch<SetStateAction<Dayjs | null>>;
   setQueryThrottled: Dispatch<SetStateAction<string>>;
   submitQuery: (value: string) => void;
 }

@@ -1,22 +1,16 @@
 import ExecutionsByStatusLine from '@/pages/dashboard/executions-by-status-line.tsx';
 import ExecutionsByStatusBar from '@/pages/dashboard/executions-by-status-bar.tsx';
-import {
-  Skeleton,
-  Stack,
-  Grid,
-  Box,
-  Typography,
-  Checkbox,
-} from '@mui/material';
 import ExecutionsByWorkflow from '@/pages/dashboard/executions-by-workflow.tsx';
 import StatCard, { type StatCardProps } from '@/components/stat-card.tsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Skeleton, Grid, Box, Typography } from '@mui/material';
 import type { DashboardOutputSchema } from '@/types/schema.ts';
 import Workflows from '@/pages/dashboard/workflows.tsx';
 import Copyright from '@/components/copyright.tsx';
 import { useHeader } from '@/hooks/use-header.ts';
 import { useSearchParams } from 'react-router';
 import { useApi } from '@/hooks/use-api.ts';
+import dayjs from 'dayjs';
 
 function calculateTrend(data: number[]): StatCardProps['trend'] {
   if (data.length < 2) {
@@ -37,9 +31,15 @@ function calculateTrend(data: number[]): StatCardProps['trend'] {
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardOutputSchema | null>(null);
-  const { UI: updateHeaderUI, state: headerState } = useHeader();
   const [searchParams] = useSearchParams();
   const { api } = useApi();
+
+  const {
+    UI: updateHeaderUI,
+    state: headerState,
+    setDate,
+    setDate2,
+  } = useHeader();
 
   const webhookHits = useMemo(() => {
     if (!data) {
@@ -121,21 +121,14 @@ export default function Dashboard() {
     (cb?: (data: DashboardOutputSchema) => any) => {
       const abortController = new AbortController();
 
-      const startDate = headerState.date
-        ? headerState.date.set('date', headerState.date.date() - 30).toDate()
-        : new Date(new Date().setDate(new Date().getDate() - 30));
-
-      const endDate = headerState.date ? headerState.date.toDate() : new Date();
-      endDate.setHours(23, 59, 59, 999);
-
       const showInternal = searchParams.get('showInternal');
 
       api
         .get<DashboardOutputSchema>('/dashboard', {
           signal: abortController.signal,
           params: {
-            startDate: startDate.toISOString(),
-            endDate: endDate.toISOString(),
+            startDate: headerState.date?.toISOString(),
+            endDate: headerState.date2?.toISOString(),
             hideInternal: !(
               showInternal === 'true' ||
               showInternal === '1' ||
@@ -164,16 +157,10 @@ export default function Dashboard() {
         abortController.abort();
       };
     },
-    [api, headerState.date, searchParams, updateHeaderUI],
+    [api, headerState.date, headerState.date2, searchParams, updateHeaderUI],
   );
 
   useEffect(() => {
-    updateHeaderUI({
-      search: false,
-      datePicker: true,
-      loading: !!data,
-    });
-
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let cancelFetch: (() => void) | null = null;
 
@@ -196,6 +183,22 @@ export default function Dashboard() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [headerState.date]);
+
+  useEffect(() => {
+    updateHeaderUI({
+      search: false,
+      datePicker: true,
+      dateRange: true,
+      loading: !!data,
+    });
+
+    const endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+
+    setDate(dayjs(new Date(new Date().setDate(new Date().getDate() - 30))));
+    setDate2(dayjs(endDate));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!data) {
     return (

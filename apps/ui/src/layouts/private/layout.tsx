@@ -31,7 +31,9 @@ export function PrivateLayout() {
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [date, setDate] = useState<dayjs.Dayjs | null>(today);
+  const [date2, setDate2] = useState<dayjs.Dayjs | null>(today);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dateRange, setDateRange] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -46,6 +48,7 @@ export function PrivateLayout() {
   const updateUI = useCallback((state: Partial<HeaderState>) => {
     setShowSearch((prev) => state.search ?? prev);
     setShowDatePicker((prev) => state.datePicker ?? prev);
+    setDateRange((prev) => state.dateRange ?? prev);
     setLoading((prev) => state.loading ?? prev);
   }, []);
 
@@ -62,10 +65,11 @@ export function PrivateLayout() {
           return newParams;
         });
       } else {
-        setSearchParams((prev) => ({
-          ...prev,
-          q: value,
-        }));
+        setSearchParams((prev) => {
+          const newParams = new URLSearchParams(prev);
+          newParams.set('q', value);
+          return newParams;
+        });
       }
     },
     [setSearchParams],
@@ -75,11 +79,13 @@ export function PrivateLayout() {
     () => ({
       datePicker: showDatePicker,
       search: showSearch,
+      dateRange,
       loading,
       query,
+      date2,
       date,
     }),
-    [showDatePicker, showSearch, date, loading, query],
+    [showDatePicker, dateRange, showSearch, date, date2, loading, query],
   );
 
   const context = useMemo<HeaderContext>(
@@ -90,6 +96,7 @@ export function PrivateLayout() {
       UI: updateUI,
       submitQuery,
       setQuery,
+      setDate2,
       setDate,
     }),
     [setQueryThrottled, state, submitQuery, updateUI],
