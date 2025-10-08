@@ -182,7 +182,7 @@ export default function Dashboard() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [headerState.date]);
+  }, [headerState.date, headerState.date2]);
 
   useEffect(() => {
     updateHeaderUI({
