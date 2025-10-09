@@ -339,8 +339,10 @@ export class PushOrderToInventoryWorkflow extends WorkflowBase<
           id: bigCommerceOrder.id,
         },
         {
-          cancelURL: `${this.envService.getString('APP_URL')}/api/jobs/${this.dbJob.id}/cancel?token=${token}`,
-          resumeURL: `${this.envService.getString('APP_URL')}/api/jobs/${this.dbJob.id}/resume?token=${token}`,
+          $set: {
+            cancelURL: `${this.envService.getString('APP_URL')}/api/jobs/${this.dbJob.id}/cancel?token=${token}`,
+            resumeURL: `${this.envService.getString('APP_URL')}/api/jobs/${this.dbJob.id}/resume?token=${token}`,
+          },
         },
         {
           upsert: true,
