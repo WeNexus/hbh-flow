@@ -334,11 +334,18 @@ export class PushOrderToInventoryWorkflow extends WorkflowBase<
 
       const token = await this.workflowService.getJobToken(this.dbJob.id);
 
-      await db.collection('bigcommerce_incomplete_order').insertOne({
-        id: bigCommerceOrder.id,
-        cancelURL: `${this.envService.getString('APP_URL')}/api/jobs/${this.dbJob.id}/cancel?token=${token}`,
-        resumeURL: `${this.envService.getString('APP_URL')}/api/jobs/${this.dbJob.id}/resume?token=${token}`,
-      });
+      await db.collection('bigcommerce_incomplete_order').updateOne(
+        {
+          id: bigCommerceOrder.id,
+        },
+        {
+          cancelURL: `${this.envService.getString('APP_URL')}/api/jobs/${this.dbJob.id}/cancel?token=${token}`,
+          resumeURL: `${this.envService.getString('APP_URL')}/api/jobs/${this.dbJob.id}/resume?token=${token}`,
+        },
+        {
+          upsert: true,
+        },
+      );
 
       await client.close();
 
