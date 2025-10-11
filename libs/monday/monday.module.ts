@@ -1,6 +1,5 @@
 import { DynamicModule, Module } from '@nestjs/common';
 import { OAUTH2_CLIENT_OPTIONS } from '#lib/hub/misc';
-import { ZohoService } from '#lib/zoho/zoho.service';
 import { OAuth2ModuleConfig } from '#lib/hub/types';
 import { MondayService } from './monday.service';
 
@@ -18,9 +17,9 @@ export class MondayModule {
           useFactory: options.useFactory,
           inject: options.inject,
         },
-        ZohoService,
+        MondayService,
       ],
-      exports: [ZohoService],
+      exports: [MondayService],
     };
   }
 }
