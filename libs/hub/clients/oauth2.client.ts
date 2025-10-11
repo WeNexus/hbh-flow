@@ -28,6 +28,10 @@ type Options = SetRequired<
   'clientId' | 'clientSecret' | 'connections'
 >;
 
+export interface OAuth2Client {
+  authorizationURLHook?(connection: string, url: URL): Promise<URL> | URL;
+}
+
 /**
  * Base class for OAuth2 clients.
  * This class should be extended by specific OAuth2 clients.
@@ -167,6 +171,11 @@ export abstract class OAuth2Client {
 
     // set access_type as offline to get refresh tokens
     url.searchParams.set('access_type', 'offline');
+
+    if (this.authorizationURLHook) {
+      return this.authorizationURLHook(connection, url);
+    }
+
     return url;
   }
 

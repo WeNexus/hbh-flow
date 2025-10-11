@@ -83,6 +83,12 @@
       "#lib/shopify/*": [
         "libs/shopify/*"
       ],
+      "#lib/monday": [
+        "libs/monday"
+      ],
+      "#lib/monday/*": [
+        "libs/monday/*"
+      ],
       "#app/api": [
         "apps/api"
       ],

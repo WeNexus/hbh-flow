@@ -20,6 +20,7 @@
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org honeybeeherb --project $SENTRY_PROJECT ./dist && sentry-cli sourcemaps upload --org honeybeeherb --project $SENTRY_PROJECT ./dist"
   },
   "dependencies": {
+    "@mondaydotcomorg/api": "^11.0.1",
     "@nestjs/common": "^11.1.2",
     "@nestjs/core": "^11.1.2",
     "@nestjs/event-emitter": "^3.0.1",

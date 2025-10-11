@@ -99,6 +99,15 @@
       "compilerOptions": {
         "tsConfigPath": "libs/shopify/tsconfig.lib.json"
       }
+    },
+    "monday": {
+      "type": "library",
+      "root": "libs/monday",
+      "entryFile": "index",
+      "sourceRoot": "libs/monday",
+      "compilerOptions": {
+        "tsConfigPath": "libs/monday/tsconfig.lib.json"
+      }
     }
   }
 }

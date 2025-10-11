@@ -11,6 +11,7 @@ import { CacheInventoryCustomerWorkflow } from './hbh/cache-inventory-customer.w
 import { PushOrderToInventoryWorkflow } from './hbh/push-order-to-inventory.workflow';
 import { EastWestInventorySync } from './hbh/east-west-inventory-sync.workflow';
 import { ItemWeightSyncWorkflow } from './hbh/item-weight-sync.workflow';
+import { PriceListSyncWorkflow } from './hbh/price-list-sync.workflow';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base.js';
 import { Type } from '@nestjs/common';
 
@@ -26,6 +27,7 @@ export const workflows: Type<WorkflowBase>[] = [
   CacheInventoryCustomerWorkflow,
   MiamiDistroPushOrderWorkflow,
   PushOrderToInventoryWorkflow,
-  EastWestInventorySync,
   ItemWeightSyncWorkflow,
+  PriceListSyncWorkflow,
+  EastWestInventorySync,
 ];

@@ -9,6 +9,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { FlodeskModule } from '#lib/flodesk/flodesk.module';
 import { ShopifyModule } from '#lib/shopify/shopify.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { MondayModule } from '#lib/monday/monday.module';
 import { REDIS_SUB, RedisModule } from '#lib/core/redis';
 import { EnvService } from '#lib/core/env/env.service';
 import { ZohoModule } from '#lib/zoho/zoho.module';
@@ -20,20 +21,21 @@ import { JwtModule } from '@nestjs/jwt';
 import { Redis } from 'ioredis';
 
 import {
-  GlobalEventService,
   ActivityService,
-  PostgresService,
+  GlobalEventService,
   IPInfoService,
+  MongoService,
+  PostgresService,
   PrismaService,
 } from '#lib/core/services';
 
 import {
-  INestApplicationContext,
-  ModuleMetadata,
-  ValidationPipe,
-  Provider,
-  Module,
   Global,
+  INestApplicationContext,
+  Module,
+  ModuleMetadata,
+  Provider,
+  ValidationPipe,
 } from '@nestjs/common';
 
 /**
@@ -104,6 +106,7 @@ export async function bootstrap(
       FlodeskModule,
       WoocommerceModule,
       ShopifyModule,
+      MondayModule,
     ],
     providers: [
       {
@@ -139,6 +142,13 @@ export async function bootstrap(
           );
         },
       },
+      {
+        provide: MongoService,
+        inject: [EnvService],
+        useFactory(env: EnvService) {
+          return new MongoService(env.getString('MONGO_URL'));
+        },
+      },
       (appType === AppType.API
         ? {
             provide: APP_FILTER,
@@ -166,6 +176,7 @@ export async function bootstrap(
       EventEmitterModule,
       RedisModule,
       PrismaService,
+      MongoService,
       PostgresService,
       JwtModule,
       HubModule,
@@ -178,6 +189,7 @@ export async function bootstrap(
       FlodeskModule,
       WoocommerceModule,
       ShopifyModule,
+      MondayModule,
     ],
   })
   class WrapperModule {}
