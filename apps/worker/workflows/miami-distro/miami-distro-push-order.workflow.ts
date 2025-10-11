@@ -660,6 +660,75 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
   }
 
   @Step(10)
+  async sendAndMarkInvoiceAsPaid() {
+    const order = this.payload;
+    const { invoice } = await this.getResult('createInvoice');
+
+    const { data: sentResult } = await this.zohoService.post(
+      `/inventory/v1/invoices/${invoice.invoice_id}/status/sent`,
+      {},
+      {
+        connection: 'miami_distro',
+        params: {
+          organization_id: '893457005',
+        },
+      },
+    );
+
+    const paymentMethod = order.payment_method;
+
+    if (invoice.total <= 0 || /invoice/gim.test(paymentMethod)) {
+      return { sentResult };
+    }
+
+    const paymentMode = /authorize/gim.test(paymentMethod)
+      ? 'Authorize.Net'
+      : /bacs/gim.test(paymentMethod)
+        ? 'Bank Transfer'
+        : /cheque/gim.test(paymentMethod)
+          ? 'Check'
+          : 'Cash';
+
+    const { data: paymentResult } = await this.zohoService.post(
+      `/inventory/v1/customerpayments`,
+      {
+        customer_id: invoice.customer_id,
+        location_id: invoice.location_id,
+        payment_mode: paymentMode,
+        payment_status: /cod/gim.test(paymentMethod) ? 'draft' : 'paid',
+        date: invoice.date,
+        amount: invoice.total,
+        account_id:
+          paymentMode === 'Authorize.Net'
+            ? '6673885000000311013' // Business Checking - 8653
+            : paymentMode == 'Bank Transfer'
+              ? '6673885000000311023' // Full Circle - Business Checking Plus - 9868
+              : paymentMode === 'Check'
+                ? '6673885000000311033' // Business Checking Plus - 9876
+                : '6673885000000000361', // Petty cash
+        reference_number: order.transaction_id,
+        invoices: [
+          {
+            invoice_id: invoice.invoice_id,
+            amount_applied: invoice.total,
+          },
+        ],
+      },
+      {
+        connection: 'miami_distro',
+        params: {
+          organization_id: '893457005',
+        },
+      },
+    );
+
+    return {
+      sentResult,
+      paymentResult,
+    };
+  }
+
+  @Step(11)
   async storeInDB() {
     const order = this.payload;
     const { salesorder } = await this.getResult('createOrder');
