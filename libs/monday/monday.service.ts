@@ -1,11 +1,11 @@
 import { ApiClient, GetMeOpQuery } from '@mondaydotcomorg/api';
 import { Client, OAUTH2_CLIENT_OPTIONS } from '#lib/hub/misc';
 import type { OAuth2ClientOptions } from '#lib/hub/types';
+import { ModuleRef, Reflector } from '@nestjs/core';
 import { OAuth2Client } from '#lib/hub/clients';
 import { EnvService } from '#lib/core/env';
-import { ModuleRef } from '@nestjs/core';
 import { Inject } from '@nestjs/common';
-import { SetRequired } from 'type-fest';
+import { merge } from 'lodash-es';
 
 @Client('oauth2', {
   id: 'monday',
@@ -31,16 +31,18 @@ import { SetRequired } from 'type-fest';
 })
 export class MondayService extends OAuth2Client {
   constructor(
-    moduleRef: ModuleRef,
     @Inject(OAUTH2_CLIENT_OPTIONS) options: OAuth2ClientOptions,
+    moduleRef: ModuleRef,
+    reflector: Reflector,
     env: EnvService,
   ) {
     super(
       moduleRef,
-      options as SetRequired<
-        OAuth2ClientOptions,
-        'clientId' | 'clientSecret' | 'connections'
-      >,
+      merge(
+        {},
+        reflector.get<OAuth2ClientOptions>('HBH_HUB_CLIENT', MondayService),
+        options,
+      ) as any,
       env,
     );
   }
