@@ -5,6 +5,7 @@ import { OAuth2Client } from '#lib/hub/clients';
 import { EnvService } from '#lib/core/env';
 import { ModuleRef } from '@nestjs/core';
 import { Inject } from '@nestjs/common';
+import { SetRequired } from 'type-fest';
 
 @Client('oauth2', {
   id: 'monday',
@@ -19,6 +20,14 @@ import { Inject } from '@nestjs/common';
     'webhooks:read',
     'webhooks:write',
   ],
+  connections: [
+    {
+      id: 'hbh',
+      description: 'Honeybee Herb Monday Connection',
+      authorizationURL: 'https://auth.monday.com/oauth2/authorize',
+      tokenURL: 'https://auth.monday.com/oauth2/token',
+    },
+  ],
 })
 export class MondayService extends OAuth2Client {
   constructor(
@@ -28,19 +37,10 @@ export class MondayService extends OAuth2Client {
   ) {
     super(
       moduleRef,
-      {
-        ...options,
-        clientId: env.getString('MONDAY_CLIENT_ID'),
-        clientSecret: env.getString('MONDAY_CLIENT_SECRET'),
-        connections: [
-          {
-            id: 'hbh',
-            description: 'Honeybee Herb Monday Connection',
-            authorizationURL: 'https://auth.monday.com/oauth2/authorize',
-            tokenURL: 'https://auth.monday.com/oauth2/token',
-          },
-        ],
-      },
+      options as SetRequired<
+        OAuth2ClientOptions,
+        'clientId' | 'clientSecret' | 'connections'
+      >,
       env,
     );
   }

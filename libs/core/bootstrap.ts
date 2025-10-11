@@ -101,12 +101,20 @@ export async function bootstrap(
         },
         inject: [EnvService],
       }),
+      MondayModule.forRoot({
+        useFactory(env: EnvService) {
+          return {
+            clientId: env.getString('MONDAY_CLIENT_ID'),
+            clientSecret: env.getString('MONDAY_CLIENT_SECRET'),
+          };
+        },
+        inject: [EnvService],
+      }),
       FujimausaModule,
       BigCommerceModule,
       FlodeskModule,
       WoocommerceModule,
       ShopifyModule,
-      MondayModule,
     ],
     providers: [
       {
