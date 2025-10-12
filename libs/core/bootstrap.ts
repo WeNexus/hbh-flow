@@ -237,7 +237,9 @@ export async function bootstrap(
       }),
     );
 
-    app.enableCors();
+    app.enableCors({
+      origin: true,
+    });
 
     // Validation and parsing
     app.useGlobalPipes(
