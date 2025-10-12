@@ -215,8 +215,10 @@ export abstract class OAuth2Client {
 
     // Check if the token is expired or will expire in less than 10 minutes
     const shouldRefresh =
-      token.expiresAt <= new Date() ||
-      token.expiresAt <= new Date(Date.now() + 10 * 60 * 1000);
+      token.expiresAt &&
+      token.refresh &&
+      (token.expiresAt <= new Date() ||
+        token.expiresAt <= new Date(Date.now() + 10 * 60 * 1000));
 
     if (!shouldRefresh) {
       return token;
@@ -305,7 +307,7 @@ export abstract class OAuth2Client {
 
     const tokens = await arcticClient.refreshAccessToken(
       connectionOption.tokenURL,
-      token.refresh,
+      token.refresh!,
       token.scopes,
     );
 

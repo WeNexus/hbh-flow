@@ -206,19 +206,23 @@ export class HubService implements OnApplicationBootstrap {
         provider: oauth2State.provider,
         connection: oauth2State.connection,
         access: arcticTokens.accessToken(),
-        refresh: arcticTokens.refreshToken(),
-        expiresAt: arcticTokens.accessTokenExpiresAt(),
-        scopes: arcticTokens.scopes().length
-          ? arcticTokens.scopes()
-          : undefined,
+        refresh: arcticTokens.hasRefreshToken()
+          ? arcticTokens.refreshToken()
+          : null,
+        expiresAt: arcticTokens.hasExpiry()
+          ? arcticTokens.accessTokenExpiresAt()
+          : null,
+        scopes: arcticTokens.hasScopes() ? arcticTokens.scopes() : undefined,
       },
       update: {
         access: arcticTokens.accessToken(),
-        refresh: arcticTokens.refreshToken(),
-        expiresAt: arcticTokens.accessTokenExpiresAt(),
-        scopes: arcticTokens.scopes().length
-          ? arcticTokens.scopes()
-          : undefined,
+        refresh: arcticTokens.hasRefreshToken()
+          ? arcticTokens.refreshToken()
+          : null,
+        expiresAt: arcticTokens.hasExpiry()
+          ? arcticTokens.accessTokenExpiresAt()
+          : null,
+        scopes: arcticTokens.hasScopes() ? arcticTokens.scopes() : undefined,
       },
     });
 

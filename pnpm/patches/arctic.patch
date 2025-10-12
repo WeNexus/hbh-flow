@@ -1,0 +1,260 @@
+diff --git a/dist/client.js b/dist/client.js
+index 86d5ad8363a2ed3aa0e578ecf6772ec067ef53b6..6f2ab240f6aafd2ac43478f90e1500d37152f1b4 100644
+--- a/dist/client.js
++++ b/dist/client.js
+@@ -1,105 +1,121 @@
+-import { encodeBasicCredentials, sendTokenRevocationRequest } from "./request.js";
+-import { createS256CodeChallenge } from "./oauth2.js";
+-import { createOAuth2Request, sendTokenRequest } from "./request.js";
++import { encodeBasicCredentials, sendTokenRevocationRequest } from './request.js';
++import { createS256CodeChallenge } from './oauth2.js';
++import { createOAuth2Request, sendTokenRequest } from './request.js';
++
+ export class OAuth2Client {
+-    clientId;
+-    clientPassword;
+-    redirectURI;
+-    constructor(clientId, clientPassword, redirectURI) {
+-        this.clientId = clientId;
+-        this.clientPassword = clientPassword;
+-        this.redirectURI = redirectURI;
++  clientId;
++  clientPassword;
++  redirectURI;
++
++  constructor(clientId, clientPassword, redirectURI) {
++    this.clientId = clientId;
++    this.clientPassword = clientPassword;
++    this.redirectURI = redirectURI;
++  }
++
++  createAuthorizationURL(authorizationEndpoint, state, scopes) {
++    const url = new URL(authorizationEndpoint);
++    url.searchParams.set('response_type', 'code');
++    url.searchParams.set('client_id', this.clientId);
++    if (this.redirectURI !== null) {
++      url.searchParams.set('redirect_uri', this.redirectURI);
+     }
+-    createAuthorizationURL(authorizationEndpoint, state, scopes) {
+-        const url = new URL(authorizationEndpoint);
+-        url.searchParams.set("response_type", "code");
+-        url.searchParams.set("client_id", this.clientId);
+-        if (this.redirectURI !== null) {
+-            url.searchParams.set("redirect_uri", this.redirectURI);
+-        }
+-        url.searchParams.set("state", state);
+-        if (scopes.length > 0) {
+-            url.searchParams.set("scope", scopes.join(" "));
+-        }
+-        return url;
++    url.searchParams.set('state', state);
++    if (scopes.length > 0) {
++      url.searchParams.set('scope', scopes.join(' '));
+     }
+-    createAuthorizationURLWithPKCE(authorizationEndpoint, state, codeChallengeMethod, codeVerifier, scopes) {
+-        const url = new URL(authorizationEndpoint);
+-        url.searchParams.set("response_type", "code");
+-        url.searchParams.set("client_id", this.clientId);
+-        if (this.redirectURI !== null) {
+-            url.searchParams.set("redirect_uri", this.redirectURI);
+-        }
+-        url.searchParams.set("state", state);
+-        if (codeChallengeMethod === CodeChallengeMethod.S256) {
+-            const codeChallenge = createS256CodeChallenge(codeVerifier);
+-            url.searchParams.set("code_challenge_method", "S256");
+-            url.searchParams.set("code_challenge", codeChallenge);
+-        }
+-        else if (codeChallengeMethod === CodeChallengeMethod.Plain) {
+-            url.searchParams.set("code_challenge_method", "plain");
+-            url.searchParams.set("code_challenge", codeVerifier);
+-        }
+-        if (scopes.length > 0) {
+-            url.searchParams.set("scope", scopes.join(" "));
+-        }
+-        return url;
++    return url;
++  }
++
++  createAuthorizationURLWithPKCE(authorizationEndpoint, state, codeChallengeMethod, codeVerifier, scopes) {
++    const url = new URL(authorizationEndpoint);
++    url.searchParams.set('response_type', 'code');
++    url.searchParams.set('client_id', this.clientId);
++    if (this.redirectURI !== null) {
++      url.searchParams.set('redirect_uri', this.redirectURI);
+     }
+-    async validateAuthorizationCode(tokenEndpoint, code, codeVerifier) {
+-        const body = new URLSearchParams();
+-        body.set("grant_type", "authorization_code");
+-        body.set("code", code);
+-        if (this.redirectURI !== null) {
+-            body.set("redirect_uri", this.redirectURI);
+-        }
+-        if (codeVerifier !== null) {
+-            body.set("code_verifier", codeVerifier);
+-        }
+-        if (this.clientPassword === null) {
+-            body.set("client_id", this.clientId);
+-        }
+-        const request = createOAuth2Request(tokenEndpoint, body);
+-        if (this.clientPassword !== null) {
+-            const encodedCredentials = encodeBasicCredentials(this.clientId, this.clientPassword);
+-            request.headers.set("Authorization", `Basic ${encodedCredentials}`);
+-        }
+-        const tokens = await sendTokenRequest(request);
+-        return tokens;
++    url.searchParams.set('state', state);
++    if (codeChallengeMethod === CodeChallengeMethod.S256) {
++      const codeChallenge = createS256CodeChallenge(codeVerifier);
++      url.searchParams.set('code_challenge_method', 'S256');
++      url.searchParams.set('code_challenge', codeChallenge);
++    } else if (codeChallengeMethod === CodeChallengeMethod.Plain) {
++      url.searchParams.set('code_challenge_method', 'plain');
++      url.searchParams.set('code_challenge', codeVerifier);
+     }
+-    async refreshAccessToken(tokenEndpoint, refreshToken, scopes) {
+-        const body = new URLSearchParams();
+-        body.set("grant_type", "refresh_token");
+-        body.set("refresh_token", refreshToken);
+-        if (this.clientPassword === null) {
+-            body.set("client_id", this.clientId);
+-        }
+-        if (scopes.length > 0) {
+-            body.set("scope", scopes.join(" "));
+-        }
+-        const request = createOAuth2Request(tokenEndpoint, body);
+-        if (this.clientPassword !== null) {
+-            const encodedCredentials = encodeBasicCredentials(this.clientId, this.clientPassword);
+-            request.headers.set("Authorization", `Basic ${encodedCredentials}`);
+-        }
+-        const tokens = await sendTokenRequest(request);
+-        return tokens;
++    if (scopes.length > 0) {
++      url.searchParams.set('scope', scopes.join(' '));
+     }
+-    async revokeToken(tokenRevocationEndpoint, token) {
+-        const body = new URLSearchParams();
+-        body.set("token", token);
+-        if (this.clientPassword === null) {
+-            body.set("client_id", this.clientId);
+-        }
+-        const request = createOAuth2Request(tokenRevocationEndpoint, body);
+-        if (this.clientPassword !== null) {
+-            const encodedCredentials = encodeBasicCredentials(this.clientId, this.clientPassword);
+-            request.headers.set("Authorization", `Basic ${encodedCredentials}`);
+-        }
+-        await sendTokenRevocationRequest(request);
++    return url;
++  }
++
++  async validateAuthorizationCode(tokenEndpoint, code, codeVerifier) {
++    const body = new URLSearchParams();
++    body.set('grant_type', 'authorization_code');
++    body.set('code', code);
++    body.set('client_id', this.clientId);
++    if (this.redirectURI !== null) {
++      body.set('redirect_uri', this.redirectURI);
+     }
++    if (codeVerifier !== null) {
++      body.set('code_verifier', codeVerifier);
++    }
++
++    if (this.clientPassword !== null) {
++      body.set('client_secret', this.clientPassword);
++    }
++
++    const request = createOAuth2Request(tokenEndpoint, body);
++    if (this.clientPassword !== null) {
++      const encodedCredentials = encodeBasicCredentials(this.clientId, this.clientPassword);
++      request.headers.set('Authorization', `Basic ${encodedCredentials}`);
++    }
++    const tokens = await sendTokenRequest(request);
++    return tokens;
++  }
++
++  async refreshAccessToken(tokenEndpoint, refreshToken, scopes) {
++    const body = new URLSearchParams();
++    body.set('grant_type', 'refresh_token');
++    body.set('refresh_token', refreshToken);
++    body.set('client_id', this.clientId);
++    if (scopes.length > 0) {
++      body.set('scope', scopes.join(' '));
++    }
++
++    if (this.clientPassword !== null) {
++      body.set('client_secret', this.clientPassword);
++    }
++
++    const request = createOAuth2Request(tokenEndpoint, body);
++    if (this.clientPassword !== null) {
++      const encodedCredentials = encodeBasicCredentials(this.clientId, this.clientPassword);
++      request.headers.set('Authorization', `Basic ${encodedCredentials}`);
++    }
++    const tokens = await sendTokenRequest(request);
++    return tokens;
++  }
++
++  async revokeToken(tokenRevocationEndpoint, token) {
++    const body = new URLSearchParams();
++    body.set('token', token);
++    body.set('client_id', this.clientId);
++
++    if (this.clientPassword !== null) {
++      body.set('client_secret', this.clientPassword);
++    }
++
++    const request = createOAuth2Request(tokenRevocationEndpoint, body);
++    if (this.clientPassword !== null) {
++      const encodedCredentials = encodeBasicCredentials(this.clientId, this.clientPassword);
++      request.headers.set('Authorization', `Basic ${encodedCredentials}`);
++    }
++    await sendTokenRevocationRequest(request);
++  }
+ }
++
+ export var CodeChallengeMethod;
+-(function (CodeChallengeMethod) {
+-    CodeChallengeMethod[CodeChallengeMethod["S256"] = 0] = "S256";
+-    CodeChallengeMethod[CodeChallengeMethod["Plain"] = 1] = "Plain";
++(function(CodeChallengeMethod) {
++  CodeChallengeMethod[CodeChallengeMethod['S256'] = 0] = 'S256';
++  CodeChallengeMethod[CodeChallengeMethod['Plain'] = 1] = 'Plain';
+ })(CodeChallengeMethod || (CodeChallengeMethod = {}));
+diff --git a/dist/oauth2.d.ts b/dist/oauth2.d.ts
+index a9909adf604c0b77b428827fabb1bf91a628a472..c238805a78be230d5b5d7d6b338a5c98e8f2a79e 100644
+--- a/dist/oauth2.d.ts
++++ b/dist/oauth2.d.ts
+@@ -3,6 +3,7 @@ export declare class OAuth2Tokens {
+     constructor(data: object);
+     tokenType(): string;
+     accessToken(): string;
++    hasExpiry(): boolean;
+     accessTokenExpiresInSeconds(): number;
+     accessTokenExpiresAt(): Date;
+     hasRefreshToken(): boolean;
+diff --git a/dist/oauth2.js b/dist/oauth2.js
+index 9501a4ee52ca03e2ae86ab7e87dcd2ea4d3895df..0eb25fc905ce9cdf36a6e1d77d5efc72db93f1f6 100644
+--- a/dist/oauth2.js
++++ b/dist/oauth2.js
+@@ -17,10 +17,14 @@ export class OAuth2Tokens {
+         }
+         throw new Error("Missing or invalid 'access_token' field");
+     }
++    hasExpiry() {
++        return "expires_in" in this.data && typeof this.data.expires_in === "number";
++    }
+     accessTokenExpiresInSeconds() {
+         if ("expires_in" in this.data && typeof this.data.expires_in === "number") {
+             return this.data.expires_in;
+         }
++
+         throw new Error("Missing or invalid 'expires_in' field");
+     }
+     accessTokenExpiresAt() {
+@@ -33,6 +37,7 @@ export class OAuth2Tokens {
+         if ("refresh_token" in this.data && typeof this.data.refresh_token === "string") {
+             return this.data.refresh_token;
+         }
++
+         throw new Error("Missing or invalid 'refresh_token' field");
+     }
+     hasScopes() {

@@ -1,0 +1,2 @@
+patchedDependencies:
+  arctic: pnpm/patches/arctic.patch
