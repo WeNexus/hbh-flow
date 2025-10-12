@@ -290,11 +290,11 @@ model OAuth2Token {
   provider   String
 
   access  String
-  refresh String
+  refresh String?
 
   scopes String[]
 
-  expiresAt DateTime  @db.Timestamptz()
+  expiresAt DateTime? @db.Timestamptz()
   createdAt DateTime  @default(now()) @db.Timestamptz()
   updatedAt DateTime? @updatedAt @db.Timestamptz()
 
