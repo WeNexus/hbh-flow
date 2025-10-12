@@ -4,11 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-patchedDependencies:
-  arctic:
-    hash: 90955ce896fc5c7b2bcb8eb5c99a7eb7ea55b598cef8c2d08563fc412f5c27b7
-    path: pnpm/patches/arctic.patch
-
 importers:
 
   .:
@@ -54,7 +49,7 @@ importers:
         version: 1.10.10(@swc/core@1.11.29)(@swc/types@0.1.21)(typescript@5.8.3)
       arctic:
         specifier: ^3.7.0
-        version: 3.7.0(patch_hash=90955ce896fc5c7b2bcb8eb5c99a7eb7ea55b598cef8c2d08563fc412f5c27b7)
+        version: 3.7.0
       argon2:
         specifier: ^0.43.0
         version: 0.43.0
@@ -6733,7 +6728,7 @@ snapshots:
   arch@3.0.0:
     optional: true
 
-  arctic@3.7.0(patch_hash=90955ce896fc5c7b2bcb8eb5c99a7eb7ea55b598cef8c2d08563fc412f5c27b7):
+  arctic@3.7.0:
     dependencies:
       '@oslojs/crypto': 1.0.1
       '@oslojs/encoding': 1.1.0

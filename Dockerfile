@@ -6,13 +6,13 @@ WORKDIR /app
 
 COPY . .
 
-RUN pnpm install --frozen-lockfile --prefer-offline --prod
+RUN pnpm install --frozen-lockfile --prefer-offline --prod --ignore-workspace
 RUN pnpm prisma generate
-RUN pnpm prune --prod
+RUN pnpm prune --prod --ignore-workspace
 
 WORKDIR /app/apps/ui
 
-RUN pnpm install --frozen-lockfile --prefer-offline
+RUN pnpm install --frozen-lockfile --prefer-offline --ignore-workspace
 RUN pnpm build:skiptsc
 
 WORKDIR /app
