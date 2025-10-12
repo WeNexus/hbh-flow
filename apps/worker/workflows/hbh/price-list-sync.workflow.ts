@@ -137,8 +137,8 @@ export class PriceListSyncWorkflow extends WorkflowBase<Payload> {
           ? null
           : (cursor as number) + 1;
 
-      // await this.pushToBigCommerce(items);
-      // await this.pushToInventory(items);
+      await this.pushToBigCommerce(items);
+      await this.pushToInventory(items);
 
       if (this.payload.setOK) {
         await this.updateMondayStatus(items, 'OK');
