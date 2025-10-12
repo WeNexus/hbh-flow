@@ -3,7 +3,9 @@ import { Client, OAUTH2_CLIENT_OPTIONS } from '#lib/hub/misc';
 import type { OAuth2ClientOptions } from '#lib/hub/types';
 import { ModuleRef, Reflector } from '@nestjs/core';
 import { OAuth2Client } from '#lib/hub/clients';
+import type { Session } from './types/session';
 import { EnvService } from '#lib/core/env';
+import { JwtService } from '@nestjs/jwt';
 import { Inject } from '@nestjs/common';
 import { merge } from 'lodash-es';
 
@@ -32,9 +34,10 @@ import { merge } from 'lodash-es';
 export class MondayService extends OAuth2Client {
   constructor(
     @Inject(OAUTH2_CLIENT_OPTIONS) options: OAuth2ClientOptions,
+    private readonly jwtService: JwtService,
+    env: EnvService,
     moduleRef: ModuleRef,
     reflector: Reflector,
-    env: EnvService,
   ) {
     super(
       moduleRef,
@@ -74,5 +77,13 @@ export class MondayService extends OAuth2Client {
     const client = await this.getClient(connection);
 
     return client.operations.getMeOp().then((r) => r.me);
+  }
+
+  async validateSession(token: string) {
+    const decoded = await this.jwtService.verifyAsync<{ dat: Session }>(token, {
+      secret: this.env.getString('MONDAY_CLIENT_SECRET'),
+    });
+
+    return decoded.dat;
   }
 }

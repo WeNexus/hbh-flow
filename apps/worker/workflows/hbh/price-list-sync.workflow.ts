@@ -1,17 +1,15 @@
 import { BigCommerceService } from '#lib/bigcommerce/bigcommerce.service';
 import { MondayService } from '#lib/monday/monday.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
-import { WebhookPayloadType } from '#lib/workflow/types';
 import { ZohoService } from '#lib/zoho/zoho.service';
-import { WorkflowBase } from '#lib/workflow/misc';
 import { MongoService } from '#lib/core/services';
-import { Item } from '@mondaydotcomorg/api';
+import { WorkflowBase } from '#lib/workflow/misc';
+import { chunk } from 'lodash-es';
 
 @Workflow({
   name: 'HBH - Push Price List to all platforms',
   concurrency: 1,
   webhook: true,
-  webhookPayloadType: WebhookPayloadType.Body,
 })
 export class PriceListSyncWorkflow extends WorkflowBase<Payload> {
   constructor(
@@ -61,99 +59,113 @@ export class PriceListSyncWorkflow extends WorkflowBase<Payload> {
   };
 
   @Step(1)
-  async handleConnection() {
-    if (!this.payload.challenge) {
-      await this.sendResponseMeta({
-        statusCode: 200,
-        headers: {
-          'Content-Type': 'text/plain',
-        },
-      });
-      await this.sendResponse('', true);
-      return;
+  async validate() {
+    const body = this.payload;
+
+    if (!body.token || !body.boardId) {
+      return this.cancel('Missing token or boardId');
     }
 
-    await this.sendResponseMeta({
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    await this.sendResponse(JSON.stringify(this.payload), true);
+    try {
+      await this.mondayService.validateSession(body.token);
+    } catch {
+      return this.cancel('Unauthorized');
+    }
   }
 
   @Step(2)
-  async fetchItem() {
-    const { event } = this.payload;
+  async process() {
+    const client = await this.mondayService.getClient('hbh');
+    const { boardId, groupId, itemIds } = this.payload;
+    const itemIdChunks = chunk(itemIds, 100);
+    let cursor: string | number | null = groupId ? null : 0;
 
-    if (!event.pulseId) {
-      return;
-    }
+    do {
+      let variables: Record<string, any>;
+      let query: string;
 
-    const client = this.mondayService.getClient('hbh');
-
-    const { items } = await client.request(
-      `#graphql
-    query ($id: [ID!]) {
-      items(ids: $id) {
-        column_values {
-          column {
-            title
+      if (groupId) {
+        query = `#graphql
+        query ($boardId: [ID!], $groupId: [String], $cursor: String) {
+          boards(ids: $boardId){
+            groups(ids: $groupId) {
+              items_page(limit: 500, cursor: $cursor) {
+                cursor
+                items {
+                  id
+                  column_values {
+                    column {
+                      title
+                    }
+                    text
+                  }
+                }
+              }
+            }
           }
-          text
         }
+        `;
+        variables = { boardId, groupId, cursor };
+      } else {
+        query = `#graphql
+        query ($ids: [ID!]) {
+          items(ids: $ids) {
+            id
+            column_values {
+              column {
+                title
+              }
+              text
+            }
+          }
+        }
+        `;
+        variables = { ids: itemIdChunks[cursor as number] };
       }
-    }
-    `,
-      {
-        id: event.pulseId,
-      },
-    );
 
-    return items[0];
+      const mondayRes = await client.request<GroupResult | ItemsResult>(
+        query,
+        variables,
+      );
+
+      const items = groupId
+        ? (mondayRes as GroupResult).boards[0].groups[0].items_page.items
+        : (mondayRes as ItemsResult).items;
+      cursor = groupId
+        ? (mondayRes as GroupResult).boards[0].groups[0].items_page.cursor
+        : (cursor as number) + 1 >= itemIdChunks.length
+          ? null
+          : (cursor as number) + 1;
+
+      // await this.pushToBigCommerce(items);
+      // await this.pushToInventory(items);
+
+      if (this.payload.setOK) {
+        await this.updateMondayStatus(items, 'OK');
+      }
+    } while (cursor !== null);
   }
 
-  @Step(3)
-  async pushToBigCommerce() {
-    const item = await this.getResult<Item>('fetchItem');
-    const sku = item?.column_values.find(
-      (cv) => cv.column.title === 'SKU',
-    )?.text;
-
-    if (!item || !sku) {
-      return this.cancel('No item or SKU found');
-    }
+  async pushToBigCommerce(items: Item[]) {
+    const itemsNormalized = this.normalizeMondayItems(items);
 
     for (const connection in this.bigCommerceMappings) {
-      const product = await this.mongo
-        .db(connection)
-        .collection('bigcommerce_product')
-        .findOne({
-          sku,
-        });
+      const groupMappings = this.bigCommerceMappings[
+        connection
+      ] as (typeof this.bigCommerceMappings)['hbh'];
 
-      const variant = await this.mongo
-        .db(connection)
-        .collection('bigcommerce_variant')
-        .findOne({
-          sku,
-        });
+      // Get all product IDs for SKUs in this batch
+      const skuProductMap = await this.getBCProductIDs(
+        itemsNormalized.map((i) => i.sku),
+        connection as 'dispomart' | 'hbh',
+      );
 
-      const productId = variant ? variant.productId : product?.id;
-
-      if (!productId) {
-        continue;
+      if (skuProductMap.size === 0) {
+        continue; // No products found for these SKUs in this store
       }
 
-      const mappings = this.bigCommerceMappings[connection];
-
-      for (const cv of item.column_values) {
-        if (!Object.prototype.hasOwnProperty.call(mappings, cv.column.title)) {
-          continue;
-        }
-
-        const groupId: number = mappings[cv.column.title];
+      for (const groupName in groupMappings) {
+        const groupId = groupMappings[groupName];
 
         const { data: group } = await this.bigCommerceService.get(
           `/v2/customer_groups/${groupId}`,
@@ -162,22 +174,38 @@ export class PriceListSyncWorkflow extends WorkflowBase<Payload> {
           },
         );
 
-        const rule = group.discount_rules.find(
-          (r) => productId.toString() === r.product_id.toString(),
-        );
+        for (const item of itemsNormalized) {
+          const productId = skuProductMap.get(item.sku);
 
-        if (rule) {
-          rule.amount = parseFloat(cv.text);
-        } else {
-          group.discount_rules.push({
-            type: 'product',
-            method: 'fixed',
-            amount: parseFloat(cv.text),
-            product_id: productId,
-          });
+          if (!productId) {
+            continue;
+          }
+
+          const price = item.prices.find((p) => p.groupName === groupName);
+
+          if (!price) {
+            continue;
+          }
+
+          const rule = group.discount_rules.find(
+            (r) => productId.toString() === r.product_id.toString(),
+          );
+
+          if (rule) {
+            rule.amount = price.price;
+          } else {
+            group.discount_rules.push({
+              type: 'product',
+              method: 'fixed',
+              amount: price.price,
+              product_id: productId,
+            });
+          }
         }
 
         for (const rule of group.discount_rules) {
+          // BigCommerce API quirk: amount must be a number, not a string
+          // even though the api returns it as a string
           rule.amount = parseFloat(rule.amount.toString());
         }
 
@@ -191,42 +219,23 @@ export class PriceListSyncWorkflow extends WorkflowBase<Payload> {
           },
         );
 
-        await new Promise((r) => setTimeout(r, 600)); // To avoid rate limits
+        await new Promise((r) => setTimeout(r, 200)); // To avoid rate limits
       }
     }
   }
 
-  @Step(4)
-  async pushToInventory() {
-    const item = await this.getResult<Item>('fetchItem');
-    const sku = item?.column_values.find(
-      (cv) => cv.column.title === 'SKU',
-    )?.text;
+  async pushToInventory(items: Item[]) {
+    const itemsNormalized = this.normalizeMondayItems(items);
+    const skuItemMap = await this.getInventoryItemIDs(
+      itemsNormalized.map((i) => i.sku),
+    );
 
-    if (!item || !sku) {
-      return this.cancel('No item or SKU found');
+    if (skuItemMap.size === 0) {
+      return; // No inventory items found for these SKUs
     }
 
-    const inventoryItem = await this.mongo
-      .db('hbh')
-      .collection('item')
-      .findOne({ sku });
-
-    if (!inventoryItem) {
-      return this.cancel('No inventory item found');
-    }
-
-    for (const cv of item.column_values) {
-      if (
-        !Object.prototype.hasOwnProperty.call(
-          this.inventoryMappings,
-          cv.column.title,
-        )
-      ) {
-        continue;
-      }
-
-      const priceListId = this.inventoryMappings[cv.column.title];
+    for (const groupName in this.inventoryMappings) {
+      const priceListId = this.inventoryMappings[groupName];
 
       const { data: res } = await this.zohoService.get(
         `/inventory/v1/pricebooks/${priceListId}`,
@@ -237,20 +246,32 @@ export class PriceListSyncWorkflow extends WorkflowBase<Payload> {
 
       const priceListItems = res.pricebook.pricebook_items;
 
-      await new Promise((r) => setTimeout(r, 500)); // To avoid rate limits
+      for (const item of itemsNormalized) {
+        const inventoryItemId = skuItemMap.get(item.sku);
 
-      const priceListItem = priceListItems.find(
-        (p) => p.item_id.toString() === inventoryItem.id.toString(),
-      );
+        if (!inventoryItemId) {
+          continue;
+        }
 
-      if (priceListItem) {
-        // Update
-        priceListItem.pricebook_rate = parseFloat(cv.text);
-      } else {
-        priceListItems.push({
-          item_id: parseInt(inventoryItem.id.toString()),
-          pricebook_rate: parseFloat(cv.text),
-        });
+        const price = item.prices.find((p) => p.groupName === groupName);
+
+        if (!price) {
+          continue;
+        }
+
+        const priceListItem = priceListItems.find(
+          (p) => p.item_id.toString() === inventoryItemId.toString(),
+        );
+
+        if (priceListItem) {
+          // Update
+          priceListItem.pricebook_rate = price.price;
+        } else {
+          priceListItems.push({
+            item_id: parseInt(inventoryItemId.toString()),
+            pricebook_rate: price.price,
+          });
+        }
       }
 
       await this.zohoService.put(
@@ -272,31 +293,156 @@ export class PriceListSyncWorkflow extends WorkflowBase<Payload> {
         },
       );
 
-      await new Promise((r) => setTimeout(r, 500)); // To avoid rate limits
+      await new Promise((r) => setTimeout(r, 400)); // To avoid rate limits
     }
+  }
+
+  async updateMondayStatus(items: Item[], status: string) {
+    const client = await this.mondayService.getClient('hbh');
+    const { boardId } = this.payload;
+
+    const chunks = chunk(items, 100);
+
+    for (const items of chunks) {
+      const mutations = items.map((item, index) => {
+        const statusColumn = item.column_values.find(
+          (cv) => cv.column.title === 'Status',
+        );
+
+        if (!statusColumn || statusColumn.text === status) {
+          return null;
+        }
+
+        return `i${index}: change_simple_column_value(item_id: ${item.id}, board_id: ${boardId}, column_id: "status", value: "${status}") { id }`;
+      });
+
+      const mutationString = mutations.filter((m) => m !== null).join('\n');
+
+      if (mutationString) {
+        const mutation = `#graphql
+      mutation {
+        ${mutationString}
+      }
+      `;
+
+        await client.request(mutation);
+      }
+    }
+  }
+
+  normalizeMondayItems(items: Item[]): ItemNormalized[] {
+    return items
+      .map((i) => ({
+        sku: i.column_values.find((cv) => cv.column.title === 'SKU')?.text,
+        prices: i.column_values
+          .filter((cv) =>
+            Object.prototype.hasOwnProperty.call(
+              this.inventoryMappings,
+              cv.column.title,
+            ),
+          )
+          .map((cv) => ({
+            groupName: cv.column.title,
+            price: parseFloat(cv.text),
+          })),
+      }))
+      .filter((i) => i.sku?.toString()) as ItemNormalized[];
+  }
+
+  async getBCProductIDs(
+    skus: string[],
+    db: 'dispomart' | 'hbh',
+  ): Promise<Map<string, number>> {
+    const products = await this.mongo
+      .db(db)
+      .collection('bigcommerce_product')
+      .find(
+        {
+          sku: { $in: skus },
+        },
+        { projection: { id: 1, sku: 1 } },
+      )
+      .toArray();
+
+    const variants = await this.mongo
+      .db(db)
+      .collection('bigcommerce_variant')
+      .find(
+        {
+          sku: { $in: skus },
+        },
+        { projection: { productId: 1, sku: 1 } },
+      )
+      .toArray();
+
+    const map = new Map<string, number>();
+
+    for (const prod of products) {
+      map.set(prod.sku, prod.id);
+    }
+
+    for (const variant of variants) {
+      const prodId = parseInt(variant.productId, 10);
+      map.set(variant.sku, prodId);
+    }
+
+    return map;
+  }
+
+  async getInventoryItemIDs(skus: string[]): Promise<Map<string, string>> {
+    const items = await this.mongo
+      .db('hbh')
+      .collection('item')
+      .find(
+        {
+          sku: { $in: skus },
+        },
+        { projection: { id: 1, sku: 1 } },
+      )
+      .toArray();
+
+    const map = new Map<string, string>();
+
+    for (const item of items) {
+      map.set(item.sku, item.id);
+    }
+
+    return map;
   }
 }
 
-export interface Payload {
-  challenge?: string;
-  event: {
-    app: string;
-    type: string;
-    userId: number;
-    boardId: number;
-    isRetry: boolean;
-    pulseId: number;
-    destGroup: {
-      id: string;
-      color: string;
-      title: string;
-      is_top_group: boolean;
-    };
-    destGroupId: string;
-    triggerTime: string;
-    triggerUuid: string;
-    sourceGroupId: string;
-    subscriptionId: number;
-    originalTriggerUuid: any;
-  };
+interface Payload {
+  token: string;
+  boardId: number;
+  groupId: string | null;
+  itemIds: number[];
+  setOK: boolean;
+}
+
+interface Item {
+  id: string;
+  column_values: {
+    column: { title: string };
+    text: string;
+  }[];
+}
+
+interface GroupResult {
+  boards: {
+    groups: {
+      items_page: {
+        cursor: string | null;
+        items: Item[];
+      };
+    }[];
+  }[];
+}
+
+interface ItemsResult {
+  items: Item[];
+}
+
+interface ItemNormalized {
+  sku: string;
+  prices: { groupName: string; price: number }[];
 }

@@ -40,7 +40,7 @@ export abstract class OAuth2Client {
   protected constructor(
     private readonly moduleRef: ModuleRef,
     public readonly clientOptions: Options,
-    private readonly env: EnvService,
+    protected readonly env: EnvService,
   ) {
     const url = new URL(this.env.getString('APP_URL'));
     const basePath = url.pathname.endsWith('/') ? '' : url.pathname;
