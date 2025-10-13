@@ -3,9 +3,10 @@ import { Step, Workflow } from '#lib/workflow/decorators';
 import { ZohoService } from '#lib/zoho/zoho.service';
 import { WorkflowBase } from '#lib/workflow/misc';
 import { EnvService } from '#lib/core/env';
+import { Logger } from '@nestjs/common';
+import { AxiosError } from 'axios';
 import { keyBy } from 'lodash-es';
 import mongodb from 'mongodb';
-import { AxiosError } from 'axios';
 
 const MongoClient = mongodb.MongoClient;
 
@@ -22,6 +23,8 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
   ) {
     super();
   }
+
+  private logger = new Logger(MiamiDistroPushOrderWorkflow.name);
 
   queryCRM(query) {
     return this.zohoService
@@ -751,5 +754,123 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     });
 
     await client.close();
+  }
+
+  @Step(12)
+  async notify() {
+    const order = this.payload;
+    const { salesorder } = await this.getResult('createOrder');
+    const customer = await this.getResult('ensureInventoryCustomer');
+
+    let nextToken: string | undefined = undefined;
+    const payload = {
+      text: `A new WooCommerce order has been received at ${new Intl.DateTimeFormat(
+        'en-US',
+        {
+          hour: 'numeric',
+          minute: 'numeric',
+          hour12: true,
+          timeZone: 'America/New_York',
+          timeZoneName: 'short',
+          day: 'numeric',
+          month: 'short',
+        },
+      ).format(order.date_created)}.`,
+      card: {
+        title: `Order ${order.number} — Incoming Sale`,
+        theme: 'modern-inline',
+      },
+      buttons: [
+        {
+          label: 'View in Inventory',
+          hint: '',
+          type: '+',
+          action: {
+            type: 'open.url',
+            data: {
+              web: `https://inventory.zoho.com/app/893457005#/salesorders/${salesorder.salesorder_id}`,
+            },
+          },
+        },
+        {
+          label: 'View in Woo',
+          hint: '',
+          type: '+',
+          action: {
+            type: 'open.url',
+            data: {
+              web: `https://miamidistro.com/wp-admin/post.php?post=${order.id}&action=edit`,
+            },
+          },
+        },
+      ],
+      slides: [
+        {
+          type: 'label',
+          title: 'Details',
+          data: [
+            { Customer: customer.email },
+            { 'Order Total': `${order.total} ${order.currency}` },
+          ],
+        },
+      ],
+    };
+
+    do {
+      const { data } = await this.zohoService.get(
+        `/api/v2/storages/kartkonnectchannels/records`,
+        {
+          connection: 'miami_distro',
+          baseURL: 'https://cliq.zoho.com',
+          params: {
+            start_token: nextToken,
+            limit: 3,
+          },
+        },
+      );
+
+      nextToken = data.next_token || undefined;
+
+      for (const record of data.list) {
+        try {
+          await this.zohoService.post(
+            `/api/v2/channelsbyname/${record.channel}/message?bot_unique_name=kartkonnect`,
+            payload,
+            {
+              connection: 'miami_distro',
+              baseURL: 'https://cliq.zoho.com',
+            },
+          );
+        } catch (e) {
+          if (e instanceof AxiosError) {
+            this.logger.error(e.response?.data);
+          } else {
+            this.logger.error(e);
+          }
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 200)); // Adding a delay of 1 second between messages
+      }
+    } while (nextToken);
+
+    try {
+      await this.zohoService.post(
+        `/api/v2/bots/kartkonnect/message`,
+        {
+          ...payload,
+          broadcast: true,
+        },
+        {
+          connection: 'miami_distro',
+          baseURL: 'https://cliq.zoho.com',
+        },
+      );
+    } catch (e) {
+      if (e instanceof AxiosError) {
+        this.logger.error(e.response?.data);
+      } else {
+        this.logger.error(e);
+      }
+    }
   }
 }

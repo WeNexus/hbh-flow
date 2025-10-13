@@ -41,6 +41,7 @@ import { merge } from 'lodash-es';
     'ZohoCliq.Messages.ALL',
     'ZohoCliq.StorageData.ALL',
     'ZohoCliq.Applications.ALL',
+    'ZohoCliq.Webhooks.CREATE',
     'ZohoAnalytics.fullaccess.ALL',
     'ZohoCreator.bulk.CREATE',
     'ZohoCreator.bulk.READ',
