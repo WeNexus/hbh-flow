@@ -775,7 +775,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
           day: 'numeric',
           month: 'short',
         },
-      ).format(order.date_created)}.`,
+      ).format(new Date(order.date_created))}.`,
       card: {
         title: `Order ${order.number} — Incoming Sale`,
         theme: 'modern-inline',
