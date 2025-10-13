@@ -5,6 +5,7 @@ import { WorkflowBase } from '#lib/workflow/misc';
 import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
 import mongodb from 'mongodb';
+import { AxiosError } from 'axios';
 
 const MongoClient = mongodb.MongoClient;
 
@@ -165,7 +166,11 @@ export class PushOrderToInventoryWorkflow extends WorkflowBase<
 
       return inventoryResponse.contact;
     } catch (e) {
-      this.logger.error(e.response?.data ?? e);
+      if (e instanceof AxiosError) {
+        this.logger.error(e.response?.data ?? e);
+        this.logger.error(e.config);
+      }
+
       this.logger.log('Account ID:', accountId);
       throw new Error(`Could not import Account into Books`);
     }
