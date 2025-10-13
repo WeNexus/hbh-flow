@@ -3,6 +3,7 @@ import { Step, Workflow } from '#lib/workflow/decorators';
 import { ZohoService } from '#lib/zoho/zoho.service';
 import { WorkflowBase } from '#lib/workflow/misc';
 import { EnvService } from '#lib/core/env';
+import { Logger } from '@nestjs/common';
 import mongodb from 'mongodb';
 
 const MongoClient = mongodb.MongoClient;
@@ -22,6 +23,8 @@ export class PushOrderToInventoryWorkflow extends WorkflowBase<
   ) {
     super();
   }
+
+  private logger = new Logger(PushOrderToInventoryWorkflow.name);
 
   setName(obj) {
     if (!obj) {
@@ -162,7 +165,8 @@ export class PushOrderToInventoryWorkflow extends WorkflowBase<
 
       return inventoryResponse.contact;
     } catch (e) {
-      console.log(e.response?.data ?? e);
+      this.logger.error(e.response?.data ?? e);
+      this.logger.log('Account ID:', accountId);
       throw new Error(`Could not import Account into Books`);
     }
   }
