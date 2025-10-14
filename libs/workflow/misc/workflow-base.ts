@@ -49,6 +49,7 @@ export abstract class WorkflowBase<P = any, C = any> {
 
   protected needsRerun: boolean = false;
   protected cancelled: boolean = false;
+  protected exited: boolean = false;
   protected paused: boolean = false;
   protected delayed = 0;
 
@@ -206,6 +207,19 @@ export abstract class WorkflowBase<P = any, C = any> {
 
     this.cancelled = true;
 
+    return result;
+  }
+
+  /**
+   * Exits the workflow execution.
+   * The step currently being executed will finish, then the workflow will exit.
+   * This method is useful for stopping the workflow execution and marking it as completed.
+   *
+   * @param result The result of the step that is currently being executed.
+   * @returns The result of the exit.
+   */
+  exit<R>(result?: R): R | undefined {
+    this.exited = true;
     return result;
   }
 

@@ -649,13 +649,15 @@ export class WorkflowService implements OnApplicationBootstrap {
               }
 
               // @ts-expect-error private properties
-              const { needsRerun, paused, delayed, cancelled } = instance;
+              const { needsRerun, paused, delayed, cancelled, exited } =
+                instance;
 
               const maxRetriesReached =
+                !exited &&
                 dbStep.retries >=
-                (bullJob.opts.attempts ? bullJob.opts.attempts - 1 : 0);
-              const canRetry = error && !maxRetriesReached;
-              const shouldRerun = needsRerun || canRetry;
+                  (bullJob.opts.attempts ? bullJob.opts.attempts - 1 : 0);
+              const canRetry = !exited && error && !maxRetriesReached;
+              const shouldRerun = !exited && (needsRerun || canRetry);
 
               const nextStep = shouldRerun ? steps[i] : steps[i + 1];
 
@@ -675,17 +677,19 @@ export class WorkflowService implements OnApplicationBootstrap {
               const jobStatus: JobStatus =
                 error && !canRetry // There is an error, and we can't retry, so the job is failed
                   ? 'FAILED'
-                  : paused
-                    ? 'PAUSED'
-                    : shouldRerun
-                      ? 'WAITING_RERUN'
-                      : delayed > 0
-                        ? 'DELAYED'
-                        : isLastStep
-                          ? 'SUCCEEDED'
-                          : cancelled
-                            ? 'CANCELLED'
-                            : 'RUNNING';
+                  : exited
+                    ? 'SUCCEEDED'
+                    : paused
+                      ? 'PAUSED'
+                      : shouldRerun
+                        ? 'WAITING_RERUN'
+                        : delayed > 0
+                          ? 'DELAYED'
+                          : isLastStep
+                            ? 'SUCCEEDED'
+                            : cancelled
+                              ? 'CANCELLED'
+                              : 'RUNNING';
 
               const stepStatus: JobStepStatus = shouldRerun
                 ? 'WAITING_RERUN'

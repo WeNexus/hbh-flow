@@ -231,7 +231,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
 
     await client.close();
 
-    return this.cancel();
+    return this.exit();
   }
 
   @Step(3)
@@ -254,6 +254,11 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       };
     }
 
+    const billing1 = wooCustomer.billing.address_1;
+    const billing2 = wooCustomer.billing.address_2;
+    const shipping1 = wooCustomer.shipping.address_1;
+    const shipping2 = wooCustomer.shipping.address_2;
+
     // Create new account in Zoho CRM
     const { data: accountResults } = await this.zohoService.post(
       '/crm/v8/Accounts',
@@ -271,12 +276,12 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
             Billing_State: wooCustomer.billing.state,
             Billing_Country: wooCustomer.billing.country,
             Billing_Code: wooCustomer.billing.postcode,
-            Billing_Street: `${wooCustomer.billing.address_2}, ${wooCustomer.billing.address_1}`,
+            Billing_Street: `${billing2 ? (billing1 ? billing2 + ', ' : billing2) : ''}${billing1}`,
             Shipping_City: wooCustomer.shipping.city,
             Shipping_State: wooCustomer.shipping.state,
             Shipping_Country: wooCustomer.shipping.country,
             Shipping_Code: wooCustomer.shipping.postcode,
-            Shipping_Street: `${wooCustomer.shipping.address_2}, ${wooCustomer.shipping.address_1}`,
+            Shipping_Street: `${shipping2 ? (shipping1 ? shipping2 + ', ' : shipping2) : ''}${billing2}`,
           },
         ],
       },
@@ -600,6 +605,10 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
 
   @Step(8)
   async submitForApproval() {
+    if (/cod/gim.test(this.payload.payment_method)) {
+      return { skipped: true };
+    }
+
     const { salesorder } = await this.getResult('createOrder');
 
     return await this.zohoService
@@ -618,6 +627,10 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
 
   @Step(9)
   async createInvoice() {
+    if (/cod/gim.test(this.payload.payment_method)) {
+      return { skipped: true };
+    }
+
     const { billingAddressId, shippingAddressId } =
       await this.getResult('ensureAddresses');
     const { salesorder } = await this.getResult('createOrder');
@@ -629,9 +642,8 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
         {
           customer_id: customer.contact_id,
           reference_number: salesorder.reference_number,
-          shipping_charge: salesorder.shipping_total,
+          shipping_charge: salesorder.shipping_charge,
           date: salesorder.date,
-          due_date: salesorder.date,
           is_inclusive_tax: false,
           discount: salesorder.discount,
           discount_type: salesorder.discount_type,
@@ -664,6 +676,10 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
 
   @Step(10)
   async sendAndMarkInvoiceAsPaid() {
+    if (/cod/gim.test(this.payload.payment_method)) {
+      return { skipped: true };
+    }
+
     const order = this.payload;
     const { invoice } = await this.getResult('createInvoice');
 
