@@ -14,7 +14,6 @@ import { EastWestInventorySync } from './hbh/east-west-inventory-sync.workflow';
 import { ItemWeightSyncWorkflow } from './hbh/item-weight-sync.workflow';
 import { PriceListSyncWorkflow } from './hbh/price-list-sync.workflow';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base.js';
-import { TestWorkflow } from './miami-distro/test.workflow';
 import { Type } from '@nestjs/common';
 
 export const workflows: Type<WorkflowBase>[] = [
@@ -33,5 +32,4 @@ export const workflows: Type<WorkflowBase>[] = [
   ItemWeightSyncWorkflow,
   PriceListSyncWorkflow,
   EastWestInventorySync,
-  TestWorkflow,
 ];
