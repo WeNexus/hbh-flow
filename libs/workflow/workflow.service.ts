@@ -532,7 +532,7 @@ export class WorkflowService implements OnApplicationBootstrap {
 
         for (let i = 0; i < totalSteps; i++) {
           // @ts-expect-error private property
-          if (instance.cancelled) {
+          if (instance.cancelled || instance.exited) {
             break;
           }
 
