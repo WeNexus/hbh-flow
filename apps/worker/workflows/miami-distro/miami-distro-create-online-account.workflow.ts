@@ -1,5 +1,6 @@
 import { WoocommerceService } from '#lib/woocommerce/woocommerce.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
+import { ZohoService } from '#lib/zoho/zoho.service';
 import { WorkflowBase } from '#lib/workflow/misc';
 import { EnvService } from '#lib/core/env';
 
@@ -11,6 +12,7 @@ import { EnvService } from '#lib/core/env';
 export class MiamiDistroCreateOnlineAccountWorkflow extends WorkflowBase {
   constructor(
     private readonly wooCommerceService: WoocommerceService,
+    private readonly zohoService: ZohoService,
     private readonly envService: EnvService,
   ) {
     super();
@@ -45,11 +47,12 @@ export class MiamiDistroCreateOnlineAccountWorkflow extends WorkflowBase {
 
     try {
       if (!customer) {
+        const password = `${contactEmail}+${this.envService.getString('MIAMI_DISTRO_WC_DEFAULT_PASSWORD')}`;
+
         const { data } = await client.post('customers', {
           first_name: contact.First_Name,
           last_name: contact.Last_Name,
           email: contactEmail,
-          password: `${contactEmail}+${this.envService.getString('MIAMI_DISTRO_WC_DEFAULT_PASSWORD')}`,
           billing: {
             first_name: contact.First_Name,
             last_name: contact.Last_Name,
@@ -72,7 +75,28 @@ export class MiamiDistroCreateOnlineAccountWorkflow extends WorkflowBase {
             postcode: account.Shipping_Code,
             country: account.Shipping_Country,
           },
+          password,
         });
+
+        await this.zohoService.post(
+          `/crm/v8/Contacts/${contact.id}/Notes`,
+          {
+            data: [
+              {
+                Parent_Id: {
+                  id: contact.id,
+                  module: {
+                    api_name: 'Contacts',
+                  },
+                },
+                Note_Content: `First time login password for website: <b>${password}</b>`,
+              },
+            ],
+          },
+          {
+            connection: 'miami_distro',
+          },
+        );
 
         result = data;
       } else {
