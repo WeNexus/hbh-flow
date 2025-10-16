@@ -14,6 +14,7 @@ import { REDIS_SUB, RedisModule } from '#lib/core/redis';
 import { EnvService } from '#lib/core/env/env.service';
 import { ZohoModule } from '#lib/zoho/zoho.module';
 import { initSentry } from '#lib/core/misc/sentry';
+import { LlmModule } from '../llm/llm.module';
 import { HubModule } from '../hub/hub.module';
 import { PrismaClient } from '@prisma/client';
 import { AppType } from '#lib/core/types';
@@ -112,6 +113,7 @@ export async function bootstrap(
       }),
       FujimausaModule,
       BigCommerceModule,
+      LlmModule,
       FlodeskModule,
       WoocommerceModule,
       ShopifyModule,
@@ -193,6 +195,7 @@ export async function bootstrap(
       ActivityService,
       IPInfoService,
       BigCommerceModule,
+      LlmModule,
       FujimausaModule,
       FlodeskModule,
       WoocommerceModule,

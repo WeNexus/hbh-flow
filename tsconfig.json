@@ -89,6 +89,12 @@
       "#lib/monday/*": [
         "libs/monday/*"
       ],
+      "#lib/llm": [
+        "libs/llm"
+      ],
+      "#lib/llm/*": [
+        "libs/llm/*"
+      ],
       "#app/api": [
         "apps/api"
       ],

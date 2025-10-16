@@ -778,7 +778,6 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     const { salesorder } = await this.getResult('createOrder');
     const customer = await this.getResult('ensureInventoryCustomer');
 
-    let nextToken: string | undefined = undefined;
     const payload = {
       text: `A new WooCommerce order has been received at ${new Intl.DateTimeFormat(
         'en-US',
@@ -832,22 +831,11 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       ],
     };
 
-    do {
-      const { data } = await this.zohoService.get(
-        `/api/v2/storages/kartkonnectchannels/records`,
-        {
-          connection: 'miami_distro',
-          baseURL: 'https://cliq.zoho.com',
-          params: {
-            start_token: nextToken,
-            limit: 3,
-          },
-        },
-      );
-
-      nextToken = data.next_token || undefined;
-
-      for (const record of data.list) {
+    await this.zohoService.iterateCliqDB({
+      connection: 'miami_distro',
+      db: 'kartkonnectchannels',
+      criteria: 'topic==new_order',
+      callback: async (record) => {
         try {
           await this.zohoService.post(
             `/api/v2/channelsbyname/${record.channel}/message?bot_unique_name=kartkonnect`,
@@ -865,9 +853,9 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
           }
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 200)); // Adding a delay of 1 second between messages
-      }
-    } while (nextToken);
+        await new Promise((resolve) => setTimeout(resolve, 1000)); // Adding a delay of 1 second between messages
+      },
+    });
 
     try {
       await this.zohoService.post(

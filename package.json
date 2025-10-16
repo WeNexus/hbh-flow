@@ -53,6 +53,7 @@
     "node-ipinfo": "^4.1.0",
     "oauth": "^0.10.2",
     "object-code": "^1.3.3",
+    "openai": "^6.3.0",
     "postgres": "^3.4.7",
     "promise-coalesce": "^1.1.2",
     "reflect-metadata": "^0.2.2",

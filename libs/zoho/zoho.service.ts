@@ -1,9 +1,9 @@
 import type { OAuth2ClientOptions, RequestConfig } from '../hub/types';
+import { IterateCliqDbOptions, ZohoUserInfo } from '#lib/zoho/types';
 import { Client, OAUTH2_CLIENT_OPTIONS } from '../hub/misc';
 import { AxiosError, AxiosRequestConfig } from 'axios';
 import { ModuleRef, Reflector } from '@nestjs/core';
 import { OAuth2HttpClient } from '../hub/clients';
-import { ZohoUserInfo } from '#lib/zoho/types';
 import { EnvService } from '#lib/core/env';
 import { Inject } from '@nestjs/common';
 import { merge } from 'lodash-es';
@@ -152,5 +152,27 @@ export class ZohoService extends OAuth2HttpClient {
     config.headers = headers;
 
     return config;
+  }
+
+  async iterateCliqDB<T = any>(options: IterateCliqDbOptions<T>) {
+    let nextToken: string | undefined = undefined;
+
+    do {
+      const { data } = await this.get(`/v2/storages/${options.db}/records`, {
+        connection: options.connection,
+        baseURL: 'https://cliq.zoho.com/api',
+        params: {
+          criteria: options.criteria,
+          start_token: nextToken,
+          limit: 50,
+        },
+      });
+
+      nextToken = data.next_token || undefined;
+
+      for (const record of data.list) {
+        await options.callback(record as T);
+      }
+    } while (nextToken);
   }
 }

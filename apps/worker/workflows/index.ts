@@ -1,3 +1,4 @@
+import { MiamiDistroHandleNotificationSubscriptionWorkflow } from './miami-distro/miami-distro-handle-notification-subscription.workflow';
 import { PushFulfillmentUpdatesToBigcommerceWorkflow } from './hbh/push-fulfillment-updates-to-bigcommerce.workflow';
 import { MiamiDistroCreateOnlineAccountWorkflow } from './miami-distro/miami-distro-create-online-account.workflow';
 import { MiamiDistroInventorySyncWorkflow } from './miami-distro/miami-distro-inventory-sync.workflow';
@@ -17,6 +18,7 @@ import { WorkflowBase } from '#lib/workflow/misc/workflow-base.js';
 import { Type } from '@nestjs/common';
 
 export const workflows: Type<WorkflowBase>[] = [
+  MiamiDistroHandleNotificationSubscriptionWorkflow,
   PushFulfillmentUpdatesToBigcommerceWorkflow,
   MiamiDistroCreateOnlineAccountWorkflow,
   SyncInventoryWithMiamiDistroWorkflow,

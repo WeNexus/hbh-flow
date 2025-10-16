@@ -108,6 +108,15 @@
       "compilerOptions": {
         "tsConfigPath": "libs/monday/tsconfig.lib.json"
       }
+    },
+    "nim": {
+      "type": "library",
+      "root": "libs/llm",
+      "entryFile": "index",
+      "sourceRoot": "libs/llm",
+      "compilerOptions": {
+        "tsConfigPath": "libs/llm/tsconfig.lib.json"
+      }
     }
   }
 }
