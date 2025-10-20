@@ -11,6 +11,7 @@ import { BigCommerceInventorySyncWorkflow } from './hbh/bigcommerce-inventory-sy
 import { PushInventoryAdjustmentWorkflow } from './hbh/push-inventory-adjustment.workflow';
 import { CacheInventoryCustomerWorkflow } from './hbh/cache-inventory-customer.workflow';
 import { PushOrderToInventoryWorkflow } from './hbh/push-order-to-inventory.workflow';
+import { HBHPushImageToShopifyWorkflow } from './hbh/push-image-to-shopify.workflow';
 import { EastWestInventorySync } from './hbh/east-west-inventory-sync.workflow';
 import { ItemWeightSyncWorkflow } from './hbh/item-weight-sync.workflow';
 import { PriceListSyncWorkflow } from './hbh/price-list-sync.workflow';
@@ -29,6 +30,7 @@ export const workflows: Type<WorkflowBase>[] = [
   CacheBigcommerceProductsWorkflow,
   PushInventoryAdjustmentWorkflow,
   CacheInventoryCustomerWorkflow,
+  HBHPushImageToShopifyWorkflow,
   MiamiDistroPushOrderWorkflow,
   PushOrderToInventoryWorkflow,
   ItemWeightSyncWorkflow,

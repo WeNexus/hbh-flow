@@ -23,10 +23,16 @@ export class ShopifyService extends TokenHttpClient {
               id: 'hbh_wholesale',
               description: 'HBH Wholesale Shopify Store',
               tokens: {
-                accessToken: env.getString('SHOPIFY_HBH_ACCESS_TOKEN'),
-                apiKey: env.getString('SHOPIFY_HBH_API_KEY'),
-                secretKey: env.getString('SHOPIFY_HBH_API_SECRET_KEY'),
-                storeUrl: env.getString('SHOPIFY_HBH_STORE_URL'),
+                accessToken: env.getString('SHOPIFY_HBH_WS_ACCESS_TOKEN'),
+                storeUrl: env.getString('SHOPIFY_HBH_WS_STORE_URL'),
+              },
+            },
+            {
+              id: 'hbh_retail',
+              description: 'HBH Retail Shopify Store',
+              tokens: {
+                accessToken: env.getString('SHOPIFY_HBH_RT_ACCESS_TOKEN'),
+                storeUrl: env.getString('SHOPIFY_HBH_RT_STORE_URL'),
               },
             },
           ],
