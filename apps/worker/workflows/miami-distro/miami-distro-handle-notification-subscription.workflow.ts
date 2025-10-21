@@ -244,7 +244,14 @@ Return **ONLY valid JSON** in this schema:
         } catch (e) {
           this.logger.error(
             `Failed to subscribe ${topic}`,
-            e instanceof AxiosError ? e.response?.config : e,
+            e instanceof AxiosError
+              ? {
+                  config: e.response?.config,
+                  data: e.response?.data,
+                  status: e.response?.status,
+                  headers: e.response?.headers,
+                }
+              : e,
           );
         }
       }
