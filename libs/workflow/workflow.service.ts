@@ -655,14 +655,6 @@ export class WorkflowService implements OnApplicationBootstrap {
                   );
                   error = e;
                 }
-
-                if (typeof (instance as any).onFailure === 'function') {
-                  try {
-                    await (instance as any).onFailure(stepInfo.method, error);
-                  } catch {
-                    // Ignore
-                  }
-                }
               }
 
               // @ts-expect-error private properties
@@ -689,6 +681,18 @@ export class WorkflowService implements OnApplicationBootstrap {
                   ...bullJob.data,
                   isRetry: true,
                 });
+              }
+
+              if (
+                error &&
+                !canRetry &&
+                typeof (instance as any).onFailure === 'function'
+              ) {
+                try {
+                  await (instance as any).onFailure(stepInfo.method, error);
+                } catch {
+                  // Ignore
+                }
               }
 
               const jobStatus: JobStatus =
