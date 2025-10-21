@@ -60,7 +60,7 @@ export class MiamiDistroHandleShipmentUpdateWorkflow extends WorkflowBase {
               action: {
                 type: 'open.url',
                 data: {
-                  web: `https://inventory.zoho.com/app/893457005#/packages/${shipment.shipment_id}`,
+                  web: `https://inventory.zoho.com/app/893457005#/shipments/${shipment.shipment_id}`,
                 },
               },
             },
