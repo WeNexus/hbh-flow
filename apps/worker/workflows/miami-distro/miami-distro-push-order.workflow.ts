@@ -143,6 +143,40 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     }
   }
 
+  async onFailure(_: string, e: Error) {
+    const order = this.payload;
+
+    const payload = {
+      text:
+        e instanceof AxiosError
+          ? '```' + JSON.stringify(e.response?.data) + '```'
+          : 'An unexpected error occurred.',
+      card: {
+        title: `Order ${order.number} — Failed to push to Inventory`,
+        theme: 'modern-inline',
+      },
+      buttons: [
+        {
+          label: 'View in Woo',
+          hint: '',
+          type: '+',
+          action: {
+            type: 'open.url',
+            data: {
+              web: `https://miamidistro.com/wp-admin/post.php?post=${order.id}&action=edit`,
+            },
+          },
+        },
+      ],
+    };
+
+    await this.zohoService.notifySubscribers({
+      connection: 'miami_distro',
+      topic: 'new_order_push_failed',
+      payload,
+    });
+  }
+
   @Step(1)
   async verification() {
     if (this.payload.webhook_id) {
@@ -831,50 +865,10 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       ],
     };
 
-    await this.zohoService.iterateCliqDB({
+    await this.zohoService.notifySubscribers({
       connection: 'miami_distro',
-      db: 'kartkonnectchannels',
-      criteria: 'topic==new_order',
-      callback: async (record) => {
-        try {
-          await this.zohoService.post(
-            `/api/v2/channelsbyname/${record.channel}/message?bot_unique_name=kartkonnect`,
-            payload,
-            {
-              connection: 'miami_distro',
-              baseURL: 'https://cliq.zoho.com',
-            },
-          );
-        } catch (e) {
-          if (e instanceof AxiosError) {
-            this.logger.error(e.response?.data);
-          } else {
-            this.logger.error(e);
-          }
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 1000)); // Adding a delay of 1 second between messages
-      },
+      topic: 'new_order',
+      payload,
     });
-
-    try {
-      await this.zohoService.post(
-        `/api/v2/bots/kartkonnect/message`,
-        {
-          ...payload,
-          broadcast: true,
-        },
-        {
-          connection: 'miami_distro',
-          baseURL: 'https://cliq.zoho.com',
-        },
-      );
-    } catch (e) {
-      if (e instanceof AxiosError) {
-        this.logger.error(e.response?.data);
-      } else {
-        this.logger.error(e);
-      }
-    }
   }
 }

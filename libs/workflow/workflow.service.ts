@@ -655,6 +655,14 @@ export class WorkflowService implements OnApplicationBootstrap {
                   );
                   error = e;
                 }
+
+                if (typeof (instance as any).onFailure === 'function') {
+                  try {
+                    await (instance as any).onFailure(stepInfo.method, error);
+                  } catch {
+                    // Ignore
+                  }
+                }
               }
 
               // @ts-expect-error private properties

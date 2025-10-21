@@ -1,12 +1,18 @@
 import type { OAuth2ClientOptions, RequestConfig } from '../hub/types';
-import { IterateCliqDbOptions, ZohoUserInfo } from '#lib/zoho/types';
 import { Client, OAUTH2_CLIENT_OPTIONS } from '../hub/misc';
 import { AxiosError, AxiosRequestConfig } from 'axios';
 import { ModuleRef, Reflector } from '@nestjs/core';
 import { OAuth2HttpClient } from '../hub/clients';
+import { Inject, Logger } from '@nestjs/common';
 import { EnvService } from '#lib/core/env';
-import { Inject } from '@nestjs/common';
 import { merge } from 'lodash-es';
+
+import {
+  NotifySubscribersOptions,
+  NotifyChannelOptions,
+  IterateCliqDbOptions,
+  ZohoUserInfo,
+} from '#lib/zoho/types';
 
 @Client('oauth2', {
   id: 'zoho',
@@ -88,6 +94,8 @@ export class ZohoService extends OAuth2HttpClient {
       env,
     );
   }
+
+  private logger = new Logger(ZohoService.name);
 
   async getUserInfo(connection: string): Promise<ZohoUserInfo | null> {
     try {
@@ -174,5 +182,61 @@ export class ZohoService extends OAuth2HttpClient {
         await options.callback(record as T);
       }
     } while (nextToken);
+  }
+
+  async notifyChannel(options: NotifyChannelOptions) {
+    return await this.post(
+      `/api/v2/channelsbyname/${options.channel}/message?bot_unique_name=kartkonnect`,
+      options.payload,
+      {
+        connection: options.connection,
+        baseURL: 'https://cliq.zoho.com',
+      },
+    );
+  }
+
+  async notifySubscribers(options: NotifySubscribersOptions) {
+    await this.iterateCliqDB({
+      connection: options.connection,
+      db: 'kartkonnectchannels',
+      criteria: `topic==${options.topic}`,
+      callback: async (record) => {
+        try {
+          await this.notifyChannel({
+            connection: options.connection,
+            channel: record.channel,
+            payload: options.payload,
+          });
+        } catch (e) {
+          if (e instanceof AxiosError) {
+            this.logger.error(e.response?.data);
+          } else {
+            this.logger.error(e);
+          }
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 1000)); // Adding a delay of 1 second between messages
+      },
+    });
+
+    try {
+      await this.post(
+        `/api/v2/bots/kartkonnect/message`,
+        {
+          ...options.payload,
+          broadcast: true,
+        },
+        {
+          connection: 'miami_distro',
+          baseURL: 'https://cliq.zoho.com',
+        },
+      );
+    } catch (e) {
+      if (e instanceof AxiosError) {
+        this.logger.error(e.response?.data);
+      } else {
+        this.logger.error(e);
+      }
+    }
   }
 }
