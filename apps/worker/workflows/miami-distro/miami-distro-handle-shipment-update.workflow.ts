@@ -36,7 +36,7 @@ export class MiamiDistroHandleShipmentUpdateWorkflow extends WorkflowBase {
             { Carrier: shipment.carrier },
             { 'Tracking Number': shipment.tracking_number },
             { Company: shipment.customer_name },
-            salesRep ? { 'Sales Rep': 'Ibrahim' } : null,
+            salesRep ? { 'Sales Rep': salesRep } : null,
           ].filter(Boolean),
         },
         {
