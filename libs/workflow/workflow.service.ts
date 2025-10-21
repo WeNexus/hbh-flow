@@ -1,5 +1,6 @@
 import { WorkflowConfigSchema } from '#lib/workflow/schema/workflow-config.schema';
 import { JobStepStatus, Job as DBJob, JobStatus, Prisma } from '@prisma/client';
+import { APP_TYPE, RUNTIME_ID, safeJsonStringify } from '#lib/core/misc';
 import { StepInfoSchema } from '#lib/workflow/schema/step-info.schema';
 import type { InputJsonValue } from '@prisma/client/runtime/client';
 import { ActivityService, PrismaService } from '#lib/core/services';
@@ -10,7 +11,6 @@ import { RunOptions } from '#lib/workflow/types/run-options';
 import { JobPayload } from '#lib/workflow/types/job-payload';
 import { DBJobSlim } from '#lib/workflow/types/db-job-slim';
 import { WorkflowNotFoundException } from './exceptions';
-import { APP_TYPE, RUNTIME_ID } from '#lib/core/misc';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { REDIS_PUB } from '#lib/core/redis';
 import { EnvService } from '#lib/core/env';
@@ -19,6 +19,7 @@ import { AppType } from '#lib/core/types';
 import { JwtService } from '@nestjs/jwt';
 import * as Sentry from '@sentry/nestjs';
 import { Jsonify } from 'type-fest';
+import { AxiosError } from 'axios';
 import { Redis } from 'ioredis';
 import express from 'express';
 
@@ -639,6 +640,14 @@ export class WorkflowService implements OnApplicationBootstrap {
                     message: e.message,
                     cause: e.cause,
                     stack: e.stack,
+                    response:
+                      e instanceof AxiosError
+                        ? JSON.parse(safeJsonStringify(e.response))
+                        : undefined,
+                    config:
+                      e instanceof AxiosError
+                        ? JSON.parse(safeJsonStringify(e.config))
+                        : undefined,
                   };
                 } else {
                   this.logger.error(
