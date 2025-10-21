@@ -138,7 +138,7 @@ You manage notification preferences for channels and individual users.
 - "new_order" → new orders pushed from WooCommerce to Zoho Inventory
 - "new_order_push_failed" → new orders failed to push from WooCommerce to Zoho Inventory
 - "new_customer" → Zoho CRM contacts synced to WooCommerce
-- "order_shipped" → Shipment orders marked as Shipped in Zoho Inventory
+- "shipment_status_changed" → Shipment orders marked as Shipped or Fulfilled in Zoho Inventory
 
 ---
 
