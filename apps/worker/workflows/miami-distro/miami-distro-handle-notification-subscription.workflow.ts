@@ -3,6 +3,7 @@ import { ZohoService } from '#lib/zoho/zoho.service';
 import { WorkflowBase } from '#lib/workflow/misc';
 import { LlmService } from '#lib/llm/llm.service';
 import { Logger } from '@nestjs/common';
+import { AxiosError } from 'axios';
 
 @Workflow({
   name: 'Miami Distro - Handle Cliq Notification Subscription',
@@ -241,7 +242,10 @@ Return **ONLY valid JSON** in this schema:
             },
           );
         } catch (e) {
-          this.logger.error(`Failed to subscribe ${topic}`, e);
+          this.logger.error(
+            `Failed to subscribe ${topic}`,
+            e instanceof AxiosError ? e.response?.config : e,
+          );
         }
       }
     }
