@@ -27,6 +27,33 @@ export class WoocommerceService extends TokenClient {
                 storeUrl: env.getString('MIAMI_DISTRO_WC_STORE_URL'),
               },
             },
+            {
+              id: 'savage_me_dolls',
+              description: 'Savage Me Dolls WooCommerce Connection',
+              tokens: {
+                consumerKey: env.getString('SAVAGE_ME_DOLLS_WC_KEY'),
+                consumerSecret: env.getString('SAVAGE_ME_DOLLS_WC_SECRET'),
+                storeUrl: env.getString('SAVAGE_ME_DOLLS_WC_STORE_URL'),
+              },
+            },
+            {
+              id: 'shop_full_circle',
+              description: 'Shop Full Circle WooCommerce Connection',
+              tokens: {
+                consumerKey: env.getString('SHOP_FULL_CIRCLE_WC_KEY'),
+                consumerSecret: env.getString('SHOP_FULL_CIRCLE_WC_SECRET'),
+                storeUrl: env.getString('SHOP_FULL_CIRCLE_WC_STORE_URL'),
+              },
+            },
+            {
+              id: 'shop_be_savage',
+              description: 'Shop be Savage WooCommerce Connection',
+              tokens: {
+                consumerKey: env.getString('SHOP_BE_SAVAGE_WC_KEY'),
+                consumerSecret: env.getString('SHOP_BE_SAVAGE_WC_SECRET'),
+                storeUrl: env.getString('SHOP_BE_SAVAGE_WC_STORE_URL'),
+              },
+            },
           ],
         },
       ),

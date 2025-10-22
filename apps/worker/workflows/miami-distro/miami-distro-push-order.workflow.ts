@@ -26,6 +26,22 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
 
   private logger = new Logger(MiamiDistroPushOrderWorkflow.name);
 
+  getSource() {
+    return new URL(this.payload._links.self[0].href).origin;
+  }
+
+  getWooConnection() {
+    const url = this.getSource();
+    const map = {
+      'https://savagemedolls.com': 'savage_me_dolls',
+      'https://shopfullcircle.com': 'shop_full_circle',
+      'https://shopbesavage.com': 'shop_be_savage',
+      'https://miamidistro.com': 'miami_distro',
+    };
+
+    return map[url];
+  }
+
   queryCRM(query) {
     return this.zohoService
       .post(
@@ -155,19 +171,6 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
         title: `Order ${order.number} — Failed to push to Inventory`,
         theme: 'modern-inline',
       },
-      buttons: [
-        {
-          label: 'View in Woo',
-          hint: '',
-          type: '+',
-          action: {
-            type: 'open.url',
-            data: {
-              web: `https://miamidistro.com/wp-admin/post.php?post=${order.id}&action=edit`,
-            },
-          },
-        },
-      ],
     };
 
     await this.zohoService.notifySubscribers({
@@ -270,7 +273,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
 
   @Step(3)
   async ensureCRMAccount() {
-    const client = this.wooService.getClient('miami_distro');
+    const client = this.wooService.getClient(this.getWooConnection());
     const order = this.payload;
     const { data: wooCustomer } = await client.getCustomer(order.customer_id);
 
@@ -813,7 +816,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     const customer = await this.getResult('ensureInventoryCustomer');
 
     const payload = {
-      text: `A new WooCommerce order has been received at ${new Intl.DateTimeFormat(
+      text: `A new order has been received from ${this.getSource()} - ${new Intl.DateTimeFormat(
         'en-US',
         {
           hour: 'numeric',
@@ -838,17 +841,6 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
             type: 'open.url',
             data: {
               web: `https://inventory.zoho.com/app/893457005#/salesorders/${salesorder.salesorder_id}`,
-            },
-          },
-        },
-        {
-          label: 'View in Woo',
-          hint: '',
-          type: '+',
-          action: {
-            type: 'open.url',
-            data: {
-              web: `https://miamidistro.com/wp-admin/post.php?post=${order.id}&action=edit`,
             },
           },
         },

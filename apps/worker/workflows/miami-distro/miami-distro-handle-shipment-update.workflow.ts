@@ -39,14 +39,16 @@ export class MiamiDistroHandleShipmentUpdateWorkflow extends WorkflowBase {
             salesRep ? { 'Sales Rep': salesRep } : null,
           ].filter(Boolean),
         },
-        {
-          type: 'list',
-          title: 'Invoices',
-          data: shipment.invoices.map(
-            (i) =>
-              `[${i.invoice_number}](https://inventory.zoho.com/app/893457005#/invoices/${i.invoice_id})`,
-          ),
-        },
+        shipment.invoices.length
+          ? {
+              type: 'list',
+              title: 'Invoices',
+              data: shipment.invoices.map(
+                (i) =>
+                  `[${i.invoice_number}](https://inventory.zoho.com/app/893457005#/invoices/${i.invoice_id})`,
+              ),
+            }
+          : null,
         {
           type: 'list',
           title: 'Packages',
@@ -54,17 +56,19 @@ export class MiamiDistroHandleShipmentUpdateWorkflow extends WorkflowBase {
             (i) =>
               `[${i.package_number}](https://inventory.zoho.com/app/893457005#/packages/${i.package_id})`,
           ),
-          buttons: [
-            {
-              label: 'Open',
-              action: {
-                type: 'open.url',
-                data: {
-                  web: `https://inventory.zoho.com/app/893457005#/shipments/${shipment.shipment_id}`,
-                },
-              },
+        },
+      ].filter(Boolean),
+      buttons: [
+        {
+          label: 'Open',
+          hint: '',
+          type: '+',
+          action: {
+            type: 'open.url',
+            data: {
+              web: `https://inventory.zoho.com/app/893457005#/shipments/${shipment.shipment_id}`,
             },
-          ],
+          },
         },
       ],
     };

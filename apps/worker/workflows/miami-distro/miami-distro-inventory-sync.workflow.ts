@@ -70,64 +70,73 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
         `Updating ${changedItems.length} inventory items in WooCommerce`,
       );
 
-      const wooClient = this.wooService.getClient('miami_distro');
+      const connections = [
+        'miami_distro',
+        'savage_me_dolls',
+        // 'shop_full_circle',
+        // 'shop_be_savage',
+      ];
+
       const chunks = chunk(changedItems, 100);
 
       for (const [i, ch] of chunks.entries()) {
-        const products = await wooClient.getProducts({
-          sku: ch.map((i) => i.sku).join(','),
-        });
+        for (const connection of connections) {
+          const wooClient = this.wooService.getClient(connection);
 
-        // Separate products from variations
-        const productUpdates: any[] = [];
-        const variationUpdatesByProduct: Record<string, any[]> = {};
+          const products = await wooClient.getProducts({
+            sku: ch.map((i) => i.sku).join(','),
+          });
 
-        for (const item of ch) {
-          const product = products.data.find((p) => p.sku === item.sku);
+          // Separate products from variations
+          const productUpdates: any[] = [];
+          const variationUpdatesByProduct: Record<string, any[]> = {};
 
-          if (!product) continue;
+          for (const item of ch) {
+            const product = products.data.find((p) => p.sku === item.sku);
 
-          if (product.parent_id && product.type === 'variation') {
-            // Variation
-            variationUpdatesByProduct[product.parent_id] ??= [];
-            variationUpdatesByProduct[product.parent_id].push({
-              id: product.id,
-              stock_quantity: item.quantity_available,
+            if (!product) continue;
+
+            if (product.parent_id && product.type === 'variation') {
+              // Variation
+              variationUpdatesByProduct[product.parent_id] ??= [];
+              variationUpdatesByProduct[product.parent_id].push({
+                id: product.id,
+                stock_quantity: item.quantity_available,
+              });
+            } else {
+              // Simple product
+              productUpdates.push({
+                id: product.id,
+                stock_quantity: item.quantity_available,
+              });
+            }
+          }
+
+          // Update simple products
+          if (productUpdates.length > 0) {
+            const res = await wooClient.post('products/batch', {
+              update: productUpdates,
             });
-          } else {
-            // Simple product
-            productUpdates.push({
-              id: product.id,
-              stock_quantity: item.quantity_available,
-            });
+
+            errors.push(...res.data.update.filter((u: any) => u.error));
+          }
+
+          // Update variations, grouped by parent
+          for (const [parentId, updates] of Object.entries(
+            variationUpdatesByProduct,
+          )) {
+            const res = await wooClient.post(
+              `products/${parentId}/variations/batch`,
+              {
+                update: updates,
+              },
+            );
+
+            errors.push(...res.data.update.filter((u: any) => u.error));
           }
         }
 
-        // Update simple products
-        if (productUpdates.length > 0) {
-          const res = await wooClient.post('products/batch', {
-            update: productUpdates,
-          });
-
-          errors.push(...res.data.update.filter((u: any) => u.error));
-        }
-
-        // Update variations, grouped by parent
-        for (const [parentId, updates] of Object.entries(
-          variationUpdatesByProduct,
-        )) {
-          const res = await wooClient.post(
-            `products/${parentId}/variations/batch`,
-            {
-              update: updates,
-            },
-          );
-
-          errors.push(...res.data.update.filter((u: any) => u.error));
-        }
-
         this.logger.log(`Processed chunk ${i + 1}/${chunks.length}`);
-        await new Promise((r) => setTimeout(r, 2000));
       }
 
       await mongo
