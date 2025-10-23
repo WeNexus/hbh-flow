@@ -11,7 +11,7 @@ import { WorkflowBase } from '#lib/workflow/misc';
 export class DelayWorkflow extends WorkflowBase<Payload> {
   @Step(1)
   async execute() {
-    const delay = Number(this.payload.query.delay || 200);
+    const delay = Number(this.payload.delay || 200);
 
     await new Promise((resolve) => setTimeout(resolve, delay));
 
@@ -34,7 +34,5 @@ export class DelayWorkflow extends WorkflowBase<Payload> {
 }
 
 interface Payload {
-  query: {
-    delay: string;
-  };
+  delay: string;
 }

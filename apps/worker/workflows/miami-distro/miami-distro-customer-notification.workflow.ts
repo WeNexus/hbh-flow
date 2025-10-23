@@ -45,7 +45,7 @@ export class MiamiDistroCustomerNotificationWorkflow extends WorkflowBase {
         },
       ).format(new Date())}.`,
       card: {
-        title: `${user.email} — New Account`,
+        title: `${user.email} — New Website Registration`,
         theme: 'modern-inline',
       },
       slides: [
