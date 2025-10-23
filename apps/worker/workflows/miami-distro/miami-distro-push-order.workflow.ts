@@ -33,6 +33,8 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
   getWooConnection() {
     const url = this.getSource();
     const map = {
+      'https://thedeltaboss.com': 'the_delta_boss',
+      'https://hempthrill.com': 'hempthrill',
       'https://savagemedolls.com': 'savage_me_dolls',
       'https://shopfullcircle.com': 'shop_full_circle',
       'https://shopbesavage.com': 'shop_be_savage',
@@ -168,7 +170,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
           ? '```' + JSON.stringify(e.response?.data) + '```'
           : 'An unexpected error occurred.',
       card: {
-        title: `Order ${order.number} — Failed to push to Inventory`,
+        title: `Order ${order.number} failed to push to Inventory — ${this.getSource()}`,
         theme: 'modern-inline',
       },
     };
@@ -816,7 +818,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     const customer = await this.getResult('ensureInventoryCustomer');
 
     const payload = {
-      text: `A new order has been received from ${this.getSource()} - ${new Intl.DateTimeFormat(
+      text: `A new order has been received from ${this.getSource()} — ${new Intl.DateTimeFormat(
         'en-US',
         {
           hour: 'numeric',

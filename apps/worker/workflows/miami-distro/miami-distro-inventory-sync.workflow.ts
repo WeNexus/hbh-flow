@@ -73,6 +73,8 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
       const connections = [
         'miami_distro',
         'savage_me_dolls',
+        'the_delta_boss',
+        // 'hempthrill',
         // 'shop_full_circle',
         // 'shop_be_savage',
       ];
