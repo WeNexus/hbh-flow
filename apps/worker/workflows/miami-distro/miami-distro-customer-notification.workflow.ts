@@ -45,9 +45,19 @@ export class MiamiDistroCustomerNotificationWorkflow extends WorkflowBase {
         },
       ).format(new Date())}.`,
       card: {
-        title: `${user.first_name} ${user.Last_Name} ${user.email} — New Account`,
+        title: `${user.email} — New Account`,
         theme: 'modern-inline',
       },
+      slides: [
+        {
+          type: 'label',
+          title: 'Details',
+          data: [
+            { 'First Name': user.first_name },
+            { 'Last Name': user.last_name },
+          ],
+        },
+      ],
     };
 
     await this.zohoService.iterateCliqDB({
