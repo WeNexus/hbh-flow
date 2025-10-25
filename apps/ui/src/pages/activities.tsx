@@ -600,7 +600,7 @@ export function Activities(props: ActivitiesProps) {
         const { page, pageSize } = params.paginationModel ?? {};
         const filter: ActivityWhereInput[] = [];
 
-        if (state.date) {
+        if (!props.embedded && state.date) {
           const start = state.date
             .set('hour', 0)
             .set('minute', 0)
