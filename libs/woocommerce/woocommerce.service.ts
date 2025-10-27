@@ -37,6 +37,15 @@ export class WoocommerceService extends TokenClient {
               },
             },
             {
+              id: 'the_delta_boss',
+              description: 'The Delta Boss WooCommerce Connection',
+              tokens: {
+                consumerKey: env.getString('THE_DELTA_BOSS_WC_KEY'),
+                consumerSecret: env.getString('THE_DELTA_BOSS_WC_SECRET'),
+                storeUrl: env.getString('THE_DELTA_BOSS_WC_STORE_URL'),
+              },
+            },
+            /*{
               id: 'shop_full_circle',
               description: 'Shop Full Circle WooCommerce Connection',
               tokens: {
@@ -53,7 +62,7 @@ export class WoocommerceService extends TokenClient {
                 consumerSecret: env.getString('SHOP_BE_SAVAGE_WC_SECRET'),
                 storeUrl: env.getString('SHOP_BE_SAVAGE_WC_STORE_URL'),
               },
-            },
+            },*/
           ],
         },
       ),
