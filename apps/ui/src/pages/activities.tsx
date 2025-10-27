@@ -673,7 +673,7 @@ export function Activities(props: ActivitiesProps) {
         throw e; // Rethrow the error to be handled by the DataGrid
       }
     },
-    [api, props.defaultPageSize, props.userId, state.date],
+    [api, props.defaultPageSize, props.userId, state.date, props.embedded],
   );
 
   const dataSource = useMemo<DataGridProps['dataSource']>(
@@ -712,11 +712,13 @@ export function Activities(props: ActivitiesProps) {
   useEffect(() => gridApiRef.current?.restoreState(initialState), [state.date]);
 
   useEffect(() => {
-    updateHeaderUI({
-      search: false,
-      datePicker: true,
-      loading: false,
-    });
+    if (!props.embedded) {
+      updateHeaderUI({
+        search: false,
+        datePicker: true,
+        loading: false,
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
