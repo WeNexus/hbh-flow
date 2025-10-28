@@ -464,7 +464,7 @@ export class PushOrderToOdooWorkflow extends WorkflowBase {
     return { odooOrderId, emailed: true };
   }
 
-  @Step(4)
+  @Step(7)
   async confirmOrder() {
     const odooOrderId = await this.getResult<number>('createOrder');
 
