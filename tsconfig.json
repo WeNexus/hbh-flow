@@ -95,6 +95,12 @@
       "#lib/llm/*": [
         "libs/llm/*"
       ],
+      "#lib/odoo": [
+        "libs/odoo"
+      ],
+      "#lib/odoo/*": [
+        "libs/odoo/*"
+      ],
       "#app/api": [
         "apps/api"
       ],

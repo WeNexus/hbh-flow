@@ -117,6 +117,15 @@
       "compilerOptions": {
         "tsConfigPath": "libs/llm/tsconfig.lib.json"
       }
+    },
+    "odoo": {
+      "type": "library",
+      "root": "libs/odoo",
+      "entryFile": "index",
+      "sourceRoot": "libs/odoo",
+      "compilerOptions": {
+        "tsConfigPath": "libs/odoo/tsconfig.lib.json"
+      }
     }
   }
 }
