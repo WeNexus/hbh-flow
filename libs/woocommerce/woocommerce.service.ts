@@ -45,7 +45,7 @@ export class WoocommerceService extends TokenClient {
                 storeUrl: env.getString('THE_DELTA_BOSS_WC_STORE_URL'),
               },
             },
-            /*{
+            {
               id: 'shop_full_circle',
               description: 'Shop Full Circle WooCommerce Connection',
               tokens: {
@@ -54,7 +54,7 @@ export class WoocommerceService extends TokenClient {
                 storeUrl: env.getString('SHOP_FULL_CIRCLE_WC_STORE_URL'),
               },
             },
-            {
+            /*{
               id: 'shop_be_savage',
               description: 'Shop be Savage WooCommerce Connection',
               tokens: {
