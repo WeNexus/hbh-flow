@@ -18,7 +18,10 @@ export class SplitDropshipItemsWorkflow extends WorkflowBase {
 
   private logger = new Logger(SplitDropshipItemsWorkflow.name);
 
-  private customerIds = new Set(['3195387000000616206', '3195387000036669886']);
+  private customerIds = new Set([
+    '3195387000000616206' /* Day 1 Distro */,
+    '3195387000036669886' /* Honeybee Test Co. */,
+  ]);
   private vendors = [
     {
       id: '3195387000039754305',
