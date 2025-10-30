@@ -18,6 +18,7 @@ import { EastWestInventorySync } from './hbh/east-west-inventory-sync.workflow';
 import { PushOrderToOdooWorkflow } from './ryot/push-order-to-odoo.workflow';
 import { ItemWeightSyncWorkflow } from './hbh/item-weight-sync.workflow';
 import { PriceListSyncWorkflow } from './hbh/price-list-sync.workflow';
+import { SplitDropshipItemsWorkflow } from './hbh/split-dropship-items.workflow';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base.js';
 import { DelayWorkflow } from './hbh/delay.workflow';
 import { Type } from '@nestjs/common';
@@ -43,5 +44,6 @@ export const workflows: Type<WorkflowBase>[] = [
   ItemWeightSyncWorkflow,
   PriceListSyncWorkflow,
   EastWestInventorySync,
+  SplitDropshipItemsWorkflow,
   DelayWorkflow,
 ];
