@@ -137,10 +137,7 @@ export class SplitDropshipItemsWorkflow extends WorkflowBase {
         `/inventory/v1/customerpayments`,
         {
           customer_id: salesorder.customer_id ?? salesorder.contact_id,
-          payment_mode:
-            payment?.method === 'Authorize.Net'
-              ? 'Authorize.Net'
-              : 'creditcard',
+          payment_mode: payment?.method ?? 'creditcard',
           date: invoice.date,
           amount: invoice.total,
           account_id: '3195387000000000358',
