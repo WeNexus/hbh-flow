@@ -1,6 +1,7 @@
 import { WoocommerceService } from '#lib/woocommerce/woocommerce.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { ZohoService } from '#lib/zoho/zoho.service';
+import { Customers } from 'woocommerce-rest-ts-api';
 import { WorkflowBase } from '#lib/workflow/misc';
 import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
@@ -277,7 +278,24 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
   async ensureCRMAccount() {
     const client = this.wooService.getClient(this.getWooConnection());
     const order = this.payload;
-    const { data: wooCustomer } = await client.getCustomer(order.customer_id);
+
+    let wooCustomer: Customers | null = null;
+
+    if (order.customer_id && order.customer_id !== 0) {
+      const { data } = await client.getCustomer(order.customer_id);
+      wooCustomer = data;
+    } else {
+      const { data } = await client.getCustomers({
+        email: order.billing.email,
+      });
+      wooCustomer = data.length > 0 ? data[0] : null;
+    }
+
+    if (!wooCustomer) {
+      throw new Error(
+        `Could not find WooCommerce customer with ID ${order.customer_id} or email ${order.billing.email}`,
+      );
+    }
 
     let crmContact = await this.queryCRM(
       `select Account_Name.id as accountId
