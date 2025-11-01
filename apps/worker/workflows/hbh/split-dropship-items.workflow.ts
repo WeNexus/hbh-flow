@@ -107,7 +107,7 @@ export class SplitDropshipItemsWorkflow extends WorkflowBase {
     };
   }
 
-  @Step(3)
+  // @Step(3)
   async markInvoicesAsPaid() {
     const { invoices } = await this.getResult('createInvoices');
     const { salesorder, payment } = this.payload.body;
@@ -129,7 +129,7 @@ export class SplitDropshipItemsWorkflow extends WorkflowBase {
 
       sentResults.push(sentResult);
 
-      if (invoice.total <= 0) {
+      if (invoice.total <= 0 || !payment) {
         continue;
       }
 
