@@ -90,18 +90,18 @@ export class MiamiDistroHandleNotificationSubscriptionWorkflow extends WorkflowB
 
         if (
           msg.message_source?.type === 'bot' &&
-          msg.message_source.name === 'KartKonnect'
+          msg.message_source.name === 'KonnectHub'
         ) {
           return true;
         }
 
-        return msg.replied_to?.sender?.name === 'KartKonnect';
+        return msg.replied_to?.sender?.name === 'KonnectHub';
       })
       .slice(-10)
       .map((msg) => {
         const role =
           (msg.message_source?.type === 'bot' &&
-            msg.message_source?.name === 'KartKonnect') ||
+            msg.message_source?.name === 'KonnectHub') ||
           msg.sender.id.startsWith('b-')
             ? 'assistant'
             : 'user';
@@ -127,10 +127,10 @@ export class MiamiDistroHandleNotificationSubscriptionWorkflow extends WorkflowB
     };
 
     const systemPrompt = `
-You are KartKonnect — the Zoho Cliq bot for WooCommerce ↔ Zoho integration.
+You are KonnectHub — the Zoho Cliq bot for WooCommerce ↔ Zoho integration.
 
-Speak as KartKonnect in first person ("I", "me") with a friendly, concise tone.
-Never refer to yourself as "assistant" or "AI" — you ARE KartKonnect.
+Speak as KonnectHub in first person ("I", "me") with a friendly, concise tone.
+Never refer to yourself as "assistant" or "AI" — you ARE KonnectHub.
 
 You manage notification preferences for channels and individual users.
 
@@ -139,6 +139,7 @@ You manage notification preferences for channels and individual users.
 - "new_order_push_failed" → new orders failed to push from WooCommerce to Zoho Inventory
 - "new_customer" → Zoho CRM contacts synced to WooCommerce
 - "shipment_status_changed" → Shipment orders marked as Shipped or Fulfilled in Zoho Inventory
+- "crm_account_note_added" → Notes added to Zoho CRM accounts/businesses
 
 ---
 
