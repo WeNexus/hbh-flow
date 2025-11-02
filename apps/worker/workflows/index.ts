@@ -18,6 +18,7 @@ import { HBHPushImageToShopifyWorkflow } from './hbh/push-image-to-shopify.workf
 import { SplitDropshipItemsWorkflow } from './hbh/split-dropship-items.workflow';
 import { EastWestInventorySync } from './hbh/east-west-inventory-sync.workflow';
 import { PushOrderToOdooWorkflow } from './ryot/push-order-to-odoo.workflow';
+import { PushPoToMondayWorkflow } from './hbh/push-po-to-monday.workflow';
 import { ItemWeightSyncWorkflow } from './hbh/item-weight-sync.workflow';
 import { PriceListSyncWorkflow } from './hbh/price-list-sync.workflow';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base.js';
@@ -44,6 +45,7 @@ export const workflows: Type<WorkflowBase>[] = [
   PushOrderToInventoryWorkflow,
   SplitDropshipItemsWorkflow,
   PushOrderToOdooWorkflow,
+  PushPoToMondayWorkflow,
   ItemWeightSyncWorkflow,
   PriceListSyncWorkflow,
   EastWestInventorySync,

@@ -50,6 +50,7 @@
     "micromatch": "^4.0.8",
     "mongodb": "^6.19.0",
     "multer": "^2.0.2",
+    "node-html-parser": "^7.0.1",
     "node-ipinfo": "^4.1.0",
     "oauth": "^0.10.2",
     "object-code": "^1.3.3",
