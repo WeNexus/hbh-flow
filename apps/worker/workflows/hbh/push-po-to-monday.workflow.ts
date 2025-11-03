@@ -25,9 +25,20 @@ export class PushPoToMondayWorkflow extends WorkflowBase {
     const client = await this.mondayService.getClient('hbh');
 
     const po = this.payload.purchaseorder;
-    const shipping = po.delivery_address;
+    const shipping =
+      typeof po.delivery_address === 'string'
+        ? JSON.parse(po.delivery_address)
+        : po.delivery_address;
+    const customFields =
+      typeof po.custom_fields === 'string'
+        ? JSON.parse(po.custom_fields)
+        : po.custom_fields;
+    const lineItems =
+      typeof po.line_items === 'string'
+        ? JSON.parse(po.line_items)
+        : po.line_items;
 
-    const additionalNotes = po.custom_fields
+    const additionalNotes = customFields
       .find((c) => c.api_name === 'cf_additional_notes')
       ?.value?.trim();
 
@@ -82,13 +93,13 @@ export class PushPoToMondayWorkflow extends WorkflowBase {
           text: po.delivery_customer_name,
           text27: po.reference_number,
           numbers6: ownerName,
-          long_text_mkxarwqq: po.custom_fields
+          long_text_mkxarwqq: customFields
             .find((c) => c.api_name === 'cf_internal_notes')
             ?.value?.trim(),
           long_text_mkwpme94: additionalNotes
             ? html.parse(additionalNotes).innerText
             : undefined,
-          date_mkxahyfp: po.custom_fields
+          date_mkxahyfp: customFields
             .find((c) => c.api_name === 'cf_factory_forecasted_delivery')
             ?.value?.trim(),
           address: `${shipping.attention}\n${shipping.address}${shipping.street2 ? ' ' + shipping.street2 : ''}\n${shipping.city} ${shipping.state}, ${shipping.zip}\n${shipping.country}`,
@@ -96,7 +107,7 @@ export class PushPoToMondayWorkflow extends WorkflowBase {
       },
     );
 
-    for (const lineItem of po.line_items) {
+    for (const lineItem of lineItems) {
       const air = lineItem.item_custom_fields
         .find((c) => c.api_name === 'cf_shipping_air')
         ?.value?.trim();
