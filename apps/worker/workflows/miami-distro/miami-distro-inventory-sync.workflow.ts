@@ -123,12 +123,14 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
               variationUpdatesByProduct[product.parent_id].push({
                 id: product.id,
                 stock_quantity: item.quantity_available,
+                manage_stock: true,
               });
             } else {
               // Simple product
               productUpdates.push({
                 id: product.id,
                 stock_quantity: item.quantity_available,
+                manage_stock: true,
               });
             }
           }
