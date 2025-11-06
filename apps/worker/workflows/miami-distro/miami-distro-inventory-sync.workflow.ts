@@ -77,6 +77,7 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
       .findOne<WithId<Snapshot>>();
 
     const changedItems = this.getChangedItems(prevSnapshot?.items || [], items);
+    const erroredSKUs = new Set<string>();
     const errors: any[] = [];
 
     if (changedItems.length > 0) {
@@ -88,12 +89,12 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
         'miami_distro',
         'savage_me_dolls',
         'the_delta_boss',
-        'shop_full_circle',
+        // 'shop_full_circle',
         // 'hempthrill',
         // 'shop_be_savage',
       ];
 
-      const chunks = chunk(changedItems, 100);
+      const chunks = chunk(changedItems, 50);
 
       for (const [i, ch] of chunks.entries()) {
         for (const connection of connections) {
@@ -102,6 +103,10 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
           const products = await wooClient.getProducts({
             sku: ch.map((i) => i.sku).join(','),
           });
+
+          this.logger.log(
+            `Fetched ${products.data.length} products from WooCommerce for connection ${connection}`,
+          );
 
           // Separate products from variations
           const productUpdates: any[] = [];
@@ -135,6 +140,10 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
             });
 
             errors.push(...res.data.update.filter((u: any) => u.error));
+
+            for (const product of productUpdates) {
+              erroredSKUs.add(product.sku);
+            }
           }
 
           // Update variations, grouped by parent
@@ -149,6 +158,10 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
             );
 
             errors.push(...res.data.update.filter((u: any) => u.error));
+
+            for (const update of updates) {
+              erroredSKUs.add(update.sku);
+            }
           }
         }
 
@@ -163,7 +176,7 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
           {
             $set: {
               timestamp: Date.now(),
-              items,
+              items: items.filter((item) => !erroredSKUs.has(item.sku)),
             },
           },
           { upsert: true },
@@ -188,10 +201,13 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
 
     for (const newItem of newItems) {
       const oldItem = oldMap.get(newItem.sku);
-      if (
-        oldItem &&
-        oldItem.quantity_available !== newItem.quantity_available
-      ) {
+
+      if (!oldItem) {
+        items.push(newItem);
+        continue;
+      }
+
+      if (oldItem.quantity_available !== newItem.quantity_available) {
         items.push(newItem);
       }
     }
