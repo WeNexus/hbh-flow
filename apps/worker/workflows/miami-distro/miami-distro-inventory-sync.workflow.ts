@@ -36,20 +36,34 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
       return this.cancel('Not running in development environment');
     }
 
-    const res = await this.zohoService.get<Record<string, any>>(
-      `/inventory/v1/reports/inventorysummary?accept=json&page=1&per_page=5000&sort_order=A&sort_column=item_name&filter_by=TransactionDate.Today&stock_on_hand_filter=All&group_by=%5B%7B%22field%22%3A%22none%22%2C%22group%22%3A%22report%22%7D%5D&show_actual_stock=true&rule=%7B%22columns%22%3A%5B%7B%22index%22%3A1%2C%22field%22%3A%22location_name%22%2C%22value%22%3A%5B%226673885000000093096%22%5D%2C%22comparator%22%3A%22in%22%2C%22group%22%3A%22report%22%7D%5D%2C%22criteria_string%22%3A%221%22%7D&select_columns=%5B%7B%22field%22%3A%22item_name%22%2C%22group%22%3A%22report%22%7D%2C%7B%22field%22%3A%22sku%22%2C%22group%22%3A%22report%22%7D%2C%7B%22field%22%3A%22quantity_available%22%2C%22group%22%3A%22report%22%7D%2C%7B%22field%22%3A%22quantity_available_for_sale%22%2C%22group%22%3A%22report%22%7D%5D&usestate=true&show_sub_categories=false&response_option=1&x-zb-source=zbclient&formatneeded=true&paper_size=A4&orientation=portrait&font_family_for_body=opensans&margin_top=0.7&margin_bottom=0.7&margin_left=0.55&margin_right=0.2&table_size=classic&table_style=default&show_org_name=true&show_generated_date=false&show_generated_time=false&show_page_number=false&show_report_basis=true&show_generated_by=false&can_fit_to_page=true&watermark_opacity=50&show_org_logo_in_header=false&show_org_logo_as_watermark=false&watermark_position=center+center&watermark_zoom=50&file_name=Inventory+Summary&organization_id=893457005&frameorigin=https%3A%2F%2Finventory.zoho.com`,
-      {
-        connection: 'miami_distro',
-      },
-    );
+    const itemDetails: Record<string, any>[] = [];
+
+    for (let page = 1; ; page++) {
+      const { data } = await this.zohoService.get<Record<string, any>>(
+        `/inventory/v1/reports/inventorysummary?accept=json&page=${page}&per_page=5000&sort_order=A&sort_column=item_name&filter_by=TransactionDate.Today&stock_on_hand_filter=All&group_by=%5B%7B%22field%22%3A%22none%22%2C%22group%22%3A%22report%22%7D%5D&show_actual_stock=true&rule=%7B%22columns%22%3A%5B%7B%22index%22%3A1%2C%22field%22%3A%22location_name%22%2C%22value%22%3A%5B%226673885000000093096%22%5D%2C%22comparator%22%3A%22in%22%2C%22group%22%3A%22report%22%7D%5D%2C%22criteria_string%22%3A%221%22%7D&select_columns=%5B%7B%22field%22%3A%22item_name%22%2C%22group%22%3A%22report%22%7D%2C%7B%22field%22%3A%22sku%22%2C%22group%22%3A%22report%22%7D%2C%7B%22field%22%3A%22quantity_available%22%2C%22group%22%3A%22report%22%7D%2C%7B%22field%22%3A%22quantity_available_for_sale%22%2C%22group%22%3A%22report%22%7D%5D&usestate=true&show_sub_categories=false&response_option=1&x-zb-source=zbclient&formatneeded=true&paper_size=A4&orientation=portrait&font_family_for_body=opensans&margin_top=0.7&margin_bottom=0.7&margin_left=0.55&margin_right=0.2&table_size=classic&table_style=default&show_org_name=true&show_generated_date=false&show_generated_time=false&show_page_number=false&show_report_basis=true&show_generated_by=false&can_fit_to_page=true&watermark_opacity=50&show_org_logo_in_header=false&show_org_logo_as_watermark=false&watermark_position=center+center&watermark_zoom=50&file_name=Inventory+Summary&organization_id=893457005&frameorigin=https%3A%2F%2Finventory.zoho.com`,
+        {
+          connection: 'miami_distro',
+        },
+      );
+
+      const pageCtx = data.page_context;
+      const items = data.inventory[0].item_details;
+      itemDetails.push(...items);
+
+      if (
+        items.length < pageCtx.per_page ||
+        page >= pageCtx.total_pages ||
+        itemDetails.length >= pageCtx.total
+      ) {
+        break;
+      }
+    }
 
     const mongo = await MongoClient.connect(
       this.envService.getString('MONGO_URL'),
     );
 
-    const items: Item[] = (
-      res.data.inventory[0].item_details as Record<string, any>[]
-    ).map((i) => ({
+    const items: Item[] = itemDetails.map((i) => ({
       item_id: i.item_id as string,
       sku: i.sku as string,
       item_name: i.item_name as string,
@@ -74,8 +88,8 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
         'miami_distro',
         'savage_me_dolls',
         'the_delta_boss',
+        'shop_full_circle',
         // 'hempthrill',
-        // 'shop_full_circle',
         // 'shop_be_savage',
       ];
 
