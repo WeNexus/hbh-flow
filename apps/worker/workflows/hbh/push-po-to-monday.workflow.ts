@@ -43,6 +43,9 @@ export class PushPoToMondayWorkflow extends WorkflowBase {
     const additionalNotes = customFields
       .find((c) => c.api_name === 'cf_additional_notes')
       ?.value?.trim();
+    const mondayLink = customFields.find(
+      (c) => c.api_name === 'cf_monday_link',
+    );
 
     let ownerName: string | undefined = undefined;
 
@@ -199,6 +202,26 @@ export class PushPoToMondayWorkflow extends WorkflowBase {
         `,
         {
           itemId,
+        },
+      );
+    }
+
+    if (!mondayLink?.value?.trim()) {
+      await this.zohoService.put(
+        `/inventory/v1/purchaseorders/${po.purchaseorder_id}`,
+        {
+          custom_fields: [
+            {
+              value: `https://honeybee-herb.monday.com/boards/18325813609/pulses/${itemId}`,
+              customfield_id: '3195387000190103952',
+            },
+          ],
+        },
+        {
+          connection: 'hbh',
+          params: {
+            organization_id: '776003162',
+          },
         },
       );
     }
