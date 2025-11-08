@@ -63,6 +63,15 @@ export class WoocommerceService extends TokenClient {
                 storeUrl: env.getString('SHOP_BE_SAVAGE_WC_STORE_URL'),
               },
             },*/
+            {
+              id: 'ryot',
+              description: 'Ryot WooCommerce Connection',
+              tokens: {
+                consumerKey: env.getString('RYOT_WC_KEY'),
+                consumerSecret: env.getString('RYOT_WC_SECRET'),
+                storeUrl: env.getString('RYOT_WC_STORE_URL'),
+              },
+            },
           ],
         },
       ),

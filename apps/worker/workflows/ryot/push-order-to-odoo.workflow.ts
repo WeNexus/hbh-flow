@@ -41,7 +41,7 @@ export class PushOrderToOdooWorkflow extends WorkflowBase {
   async fetchWooCustomer() {
     const order = this.payload;
 
-    const client = this.wooService.getClient('miami_distro');
+    const client = this.wooService.getClient('ryot');
     const { data: wooCustomer } = await client.getCustomer(order.customer_id);
 
     if (!wooCustomer) {
