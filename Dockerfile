@@ -1,5 +1,16 @@
 FROM node:24-alpine AS build
 
+RUN apk add --no-cache \
+    g++ \
+    jpeg-dev \
+    cairo-dev \
+    pango-dev \
+    giflib-dev \
+    libtool \
+    autoconf \
+    automake \
+    pkgconf
+
 RUN corepack enable pnpm
 
 WORKDIR /app
@@ -20,6 +31,12 @@ RUN rm -rf ./apps/ui
 RUN pnpm store prune
 
 FROM node:24-alpine AS production
+
+RUN apk add --no-cache \
+    jpeg-dev \
+    cairo-dev \
+    pango-dev \
+    giflib-dev
 
 RUN corepack enable pnpm
 
