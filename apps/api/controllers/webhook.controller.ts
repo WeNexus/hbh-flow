@@ -48,6 +48,7 @@ import {
   Body,
   Get,
   Req,
+  All,
   Res,
 } from '@nestjs/common';
 
@@ -160,7 +161,7 @@ export class WebhookController {
     );
   }
 
-  @Post('/trigger')
+  @All('/trigger')
   @ApiOperation({
     summary: 'Trigger webhook endpoint',
     description:

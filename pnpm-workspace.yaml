@@ -1,2 +1,7 @@
+onlyBuiltDependencies:
+  - '@swc/core'
+  - canvas
+  - pdfkit
+
 patchedDependencies:
   arctic: pnpm/patches/arctic.patch

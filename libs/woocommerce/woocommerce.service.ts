@@ -1,10 +1,15 @@
-import WooCommerceRestApi, { WooRestApiOptions } from 'woocommerce-rest-ts-api';
 import type { TokenClientOptions } from '#lib/hub/types';
 import { TokenClient } from '#lib/hub/clients';
 import { EnvService } from '#lib/core/env';
 import { Reflector } from '@nestjs/core';
+import { Logger } from '@nestjs/common';
 import { Client } from '#lib/hub/misc';
 import { merge } from 'lodash-es';
+
+import WooCommerceRestApi, {
+  WooCommerceApiError,
+  WooRestApiOptions,
+} from 'woocommerce-rest-ts-api';
 
 @Client('token', {
   id: 'woocommerce',
@@ -83,6 +88,8 @@ export class WoocommerceService extends TokenClient {
     WooCommerceRestApi<WooRestApiOptions>
   >();
 
+  private logger = new Logger(WoocommerceService.name);
+
   getClient(connection: string): WooCommerceRestApi<WooRestApiOptions> {
     let client = this.clients.get(connection);
 
@@ -112,7 +119,11 @@ export class WoocommerceService extends TokenClient {
       await client.getSystemStatus();
 
       return true;
-    } catch {
+    } catch (e: unknown) {
+      if (e instanceof WooCommerceApiError) {
+        this.logger.error(e.response);
+      }
+
       return false;
     }
   }

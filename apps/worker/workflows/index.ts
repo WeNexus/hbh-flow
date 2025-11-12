@@ -21,6 +21,7 @@ import { PushOrderToOdooWorkflow } from './ryot/push-order-to-odoo.workflow';
 import { PushPoToMondayWorkflow } from './hbh/push-po-to-monday.workflow';
 import { ItemWeightSyncWorkflow } from './hbh/item-weight-sync.workflow';
 import { PriceListSyncWorkflow } from './hbh/price-list-sync.workflow';
+import { UpcBarcodeGenWorkflow } from './hbh/upc-barcode-gen.workflow';
 import { WorkflowBase } from '#lib/workflow/misc/workflow-base.js';
 import { DelayWorkflow } from './hbh/delay.workflow';
 import { Type } from '@nestjs/common';
@@ -47,6 +48,7 @@ export const workflows: Type<WorkflowBase>[] = [
   PushOrderToOdooWorkflow,
   PushPoToMondayWorkflow,
   ItemWeightSyncWorkflow,
+  UpcBarcodeGenWorkflow,
   PriceListSyncWorkflow,
   EastWestInventorySync,
   DelayWorkflow,
