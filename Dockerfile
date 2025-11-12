@@ -7,6 +7,7 @@ RUN apk add --no-cache \
     cairo-dev \
     pango-dev \
     giflib-dev \
+    librsvg2-dev \
     libtool \
     autoconf \
     automake \
@@ -37,6 +38,7 @@ RUN apk add --no-cache \
     jpeg-dev \
     cairo-dev \
     pango-dev \
+    librsvg2-dev \
     giflib-dev
 
 RUN corepack enable pnpm
