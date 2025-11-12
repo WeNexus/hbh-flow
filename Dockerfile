@@ -22,14 +22,14 @@ WORKDIR /app
 
 COPY . .
 
-RUN pnpm install --frozen-lockfile --prefer-offline --prod --allow-build=@nestjs/core,@prisma/client,@prisma/engines,@scarf/scarf,argon2,msgpackr-extract,prisma,sharp
+RUN pnpm install --frozen-lockfile --prefer-offline --prod
 
 RUN pnpm prisma generate
 RUN pnpm prune --prod
 
 WORKDIR /app/apps/ui
 
-RUN pnpm install --frozen-lockfile --prefer-offline --ignore-workspace --allow-build=@tailwindcss/oxide,esbuild
+RUN pnpm install --frozen-lockfile --prefer-offline --ignore-workspace
 RUN pnpm build:skiptsc
 
 WORKDIR /app
