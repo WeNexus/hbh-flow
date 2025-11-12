@@ -1,13 +1,16 @@
 FROM node:24-alpine AS build
 
 RUN apk add --no-cache \
+    build-base \
     g++ \
     make \
     jpeg-dev \
     cairo-dev \
     pango-dev \
     giflib-dev \
-    librsvg2-dev \
+    librsvg-dev \
+    freetype-dev \
+    pixman-dev \
     libtool \
     autoconf \
     automake \
@@ -19,13 +22,14 @@ WORKDIR /app
 
 COPY . .
 
-RUN pnpm install --frozen-lockfile --prefer-offline --prod
+RUN pnpm install --frozen-lockfile --prefer-offline --prod --allow-build=@nestjs/core,@prisma/client,@prisma/engines,@scarf/scarf,argon2,msgpackr-extract,prisma,sharp
+
 RUN pnpm prisma generate
 RUN pnpm prune --prod
 
 WORKDIR /app/apps/ui
 
-RUN pnpm install --frozen-lockfile --prefer-offline --ignore-workspace
+RUN pnpm install --frozen-lockfile --prefer-offline --ignore-workspace --allow-build=@tailwindcss/oxide,esbuild
 RUN pnpm build:skiptsc
 
 WORKDIR /app
@@ -38,7 +42,9 @@ RUN apk add --no-cache \
     jpeg-dev \
     cairo-dev \
     pango-dev \
-    librsvg2-dev \
+    freetype-dev \
+    pixman-dev \
+    librsvg-dev \
     giflib-dev
 
 RUN corepack enable pnpm
