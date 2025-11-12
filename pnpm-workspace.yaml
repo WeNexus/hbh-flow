@@ -2,10 +2,10 @@ onlyBuiltDependencies:
   - '@swc/core'
   - canvas
   - pdfkit
-  - @tailwindcss/oxide
+  - '@tailwindcss/oxide'
   - esbuild
-  - @nestjs/core
-  - @scarf/scarf
+  - '@nestjs/core'
+  - '@scarf/scarf'
   - argon2
   - msgpackr-extract
   - sharp
