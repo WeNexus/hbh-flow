@@ -2,6 +2,7 @@ FROM node:24-alpine AS build
 
 RUN apk add --no-cache \
     g++ \
+    make \
     jpeg-dev \
     cairo-dev \
     pango-dev \
