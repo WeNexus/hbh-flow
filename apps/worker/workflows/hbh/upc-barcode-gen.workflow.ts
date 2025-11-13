@@ -200,6 +200,231 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
     );
 
     const MAX_FONT = 24;
+    const MIN_FONT = 6; // very small, but allows “no matter the length”
+    const SKU_PADDING = 12;
+
+    const baseOptions = {
+      xmlDocument: document,
+      format: 'UPC' as const,
+      background: '#FFFFFF',
+      lineColor: '#000000',
+      fontSize: 18, // UPC digits font size
+      height: 128,
+      width: 2,
+      margin: 10,
+      textMargin: -2,
+      displayValue: true,
+      font: 'Helvetica, Arial, sans-serif',
+      fontOptions: '',
+      textAlign: 'center' as const,
+    };
+
+    // First render so JsBarcode decides intrinsic width (and draws digits)
+    JsBarcode(svgNode, upc, {
+      ...baseOptions,
+      marginTop: 10,
+    });
+
+    // No SKU: just return the basic barcode
+    if (!sku) {
+      svgNode.setAttribute('style', 'shape-rendering:crispEdges');
+      return xmlSerializer.serializeToString(svgNode);
+    }
+
+    // --- Width estimation helpers ---
+    const CHAR_WIDTH_FACTOR = 0.58; // approximate average glyph width in ems
+
+    // 1. Estimate width of the UPC digits (this is our target width)
+    const upcTextWidth = 24 * baseOptions.fontSize * CHAR_WIDTH_FACTOR;
+
+    // 2. Pick SKU font size so its estimated width == UPC digits width
+    let fontSize = upcTextWidth / (sku.length * CHAR_WIDTH_FACTOR);
+
+    if (fontSize > MAX_FONT) fontSize = MAX_FONT;
+    if (fontSize < MIN_FONT) fontSize = MIN_FONT;
+
+    // Total vertical space reserved for SKU above the bars
+    const marginTop = fontSize + SKU_PADDING * 2;
+
+    // Center the glyphs vertically in that region.
+    const ASCENT_RATIO = 0.8;
+    const centerOffset = (ASCENT_RATIO - 0.5) * fontSize;
+    const textBaselineY = marginTop / 2 + centerOffset;
+
+    // Re-render barcode with extra margin on top
+    while (svgNode.firstChild) {
+      svgNode.removeChild(svgNode.firstChild);
+    }
+
+    JsBarcode(svgNode, upc, {
+      ...baseOptions,
+      marginTop,
+    });
+
+    svgNode.setAttribute('style', 'shape-rendering:crispEdges');
+
+    const skuText = document.createElementNS(
+      'http://www.w3.org/2000/svg',
+      'text',
+    );
+
+    skuText.setAttribute('x', '50%');
+    skuText.setAttribute('y', String(textBaselineY));
+    skuText.setAttribute('text-anchor', 'middle');
+    skuText.setAttribute('font-family', 'Helvetica, Arial, sans-serif');
+    skuText.setAttribute('font-size', String(fontSize));
+    skuText.setAttribute('fill', '#000000');
+    skuText.textContent = sku;
+
+    // IMPORTANT: no textLength / lengthAdjust here → no stretching/compressing
+    // We rely purely on font-size scaling to match the approximate width.
+
+    // Draw on top so it's never hidden
+    svgNode.appendChild(skuText);
+
+    return xmlSerializer.serializeToString(svgNode);
+  }
+
+  // Old version kept for reference
+  /*private generateBarcodeSvg(upc: string, sku?: string): string {
+    const xmlSerializer = new XMLSerializer();
+    const document = new DOMImplementation().createDocument(
+      'http://www.w3.org/1999/xhtml',
+      'html',
+      null,
+    );
+    const svgNode = document.createElementNS(
+      'http://www.w3.org/2000/svg',
+      'svg',
+    );
+
+    const MAX_FONT = 24;
+    const MIN_FONT = 10;
+    const SKU_PADDING = 12;
+
+    const baseOptions = {
+      xmlDocument: document,
+      format: 'UPC' as const,
+      background: '#FFFFFF',
+      lineColor: '#000000',
+      fontSize: 18,
+      height: 128,
+      width: 2,
+      margin: 10,
+      textMargin: -2,
+      displayValue: true,
+      font: 'Helvetica, Arial, sans-serif',
+      fontOptions: '',
+      textAlign: 'center' as const,
+    };
+
+    // First render so JsBarcode decides intrinsic width
+    JsBarcode(svgNode, upc, {
+      ...baseOptions,
+      marginTop: 10,
+    });
+
+    // available width from SVG (width or viewBox)
+    let availableWidth = parseFloat(svgNode.getAttribute('width') || '') || 0;
+    if (!availableWidth) {
+      const vb = svgNode.getAttribute('viewBox');
+      if (vb) {
+        const parts = vb.split(/\s+/).map(Number);
+        if (parts.length === 4 && !Number.isNaN(parts[2])) {
+          availableWidth = parts[2];
+        }
+      }
+    }
+    if (!availableWidth) availableWidth = 600;
+
+    // No SKU: just return the basic barcode
+    if (!sku) {
+      svgNode.setAttribute('style', 'shape-rendering:crispEdges');
+      return xmlSerializer.serializeToString(svgNode);
+    }
+
+    const SIDE_MARGIN = 10;
+    const maxTextWidth = Math.max(10, availableWidth - SIDE_MARGIN * 2);
+
+    // Rough width estimate: characters * em-width factor
+    const CHAR_WIDTH_FACTOR = 0.58;
+    const FIT_SAFETY = 0.98; // leave a little room
+
+    const estimateWidth = (text: string, fontSize: number) =>
+      text.length * fontSize * CHAR_WIDTH_FACTOR;
+
+    // --- 1. Choose font size to FILL the width (up to MAX_FONT) ---
+    let fontSize =
+      (maxTextWidth * FIT_SAFETY) / (sku.length * CHAR_WIDTH_FACTOR);
+
+    if (fontSize > MAX_FONT) fontSize = MAX_FONT;
+    if (fontSize < MIN_FONT) fontSize = MIN_FONT;
+
+    // Total vertical space reserved for SKU above the bars
+    const marginTop = fontSize + SKU_PADDING * 2;
+
+    // Center the *glyphs* vertically in that region.
+    // Approximate ascent ≈ 0.8 of fontSize.
+    const ASCENT_RATIO = 0.8;
+    const centerOffset = (ASCENT_RATIO - 0.5) * fontSize;
+    const textBaselineY = marginTop / 2 + centerOffset;
+
+    // Re-render barcode with extra margin on top
+    while (svgNode.firstChild) {
+      svgNode.removeChild(svgNode.firstChild);
+    }
+
+    JsBarcode(svgNode, upc, {
+      ...baseOptions,
+      marginTop,
+    });
+
+    svgNode.setAttribute('style', 'shape-rendering:crispEdges');
+
+    const skuText = document.createElementNS(
+      'http://www.w3.org/2000/svg',
+      'text',
+    );
+
+    skuText.setAttribute('x', '50%');
+    skuText.setAttribute('y', String(textBaselineY));
+    skuText.setAttribute('text-anchor', 'middle');
+    skuText.setAttribute('font-family', 'Helvetica, Arial, sans-serif');
+    skuText.setAttribute('font-size', String(fontSize));
+    skuText.setAttribute('fill', '#000000');
+    skuText.textContent = sku;
+
+    const estWidth = estimateWidth(sku, fontSize);
+
+    // --- 2. Only compress/stretch horizontally if we *must* ---
+    if (estWidth > maxTextWidth * FIT_SAFETY) {
+      // Too long even at min/max font size: fit by scaling + slight spacing change
+      skuText.setAttribute('textLength', String(maxTextWidth));
+      skuText.setAttribute('lengthAdjust', 'spacingAndGlyphs');
+    }
+    // NOTE: no special handling when text is short; we just let it be
+    // its natural width, so there is no weird expanded spacing.
+
+    // Draw on top so it's never hidden
+    svgNode.appendChild(skuText);
+
+    return xmlSerializer.serializeToString(svgNode);
+  }*/
+
+  // Original
+  /*private generateBarcodeSvg(upc: string, sku?: string): string {
+    const xmlSerializer = new XMLSerializer();
+    const document = new DOMImplementation().createDocument(
+      'http://www.w3.org/1999/xhtml',
+      'html',
+      null,
+    );
+    const svgNode = document.createElementNS(
+      'http://www.w3.org/2000/svg',
+      'svg',
+    );
+
+    const MAX_FONT = 24;
     const SKU_PADDING = 12;
 
     const baseOptions = {
@@ -257,7 +482,7 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
     while (
       fontSize > 10 &&
       estimateWidth(sku, fontSize) > maxTextWidth * FIT_SAFETY
-    ) {
+      ) {
       fontSize -= 1;
     }
 
@@ -303,7 +528,7 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
     svgNode.appendChild(skuText);
 
     return xmlSerializer.serializeToString(svgNode);
-  }
+  }*/
 
   @Step(1)
   async execute() {
