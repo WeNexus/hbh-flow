@@ -16,25 +16,74 @@ import { z } from 'zod';
   webhookPayloadType: WebhookPayloadType.Query,
 })
 export class UpcBarcodeGenWorkflow extends WorkflowBase {
-  private readonly schema = z.object({
-    // sku could be comma separated list of SKUs
-    sku: z
-      .string()
-      .optional()
-      .transform((val) => {
-        val = val?.trim();
+  private readonly schema = z
+    .object({
+      // sku could be comma separated list of SKUs
+      sku: z
+        .string()
+        .optional()
+        .transform((val) => {
+          const trimmed = val?.trim();
+          if (!trimmed) return [] as string[];
 
-        if (!val) return undefined;
-        return val.split(',').map((s) => s.trim());
+          return trimmed
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+        }),
+      upc: z.string().transform((val) => {
+        const trimmed = val.trim();
+        if (!trimmed) return [] as string[];
+
+        return trimmed
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
       }),
-    upc: z.string().transform((val) => {
-      val = val.trim();
-      if (!val) return [];
+      fileType: z.enum(['pdf-zip', 'pdf', 'svg', 'png']).default('pdf'),
+    })
+    .superRefine((val, ctx) => {
+      // 2. There must be at least one UPC and one SKU
+      if (!val.upc.length) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['upc'],
+          message: 'At least one UPC is required.',
+        });
+      }
 
-      return val.split(',').map((s) => s.trim());
-    }),
-    fileType: z.enum(['pdf-zip', 'pdf', 'svg', 'png']).default('pdf'),
-  });
+      if (!val.sku.length) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['sku'],
+          message: 'At least one SKU is required.',
+        });
+      }
+
+      // Make sure they line up 1:1
+      if (
+        val.upc.length &&
+        val.sku.length &&
+        val.upc.length !== val.sku.length
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['sku'],
+          message: 'The number of SKUs must match the number of UPCs.',
+        });
+      }
+
+      // Basic UPC sanity check: 12 numeric digits
+      val.upc.forEach((code, index) => {
+        if (!/^\d{12}$/.test(code)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['upc', index],
+            message: `UPC at index ${index} must be 12 numeric digits.`,
+          });
+        }
+      });
+    });
 
   private getSvgIntrinsicSize(svg: string): { svgW: number; svgH: number } {
     // Extract attributes
@@ -125,9 +174,7 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
 
     // For crisp bar edges
     // (helps a bit for barcodes if there’s any resampling)
-    // @ts-ignore
     ctx.imageSmoothingEnabled = false;
-    // @ts-ignore
     ctx.patternQuality = 'fast';
 
     const img = await loadImage(
@@ -152,87 +199,108 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
       'svg',
     );
 
-    // Top margin: large enough for the *max* possible SKU font size
     const MAX_FONT = 24;
-    const SKU_TOP_PADDING = 10;
-    const marginTop = sku ? MAX_FONT + SKU_TOP_PADDING + 10 : 10;
+    const SKU_PADDING = 12;
 
-    JsBarcode(svgNode, upc, {
+    const baseOptions = {
       xmlDocument: document,
-      format: 'UPC',
+      format: 'UPC' as const,
       background: '#FFFFFF',
       lineColor: '#000000',
       fontSize: 18,
       height: 128,
       width: 2,
       margin: 10,
-      marginTop,
       textMargin: -2,
       displayValue: true,
       font: 'Helvetica, Arial, sans-serif',
       fontOptions: '',
-      textAlign: 'center',
+      textAlign: 'center' as const,
+    };
+
+    // First render just to let JsBarcode decide the intrinsic width.
+    JsBarcode(svgNode, upc, {
+      ...baseOptions,
+      marginTop: 10,
+    });
+
+    // available width from SVG (width or viewBox)
+    let availableWidth = parseFloat(svgNode.getAttribute('width') || '') || 0;
+    if (!availableWidth) {
+      const vb = svgNode.getAttribute('viewBox');
+      if (vb) {
+        const parts = vb.split(/\s+/).map(Number);
+        if (parts.length === 4 && !Number.isNaN(parts[2])) {
+          availableWidth = parts[2];
+        }
+      }
+    }
+    if (!availableWidth) availableWidth = 600;
+
+    // No SKU: just return the basic barcode
+    if (!sku) {
+      svgNode.setAttribute('style', 'shape-rendering:crispEdges');
+      return xmlSerializer.serializeToString(svgNode);
+    }
+
+    const SIDE_MARGIN = 10;
+    const maxTextWidth = Math.max(10, availableWidth - SIDE_MARGIN * 2);
+    const CHAR_WIDTH_FACTOR = 0.58;
+    const FIT_SAFETY = 0.98;
+
+    const SPACING_MIN_RATIO = 0.7;
+
+    const estimateWidth = (text: string, fontSize: number) =>
+      text.length * fontSize * CHAR_WIDTH_FACTOR;
+
+    let fontSize = MAX_FONT;
+    while (
+      fontSize > 10 &&
+      estimateWidth(sku, fontSize) > maxTextWidth * FIT_SAFETY
+    ) {
+      fontSize -= 1;
+    }
+
+    const marginTop = fontSize + SKU_PADDING * 2;
+    const textBaselineY = SKU_PADDING + fontSize;
+
+    while (svgNode.firstChild) {
+      svgNode.removeChild(svgNode.firstChild);
+    }
+
+    JsBarcode(svgNode, upc, {
+      ...baseOptions,
+      marginTop,
     });
 
     svgNode.setAttribute('style', 'shape-rendering:crispEdges');
 
-    if (sku) {
-      const skuText = document.createElementNS(
-        'http://www.w3.org/2000/svg',
-        'text',
-      );
+    const skuText = document.createElementNS(
+      'http://www.w3.org/2000/svg',
+      'text',
+    );
 
-      // available width from SVG (width or viewBox)
-      let availableWidth = parseFloat(svgNode.getAttribute('width') || '') || 0;
-      if (!availableWidth) {
-        const vb = svgNode.getAttribute('viewBox');
-        if (vb) {
-          const parts = vb.split(/\s+/).map(Number);
-          if (parts.length === 4 && !Number.isNaN(parts[2])) {
-            availableWidth = parts[2];
-          }
-        }
-      }
-      if (!availableWidth) availableWidth = 600;
+    skuText.setAttribute('x', '50%');
+    skuText.setAttribute('y', String(textBaselineY));
+    skuText.setAttribute('text-anchor', 'middle');
+    skuText.setAttribute('font-family', 'Helvetica, Arial, sans-serif');
+    skuText.setAttribute('font-size', String(fontSize));
+    skuText.setAttribute('fill', '#000000');
+    skuText.textContent = sku;
 
-      const SIDE_MARGIN = 10;
-      const maxTextWidth = Math.max(10, availableWidth - SIDE_MARGIN * 2);
-      const CHAR_WIDTH_FACTOR = 0.58;
-      const FIT_SAFETY = 0.98;
-      const SPACING_ONLY_THRESHOLD = 0.94;
+    const est = estimateWidth(sku, fontSize);
+    const ratio = est / maxTextWidth;
 
-      const estimateWidth = (text: string, fontSize: number) =>
-        text.length * fontSize * CHAR_WIDTH_FACTOR;
-
-      let fontSize = MAX_FONT;
-      while (
-        fontSize > 10 &&
-        estimateWidth(sku, fontSize) > maxTextWidth * FIT_SAFETY
-      ) {
-        fontSize -= 1;
-      }
-
-      const y = fontSize + SKU_TOP_PADDING;
-
-      skuText.setAttribute('x', '50%');
-      skuText.setAttribute('y', String(y));
-      skuText.setAttribute('text-anchor', 'middle');
-      skuText.setAttribute('font-family', 'Helvetica, Arial, sans-serif');
-      skuText.setAttribute('font-size', String(fontSize));
-      skuText.setAttribute('fill', '#000000');
-      skuText.textContent = sku;
-
-      const est = estimateWidth(sku, fontSize);
-      if (est > maxTextWidth) {
-        skuText.setAttribute('textLength', String(maxTextWidth));
-        skuText.setAttribute('lengthAdjust', 'spacingAndGlyphs');
-      } else if (est > maxTextWidth * SPACING_ONLY_THRESHOLD) {
-        skuText.setAttribute('textLength', String(maxTextWidth));
-        skuText.setAttribute('lengthAdjust', 'spacing');
-      }
-
-      svgNode.appendChild(skuText); // draw on top otherwise it'll be hidden
+    if (ratio >= 1) {
+      skuText.setAttribute('textLength', String(maxTextWidth));
+      skuText.setAttribute('lengthAdjust', 'spacingAndGlyphs');
+    } else if (ratio >= SPACING_MIN_RATIO) {
+      skuText.setAttribute('textLength', String(maxTextWidth));
+      skuText.setAttribute('lengthAdjust', 'spacing');
     }
+
+    // Draw on top so it's never hidden
+    svgNode.appendChild(skuText);
 
     return xmlSerializer.serializeToString(svgNode);
   }
@@ -259,6 +327,17 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
         true,
       );
     }
+
+    const sanitizeForFilename = (value: string) =>
+      value.replace(/[^a-zA-Z0-9_.-]+/g, '_');
+
+    const filenameParts =
+      payload.sku && payload.sku.length ? payload.sku : payload.upc;
+
+    const baseFilename =
+      filenameParts.length > 0
+        ? filenameParts.map(sanitizeForFilename).join('__')
+        : 'barcodes';
 
     const extension =
       payload.fileType === 'pdf-zip'
@@ -287,7 +366,8 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
         statusCode: 200,
         headers: {
           'Content-Type': contentType,
-          'Content-Disposition': `inline; filename="${payload.upc.join('__')}.${extension}"`,
+          // 3. Filename is now based on SKU, not UPC
+          'Content-Disposition': `inline; filename="${baseFilename}.${extension}"`,
         },
       });
     }
@@ -322,11 +402,14 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
           return this.sendResponse(svg, true);
         }
 
+        const nameBase = sanitizeForFilename(sku || upc || `item-${i}`);
+
         await new Promise((r) => {
           (resStream as ZipStream).entry(
             svg,
             {
-              name: `${upc}-${i}.svg`,
+              // 3. Name per file with SKU
+              name: `${nameBase}-${i}.svg`,
               type: 'file',
             },
             r,
@@ -343,11 +426,13 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
           return this.sendResponse(pngBuffer, true);
         }
 
+        const nameBase = sanitizeForFilename(sku || upc || `item-${i}`);
+
         await new Promise((r) => {
           (resStream as ZipStream).entry(
             pngBuffer,
             {
-              name: `${upc}-${i}.png`,
+              name: `${nameBase}-${i}.png`,
               type: 'file',
             },
             r,
@@ -374,10 +459,12 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
           doc.on('end', () => {
             const pdfBuffer = Buffer.concat(chunks);
 
+            const nameBase = sanitizeForFilename(sku || upc || `item-${i}`);
+
             (resStream as ZipStream).entry(
               pdfBuffer,
               {
-                name: `${upc}-${i}.pdf`,
+                name: `${nameBase}-${i}.pdf`,
                 type: 'file',
               },
               resolve,
