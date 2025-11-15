@@ -187,7 +187,7 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
     return canvas.toBuffer('image/png');
   }
 
-  private generateBarcodeSvg(upc: string, sku?: string): string {
+  /*private generateBarcodeSvg(upc: string, sku?: string): string {
     const xmlSerializer = new XMLSerializer();
     const document = new DOMImplementation().createDocument(
       'http://www.w3.org/1999/xhtml',
@@ -283,7 +283,7 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
     svgNode.appendChild(skuText);
 
     return xmlSerializer.serializeToString(svgNode);
-  }
+  }*/
 
   // Old version kept for reference
   /*private generateBarcodeSvg(upc: string, sku?: string): string {
@@ -412,7 +412,7 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
   }*/
 
   // Original
-  /*private generateBarcodeSvg(upc: string, sku?: string): string {
+  private generateBarcodeSvg(upc: string, sku?: string): string {
     const xmlSerializer = new XMLSerializer();
     const document = new DOMImplementation().createDocument(
       'http://www.w3.org/1999/xhtml',
@@ -528,7 +528,7 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
     svgNode.appendChild(skuText);
 
     return xmlSerializer.serializeToString(svgNode);
-  }*/
+  }
 
   @Step(1)
   async execute() {
