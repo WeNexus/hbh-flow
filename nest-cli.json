@@ -126,6 +126,15 @@
       "compilerOptions": {
         "tsConfigPath": "libs/odoo/tsconfig.lib.json"
       }
+    },
+    "duoplane": {
+      "type": "library",
+      "root": "libs/duoplane",
+      "entryFile": "index",
+      "sourceRoot": "libs/duoplane",
+      "compilerOptions": {
+        "tsConfigPath": "libs/duoplane/tsconfig.lib.json"
+      }
     }
   }
 }

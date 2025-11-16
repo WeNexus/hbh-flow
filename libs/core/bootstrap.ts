@@ -6,6 +6,7 @@ import { APP_TYPE, RedisIoAdapter, RUNTIME_ID } from '#lib/core/misc';
 import { PrismaExtensionRedis } from '#lib/core/misc/prisma-cache';
 import { FujimausaModule } from '#lib/fujimausa/fujimausa.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { DuoplaneModule } from '#lib/duoplane/duoplane.module';
 import { FlodeskModule } from '#lib/flodesk/flodesk.module';
 import { ShopifyModule } from '#lib/shopify/shopify.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -118,6 +119,7 @@ export async function bootstrap(
       FlodeskModule,
       WoocommerceModule,
       ShopifyModule,
+      DuoplaneModule,
       OdooModule,
     ],
     providers: [
@@ -203,6 +205,7 @@ export async function bootstrap(
       WoocommerceModule,
       ShopifyModule,
       MondayModule,
+      DuoplaneModule,
       OdooModule,
     ],
   })

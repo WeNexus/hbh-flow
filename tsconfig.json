@@ -23,106 +23,40 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "#lib/core": [
-        "libs/core"
-      ],
-      "#lib/core/*": [
-        "libs/core/*"
-      ],
-      "#lib/workflow": [
-        "libs/workflow"
-      ],
-      "#lib/workflow/*": [
-        "libs/workflow/*"
-      ],
-      "#lib/auth": [
-        "libs/auth"
-      ],
-      "#lib/auth/*": [
-        "libs/auth/*"
-      ],
-      "#lib/hub": [
-        "libs/hub"
-      ],
-      "#lib/hub/*": [
-        "libs/hub/*"
-      ],
-      "#lib/zoho": [
-        "libs/zoho"
-      ],
-      "#lib/zoho/*": [
-        "libs/zoho/*"
-      ],
-      "#lib/fujimausa": [
-        "libs/fujimausa"
-      ],
-      "#lib/fujimausa/*": [
-        "libs/fujimausa/*"
-      ],
-      "#lib/bigcommerce": [
-        "libs/bigcommerce"
-      ],
-      "#lib/bigcommerce/*": [
-        "libs/bigcommerce/*"
-      ],
-      "#lib/flodesk": [
-        "libs/flodesk"
-      ],
-      "#lib/flodesk/*": [
-        "libs/flodesk/*"
-      ],
-      "#lib/woocommerce": [
-        "libs/woocommerce"
-      ],
-      "#lib/woocommerce/*": [
-        "libs/woocommerce/*"
-      ],
-      "#lib/shopify": [
-        "libs/shopify"
-      ],
-      "#lib/shopify/*": [
-        "libs/shopify/*"
-      ],
-      "#lib/monday": [
-        "libs/monday"
-      ],
-      "#lib/monday/*": [
-        "libs/monday/*"
-      ],
-      "#lib/llm": [
-        "libs/llm"
-      ],
-      "#lib/llm/*": [
-        "libs/llm/*"
-      ],
-      "#lib/odoo": [
-        "libs/odoo"
-      ],
-      "#lib/odoo/*": [
-        "libs/odoo/*"
-      ],
-      "#app/api": [
-        "apps/api"
-      ],
-      "#app/api/*": [
-        "apps/api/*"
-      ],
-      "#app/worker": [
-        "apps/worker"
-      ],
-      "#app/worker/*": [
-        "apps/worker/*"
-      ]
+      "#lib/core": ["libs/core"],
+      "#lib/core/*": ["libs/core/*"],
+      "#lib/workflow": ["libs/workflow"],
+      "#lib/workflow/*": ["libs/workflow/*"],
+      "#lib/auth": ["libs/auth"],
+      "#lib/auth/*": ["libs/auth/*"],
+      "#lib/hub": ["libs/hub"],
+      "#lib/hub/*": ["libs/hub/*"],
+      "#lib/zoho": ["libs/zoho"],
+      "#lib/zoho/*": ["libs/zoho/*"],
+      "#lib/fujimausa": ["libs/fujimausa"],
+      "#lib/fujimausa/*": ["libs/fujimausa/*"],
+      "#lib/bigcommerce": ["libs/bigcommerce"],
+      "#lib/bigcommerce/*": ["libs/bigcommerce/*"],
+      "#lib/flodesk": ["libs/flodesk"],
+      "#lib/flodesk/*": ["libs/flodesk/*"],
+      "#lib/woocommerce": ["libs/woocommerce"],
+      "#lib/woocommerce/*": ["libs/woocommerce/*"],
+      "#lib/shopify": ["libs/shopify"],
+      "#lib/shopify/*": ["libs/shopify/*"],
+      "#lib/monday": ["libs/monday"],
+      "#lib/monday/*": ["libs/monday/*"],
+      "#lib/llm": ["libs/llm"],
+      "#lib/llm/*": ["libs/llm/*"],
+      "#lib/odoo": ["libs/odoo"],
+      "#lib/odoo/*": ["libs/odoo/*"],
+      "#lib/duoplane": ["libs/duoplane"],
+      "#lib/duoplane/*": ["libs/duoplane/*"],
+      "#app/api": ["apps/api"],
+      "#app/api/*": ["apps/api/*"],
+      "#app/worker": ["apps/worker"],
+      "#app/worker/*": ["apps/worker/*"]
     }
   },
-  "include": [
-    "./libs/**/*",
-    "./apps/**/*",
-    "./global.d.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "./apps/ui"
-  ]
+  "include": ["./libs/**/*", "./apps/**/*", "./global.d.ts"],
+  "exclude": ["node_modules", "dist", "./apps/ui"]
 }
