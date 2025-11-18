@@ -6,6 +6,7 @@ import { MiamiDistroCreateOnlineAccountWorkflow } from './miami-distro/miami-dis
 import { MiamiDistroInventorySyncWorkflow } from './miami-distro/miami-distro-inventory-sync.workflow';
 import { SyncInventoryWithMiamiDistroWorkflow } from './hbh/sync-inventory-with-miami-distro.workflow';
 import { PushCrmContactToBigcommerceWorkflow } from './hbh/push-crm-contact-to-bigcommerce.workflow';
+import { RyotInventorySyncWorkflow } from '#app/worker/workflows/hbh/ryot-inventory-sync.workflow';
 import { PushOrderUpdateToInventoryWorkflow } from './hbh/push-order-update-to-inventory.workflow';
 import { MiamiDistroNotifyNoteWorkflow } from './miami-distro/miami-distro-notify-note.workflow';
 import { MiamiDistroPushOrderWorkflow } from './miami-distro/miami-distro-push-order.workflow';
@@ -45,6 +46,7 @@ export const workflows: Type<WorkflowBase>[] = [
   MiamiDistroPushOrderWorkflow,
   PushOrderToInventoryWorkflow,
   SplitDropshipItemsWorkflow,
+  RyotInventorySyncWorkflow,
   PushOrderToOdooWorkflow,
   PushPoToMondayWorkflow,
   ItemWeightSyncWorkflow,
