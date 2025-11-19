@@ -640,12 +640,14 @@ export class WorkflowService implements OnApplicationBootstrap {
                     cause: e.cause,
                     stack: e.stack,
                     response:
-                      e instanceof AxiosError
-                        ? JSON.parse(safeJsonStringify(e.response))
+                      e instanceof AxiosError ||
+                      Object.prototype.hasOwnProperty.call(e, '')
+                        ? JSON.parse(safeJsonStringify((e as any).response))
                         : undefined,
                     config:
-                      e instanceof AxiosError
-                        ? JSON.parse(safeJsonStringify(e.config))
+                      e instanceof AxiosError ||
+                      Object.prototype.hasOwnProperty.call(e, 'config')
+                        ? JSON.parse(safeJsonStringify((e as any).config))
                         : undefined,
                   };
                 } else {
