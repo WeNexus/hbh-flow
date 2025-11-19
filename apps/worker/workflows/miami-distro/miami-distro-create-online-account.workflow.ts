@@ -57,28 +57,34 @@ export class MiamiDistroCreateOnlineAccountWorkflow extends WorkflowBase {
           first_name: contact.First_Name,
           last_name: contact.Last_Name,
           email: contactEmail,
-          billing: {
-            first_name: contact.First_Name,
-            last_name: contact.Last_Name,
-            company: account.Account_Name,
-            address_1: account.Billing_Street,
-            city: account.Billing_City,
-            state: account.Billing_State,
-            postcode: account.Billing_Code,
-            country: account.Billing_Country,
-            email: accountEmail || contactEmail,
-            phone,
-          },
-          shipping: {
-            first_name: contact.First_Name,
-            last_name: contact.Last_Name,
-            company: account.Account_Name,
-            address_1: account.Shipping_Street,
-            city: account.Shipping_City,
-            state: account.Shipping_State,
-            postcode: account.Shipping_Code,
-            country: account.Shipping_Country,
-          },
+          billing:
+            !account.Billing_City || !account.Billing_State
+              ? undefined
+              : {
+                  first_name: contact.First_Name,
+                  last_name: contact.Last_Name,
+                  company: account.Account_Name,
+                  address_1: account.Billing_Street,
+                  city: account.Billing_City,
+                  state: account.Billing_State,
+                  postcode: account.Billing_Code,
+                  country: account.Billing_Country,
+                  email: accountEmail || contactEmail,
+                  phone,
+                },
+          shipping:
+            !account.Shipping_City || !account.Shipping_State
+              ? undefined
+              : {
+                  first_name: contact.First_Name,
+                  last_name: contact.Last_Name,
+                  company: account.Account_Name,
+                  address_1: account.Shipping_Street,
+                  city: account.Shipping_City,
+                  state: account.Shipping_State,
+                  postcode: account.Shipping_Code,
+                  country: account.Shipping_Country,
+                },
           password,
         });
 
@@ -108,28 +114,34 @@ export class MiamiDistroCreateOnlineAccountWorkflow extends WorkflowBase {
           first_name: contact.First_Name,
           last_name: contact.Last_Name,
           email: customer.email === contactEmail ? undefined : contactEmail,
-          billing: {
-            first_name: contact.First_Name,
-            last_name: contact.Last_Name,
-            company: account.Account_Name,
-            address_1: account.Billing_Street,
-            city: account.Billing_City,
-            state: account.Billing_State,
-            postcode: account.Billing_Code,
-            country: account.Billing_Country,
-            email: accountEmail || contactEmail,
-            phone,
-          },
-          shipping: {
-            first_name: contact.First_Name,
-            last_name: contact.Last_Name,
-            company: account.Account_Name,
-            address_1: account.Shipping_Street,
-            city: account.Shipping_City,
-            state: account.Shipping_State,
-            postcode: account.Shipping_Code,
-            country: account.Shipping_Country,
-          },
+          billing:
+            !account.Billing_City || !account.Billing_State
+              ? undefined
+              : {
+                  first_name: contact.First_Name,
+                  last_name: contact.Last_Name,
+                  company: account.Account_Name,
+                  address_1: account.Billing_Street,
+                  city: account.Billing_City,
+                  state: account.Billing_State,
+                  postcode: account.Billing_Code,
+                  country: account.Billing_Country,
+                  email: accountEmail || contactEmail,
+                  phone,
+                },
+          shipping:
+            !account.Shipping_City || !account.Shipping_State
+              ? undefined
+              : {
+                  first_name: contact.First_Name,
+                  last_name: contact.Last_Name,
+                  company: account.Account_Name,
+                  address_1: account.Shipping_Street,
+                  city: account.Shipping_City,
+                  state: account.Shipping_State,
+                  postcode: account.Shipping_Code,
+                  country: account.Shipping_Country,
+                },
         });
 
         result = data;
