@@ -1,10 +1,10 @@
 import { WoocommerceService } from '#lib/woocommerce/woocommerce.service';
+import { WooCommerceApiError } from 'woocommerce-rest-ts-api';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { ZohoService } from '#lib/zoho/zoho.service';
 import { WorkflowBase } from '#lib/workflow/misc';
 import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
-import { AxiosError } from 'axios';
 
 @Workflow({
   name: 'Miami Distro - Create Online Account',
@@ -153,7 +153,7 @@ export class MiamiDistroCreateOnlineAccountWorkflow extends WorkflowBase {
         );
       }
 
-      if (e instanceof AxiosError) {
+      if (e instanceof WooCommerceApiError) {
         this.logger.error(e.response?.data);
       }
 
