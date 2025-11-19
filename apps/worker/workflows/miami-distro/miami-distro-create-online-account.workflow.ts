@@ -152,6 +152,12 @@ export class MiamiDistroCreateOnlineAccountWorkflow extends WorkflowBase {
           }),
         );
       }
+
+      if (e instanceof AxiosError) {
+        this.logger.error(e.response?.data);
+      }
+
+      throw e;
     }
 
     if (!this.responseMetaSent) {
