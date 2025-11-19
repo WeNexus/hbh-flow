@@ -319,7 +319,7 @@ export class WorkflowService implements OnApplicationBootstrap {
             );
           }
 
-          return this.execute(instance, token);
+          return Sentry.startNewTrace(() => this.execute(instance, token));
         },
         {
           autorun: true,
@@ -352,7 +352,6 @@ export class WorkflowService implements OnApplicationBootstrap {
         },
       }).catch((err) => {
         this.logger.error(
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
           `Failed to run setup events workflow: ${err.message}`,
         );
       });
