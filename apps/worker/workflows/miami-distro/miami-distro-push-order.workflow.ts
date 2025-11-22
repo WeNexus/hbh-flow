@@ -193,7 +193,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       this.payload.status !== 'cancelled' &&
       this.payload.status !== 'processing'
     ) {
-      return this.cancel();
+      return this.cancel(`Order status is ${this.payload.status}`);
     }
 
     const client = await MongoClient.connect(
@@ -209,7 +209,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     await client.close();
 
     if (!existing && this.payload.status === 'cancelled') {
-      return this.cancel();
+      return this.cancel(`Order does not exist and is cancelled`);
     }
 
     return existing;
