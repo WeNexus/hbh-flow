@@ -2,7 +2,6 @@ import { WoocommerceService } from '#lib/woocommerce/woocommerce.service';
 import { ShopifyService } from '#lib/shopify/shopify.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { cron, WorkflowBase } from '#lib/workflow/misc';
-import { EnvService } from '#lib/core/env';
 import * as readline from 'node:readline';
 import { Logger } from '@nestjs/common';
 import { keyBy } from 'lodash-es';
@@ -22,7 +21,6 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
   constructor(
     private readonly wooService: WoocommerceService,
     private readonly shopifyService: ShopifyService,
-    private readonly envService: EnvService,
   ) {
     super();
   }
@@ -158,9 +156,9 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
 
   @Step(1)
   async exportShopifyProducts() {
-    if (!this.envService.isProd) {
-      return this.cancel('Not running in development environment');
-    }
+    // if (!this.envService.isProd) {
+    //   return this.cancel('Not running in development environment');
+    // }
 
     const skuFilter = this.skus.map((sku) => `sku:${sku}`).join(' OR ');
 
@@ -200,6 +198,7 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
             status
             url
             errorCode
+            partialDataUrl
           }
           userErrors {
             code
@@ -248,6 +247,7 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
             status
             url
             errorCode
+            partialDataUrl
           }
         }
       }
@@ -261,7 +261,8 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
     if (
       node.status === 'RUNNING' ||
       node.status === 'CREATED' ||
-      node.status === 'CANCELING'
+      node.status === 'CANCELING' ||
+      !node.url
     ) {
       return this.rerun(5000); // Rerun after 5 seconds
     }
@@ -305,6 +306,17 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
           field
           message
         }
+        inventoryAdjustmentGroup {
+          reason
+          changes {
+            name
+            delta
+            quantityAfterChange
+            item {
+              sku
+            }
+          }
+        }
       }
     }
     `;
@@ -320,6 +332,7 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
 
         const variantsBySKU = keyBy(queue, 'sku');
         const skus = Object.keys(variantsBySKU);
+
         const { data: wooProducts } = await woo.getProducts({
           sku: skus.join(','),
         });
@@ -336,7 +349,7 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
             inventoryItemId: variant.inventoryItem.id,
             compareQuantity:
               variant.inventoryItem.inventoryLevel.quantities[0].quantity,
-            quantity: wooProduct.stock_quantity,
+            quantity: Math.max(wooProduct.stock_quantity, 0),
           };
         });
 
