@@ -193,15 +193,17 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
     }
     `;
 
-    const queue: Variant[] = [];
     let timestamp = Date.now();
-    let loaded = 0;
-    let updated = 0;
-    let missing = 0;
+    const queue: Variant[] = [];
+    const loaded: string[] = [];
+    const updated: string[] = [];
+    const missing: string[] = [];
+    const failed: string[] = [];
 
     for await (const line of rl) {
-      queue.push(JSON.parse(line.trim()) as Variant);
-      loaded++;
+      const variant = JSON.parse(line.trim()) as Variant;
+      queue.push(variant);
+      loaded.push(variant.sku);
 
       if (queue.length >= 20 || Date.now() - timestamp > 3000) {
         // Process in batches of 20 or every 3 seconds
@@ -216,8 +218,7 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
         const wooSKUs = wooProducts.map((p) => p.sku);
         const missingSKUs = difference(skus, wooSKUs);
 
-        missing += missingSKUs.length;
-        updated += wooProducts.length;
+        missing.push(...missingSKUs);
 
         const quantities = wooProducts.map((wooProduct) => {
           const variant = variantsBySKU[wooProduct.sku];
@@ -248,8 +249,10 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
             },
             query: mutation,
           });
+          updated.push(...wooSKUs);
         } catch (e: unknown) {
           this.logger.error('Error updating inventory', e);
+          failed.push(...wooSKUs);
         }
 
         queue.length = 0;
@@ -260,10 +263,10 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
     }
 
     this.logger.log(
-      `Inventory sync completed: ${loaded} loaded, ${updated} updated, ${missing} missing`,
+      `Inventory sync completed: ${loaded.length} loaded, ${updated.length} updated, ${missing.length} missing, ${failed.length} failed.`,
     );
 
-    return { loaded, updated, missing };
+    return { loaded, updated, missing, failed };
   }
 }
 
