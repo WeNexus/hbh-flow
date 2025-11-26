@@ -195,10 +195,13 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
 
     const queue: Variant[] = [];
     let timestamp = Date.now();
-    let count = 0;
+    let loaded = 0;
+    let updated = 0;
+    let missing = 0;
 
     for await (const line of rl) {
       queue.push(JSON.parse(line.trim()) as Variant);
+      loaded++;
 
       if (queue.length >= 20 || Date.now() - timestamp > 3000) {
         // Process in batches of 20 or every 3 seconds
@@ -213,10 +216,8 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
         const wooSKUs = wooProducts.map((p) => p.sku);
         const missingSKUs = difference(skus, wooSKUs);
 
-        if (missingSKUs.length) {
-          this.logger.warn('The following SKUs were not found in WooCommerce:');
-          this.logger.warn(missingSKUs);
-        }
+        missing += missingSKUs.length;
+        updated += wooProducts.length;
 
         const quantities = wooProducts.map((wooProduct) => {
           const variant = variantsBySKU[wooProduct.sku];
@@ -253,15 +254,16 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
 
         queue.length = 0;
         timestamp = Date.now();
-        count += queue.length;
 
         await new Promise((r) => setTimeout(r, 1000)); // Avoid rate limits
       }
     }
 
-    this.logger.log(`Updated inventory for ${count} products`);
+    this.logger.log(
+      `Inventory sync completed: ${loaded} loaded, ${updated} updated, ${missing} missing`,
+    );
 
-    return { updatedCount: count };
+    return { loaded, updated, missing };
   }
 }
 
