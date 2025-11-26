@@ -2,9 +2,9 @@ import { WoocommerceService } from '#lib/woocommerce/woocommerce.service';
 import { ShopifyService } from '#lib/shopify/shopify.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { cron, WorkflowBase } from '#lib/workflow/misc';
+import { keyBy, difference } from 'lodash-es';
 import * as readline from 'node:readline';
 import { Logger } from '@nestjs/common';
-import { keyBy } from 'lodash-es';
 import axios from 'axios';
 
 @Workflow({
@@ -209,6 +209,14 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
         const { data: wooProducts } = await woo.getProducts({
           sku: skus.join(','),
         });
+
+        const wooSKUs = wooProducts.map((p) => p.sku);
+        const missingSKUs = difference(skus, wooSKUs);
+
+        if (missingSKUs.length) {
+          this.logger.warn('The following SKUs were not found in WooCommerce:');
+          this.logger.warn(missingSKUs);
+        }
 
         const quantities = wooProducts.map((wooProduct) => {
           const variant = variantsBySKU[wooProduct.sku];
