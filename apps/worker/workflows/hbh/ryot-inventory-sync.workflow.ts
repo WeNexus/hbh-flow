@@ -230,8 +230,6 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
           },
         );
 
-        this.logger.log(wooProducts);
-
         const wooSKUs = wooProducts.map((p) => p.sku);
         const missingSKUs = difference(skus, wooSKUs);
 
