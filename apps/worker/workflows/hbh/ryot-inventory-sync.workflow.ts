@@ -2,7 +2,9 @@ import { WoocommerceService } from '#lib/woocommerce/woocommerce.service';
 import { ShopifyService } from '#lib/shopify/shopify.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { cron, WorkflowBase } from '#lib/workflow/misc';
+import type { Products } from 'woocommerce-rest-ts-api';
 import { keyBy, difference } from 'lodash-es';
+import { EnvService } from '#lib/core/env';
 import * as readline from 'node:readline';
 import { Logger } from '@nestjs/common';
 import axios from 'axios';
@@ -21,6 +23,7 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
   constructor(
     private readonly wooService: WoocommerceService,
     private readonly shopifyService: ShopifyService,
+    private readonly env: EnvService,
   ) {
     super();
   }
@@ -30,9 +33,9 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
 
   @Step(1)
   async exportShopifyProducts() {
-    // if (!this.envService.isProd) {
-    //   return this.cancel('Not running in development environment');
-    // }
+    if (!this.env.isProd) {
+      return this.cancel('Not running in development environment');
+    }
 
     const query = `#graphql
     query {
@@ -155,11 +158,12 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
   @Step(3)
   async updateShopify() {
     const operation = await this.getResult<BulkOperation>('checkExportStatus');
-    const woo = this.wooService.getClient('ryot');
 
     if (!operation?.url) {
       throw new Error(`No URL for bulk operation`);
     }
+
+    const wcTokens = this.wooService.getToken('ryot');
 
     const res = await axios.get(operation.url, {
       responseType: 'stream',
@@ -211,9 +215,22 @@ export class RyotInventorySyncWorkflow extends WorkflowBase {
         const variantsBySKU = keyBy(queue, 'sku');
         const skus = Object.keys(variantsBySKU);
 
-        const { data: wooProducts } = await woo.getProducts({
-          sku: skus.join(','),
-        });
+        const url = new URL(wcTokens.storeUrl);
+        url.pathname = '/wp-json/wc/v3/products';
+        url.searchParams.set('sku', skus.join(','));
+        url.searchParams.set('per_page', skus.length.toString());
+
+        const { data: wooProducts } = await axios.get<Products[]>(
+          url.toString(),
+          {
+            auth: {
+              username: wcTokens.consumerKey,
+              password: wcTokens.consumerSecret,
+            },
+          },
+        );
+
+        this.logger.log(wooProducts);
 
         const wooSKUs = wooProducts.map((p) => p.sku);
         const missingSKUs = difference(skus, wooSKUs);
