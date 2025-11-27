@@ -51,7 +51,7 @@ export class FatAssGlassHBHFulfillmentTrackingWorkflow extends WorkflowBase<
       orders(first: 1, query: "name:${salesOrder.reference_number.replace('FGC', '')}") {
         edges {
           node {
-            fulfillmentOrders(first: 1, query: "assigned_location_id:74968563910") {
+            fulfillmentOrders(first: 1, query: "assigned_location_id:74968563910 AND status:open") {
               edges {
                 node {
                   id
