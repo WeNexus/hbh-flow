@@ -1,5 +1,6 @@
 import { ShopifyService } from '#lib/shopify/shopify.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
+import { WebhookPayloadType } from '#lib/workflow/types';
 import { ZohoService } from '#lib/zoho/zoho.service';
 import { WorkflowBase } from '#lib/workflow/misc';
 import { Logger } from '@nestjs/common';
@@ -8,6 +9,7 @@ import { Logger } from '@nestjs/common';
   name: 'FatAss - HBH Fulfillment Tracking',
   concurrency: 1,
   webhook: true,
+  webhookPayloadType: WebhookPayloadType.Body,
 })
 export class FatAssGlassHBHFulfillmentTrackingWorkflow extends WorkflowBase<
   Record<string, any>
