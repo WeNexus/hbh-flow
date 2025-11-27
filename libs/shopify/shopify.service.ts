@@ -35,6 +35,14 @@ export class ShopifyService extends TokenHttpClient {
                 storeUrl: env.getString('SHOPIFY_HBH_RT_STORE_URL'),
               },
             },
+            {
+              id: 'fat_ass',
+              description: 'Fat Ass Glass Shopify Store',
+              tokens: {
+                accessToken: env.getString('FAT_ASS_GLASS_ACCESS_TOKEN'),
+                storeUrl: env.getString('FAT_ASS_GLASS_STORE_URL'),
+              },
+            },
           ],
         },
       ),
