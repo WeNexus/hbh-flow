@@ -41,6 +41,8 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
           .filter(Boolean);
       }),
       fileType: z.enum(['pdf-zip', 'pdf', 'svg', 'png']).default('pdf'),
+      width: z.number().int().min(10).optional().default(93), // standard UPC label width in points
+      height: z.number().int().min(10).optional().default(71), // standard UPC label height in points
     })
     .superRefine((val, ctx) => {
       // 2. There must be at least one UPC and one SKU
@@ -482,7 +484,7 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
     while (
       fontSize > 10 &&
       estimateWidth(sku, fontSize) > maxTextWidth * FIT_SAFETY
-      ) {
+    ) {
       fontSize -= 1;
     }
 
@@ -598,8 +600,8 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
     }
 
     // PDF page size in points
-    const PAGE_W = 93;
-    const PAGE_H = 71;
+    const PAGE_W = payload.width ?? 93;
+    const PAGE_H = payload.height ?? 71;
 
     const resStream =
       extension === 'zip'
