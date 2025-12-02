@@ -5,11 +5,12 @@ import { Customers } from 'woocommerce-rest-ts-api';
 import { WorkflowBase } from '#lib/workflow/misc';
 import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
-import { AxiosError } from 'axios';
 import { keyBy } from 'lodash-es';
 import mongodb from 'mongodb';
 
 const MongoClient = mongodb.MongoClient;
+
+class CustomError extends Error {}
 
 @Workflow({
   name: 'Miami Distro - Push Order to Zoho Inventory',
@@ -129,47 +130,40 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
   }
 
   async importIntoBooks(id: string, type: 'account' | 'contact') {
-    try {
-      await this.zohoService.post(
-        `/books/v3/crm/${type}/${id}/import`,
-        {},
-        {
-          connection: 'miami_distro',
-          params: {
-            organization_id: '893457005',
-          },
+    await this.zohoService.post(
+      `/books/v3/crm/${type}/${id}/import`,
+      {},
+      {
+        connection: 'miami_distro',
+        params: {
+          organization_id: '893457005',
         },
-      );
+      },
+    );
 
-      const { data: booksResponse } = await this.zohoService.get(
-        `/books/v3/contacts`,
-        {
-          connection: 'miami_distro',
-          params: {
-            [`zcrm_${type}_id`]: id,
-            organization_id: '893457005',
-          },
+    const { data: booksResponse } = await this.zohoService.get(
+      `/books/v3/contacts`,
+      {
+        connection: 'miami_distro',
+        params: {
+          [`zcrm_${type}_id`]: id,
+          organization_id: '893457005',
         },
-      );
+      },
+    );
 
-      return booksResponse.contacts[0];
-    } catch (e) {
-      if (e instanceof AxiosError) {
-        throw new Error(JSON.stringify(e.response.data));
-      } else {
-        throw e;
-      }
-    }
+    return booksResponse.contacts[0];
   }
 
   async onFailure(_: string, e: Error) {
     const order = this.payload;
 
     const payload = {
-      text:
-        e instanceof AxiosError
-          ? '```' + JSON.stringify(e.response?.data) + '```'
-          : 'An unexpected error occurred.',
+      text: (e as any).response?.data
+        ? '```' + JSON.stringify((e as any).response?.data) + '```'
+        : e instanceof CustomError
+          ? e.message
+          : 'An unknown error occurred.',
       card: {
         title: `Order ${order.number} failed to push to Inventory — ${this.getSource()}`,
         theme: 'modern-inline',
@@ -279,7 +273,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     const client = this.wooService.getClient(this.getWooConnection());
     const order = this.payload;
 
-    let wooCustomer: Customers | null = null;
+    let wooCustomer: Customers | null;
 
     if (order.customer_id && order.customer_id !== 0) {
       const { data } = await client.getCustomer(order.customer_id);
@@ -291,16 +285,23 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       wooCustomer = data.length > 0 ? data[0] : null;
     }
 
-    if (!wooCustomer) {
-      throw new Error(
-        `Could not find WooCommerce customer with ID ${order.customer_id} or email ${order.billing.email}`,
-      );
-    }
+    const cBilling = wooCustomer?.billing;
+    const oBilling = order.billing;
+    const cShipping = wooCustomer?.shipping;
+    const oShipping = order.shipping;
+
+    const email = (wooCustomer?.email || oBilling.email).toLowerCase();
+    const firstName = wooCustomer?.first_name || oBilling.first_name;
+    const lastName = wooCustomer?.last_name || oBilling.last_name || '.';
+    const company =
+      cBilling?.company || oBilling.company || `${firstName} ${lastName}`;
 
     let crmContact = await this.queryCRM(
       `select Account_Name.id as accountId
        from Contacts
-       where (Email = '${wooCustomer.email.toLowerCase()}') or (Account_Name.Account_Name = '${wooCustomer.billing.company.replaceAll("'", "''").trim()}' and First_Name = '${wooCustomer.first_name.replaceAll("'", "''")}')
+       where (Email = '${email}') or (Account_Name.Account_Name = '${company.replaceAll("'", "''").trim()}' and First_Name = '${firstName
+         .replaceAll("'", "''")
+         .trim()}')
        limit 1`,
     );
 
@@ -311,10 +312,10 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       };
     }
 
-    const billing1 = wooCustomer.billing.address_1;
-    const billing2 = wooCustomer.billing.address_2;
-    const shipping1 = wooCustomer.shipping.address_1;
-    const shipping2 = wooCustomer.shipping.address_2;
+    const billing1 = cBilling?.address_1 || oBilling.address_1;
+    const billing2 = cBilling?.address_2 || oBilling.address_2;
+    const shipping1 = cShipping?.address_1 || oShipping.address_1;
+    const shipping2 = cShipping?.address_2 || oShipping.address_2;
 
     // Create new account in Zoho CRM
     const { data: accountResults } = await this.zohoService.post(
@@ -322,22 +323,18 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       {
         data: [
           {
-            Account_Name:
-              wooCustomer.billing.company ||
-              `${wooCustomer.first_name} ${wooCustomer.last_name}`,
-            Email: (
-              wooCustomer.billing.email || wooCustomer.email
-            ).toLowerCase(),
-            Phone: wooCustomer.billing.phone,
-            Billing_City: wooCustomer.billing.city,
-            Billing_State: wooCustomer.billing.state,
-            Billing_Country: wooCustomer.billing.country,
-            Billing_Code: wooCustomer.billing.postcode,
+            Account_Name: company,
+            Email: email,
+            Phone: cBilling?.phone || oBilling.phone,
+            Billing_City: cBilling?.city || oBilling.city,
+            Billing_State: cBilling?.state || oBilling.state,
+            Billing_Country: cBilling?.country || oBilling.country,
+            Billing_Code: cBilling?.postcode || oBilling.postcode,
             Billing_Street: `${billing2 ? (billing1 ? billing2 + ', ' : billing2) : ''}${billing1}`,
-            Shipping_City: wooCustomer.shipping.city,
-            Shipping_State: wooCustomer.shipping.state,
-            Shipping_Country: wooCustomer.shipping.country,
-            Shipping_Code: wooCustomer.shipping.postcode,
+            Shipping_City: cShipping?.city || oShipping.city,
+            Shipping_State: cShipping?.state || oShipping.state,
+            Shipping_Country: cShipping?.country || oShipping.country,
+            Shipping_Code: cShipping?.postcode || oShipping.postcode,
             Shipping_Street: `${shipping2 ? (shipping1 ? shipping2 + ', ' : shipping2) : ''}${billing2}`,
           },
         ],
@@ -355,9 +352,9 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       {
         data: [
           {
-            First_Name: wooCustomer.first_name,
-            Last_Name: wooCustomer.last_name || '.',
-            Email: wooCustomer.email.toLowerCase(),
+            First_Name: firstName,
+            Last_Name: lastName,
+            Email: email,
             Account_Name: {
               id: accountId,
             },
@@ -609,6 +606,16 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
 
     const createOrder = async () => {
       const zohoItemsBySKU = keyBy(zohoItems, 'sku');
+
+      if (zohoItems.length > order.line_items.length) {
+        const missingSKUs = order.line_items
+          .map((i) => i.sku?.trim())
+          .filter((sku) => sku && !zohoItemsBySKU[sku]);
+
+        throw new CustomError(
+          `Missing items in Zoho Inventory for SKUs: ${missingSKUs.join(', ')}`,
+        );
+      }
 
       const discount = Number(order.discount_total);
 
