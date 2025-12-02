@@ -3,9 +3,9 @@ import { Step, Workflow } from '#lib/workflow/decorators';
 import { ZohoService } from '#lib/zoho/zoho.service';
 import { Customers } from 'woocommerce-rest-ts-api';
 import { WorkflowBase } from '#lib/workflow/misc';
+import { keyBy, difference } from 'lodash-es';
 import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
-import { keyBy } from 'lodash-es';
 import mongodb from 'mongodb';
 
 const MongoClient = mongodb.MongoClient;
@@ -607,10 +607,17 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     const createOrder = async () => {
       const zohoItemsBySKU = keyBy(zohoItems, 'sku');
 
-      if (zohoItems.length > order.line_items.length) {
-        const missingSKUs = order.line_items
-          .map((i) => i.sku?.trim())
-          .filter((sku) => sku && !zohoItemsBySKU[sku]);
+      if (zohoItems.length !== order.line_items.length) {
+        const zohoSkus = Object.keys(zohoItemsBySKU);
+        const wooSkus = Array.from(
+          new Set(
+            order.line_items
+              .map((item) => item.sku?.trim())
+              .filter((sku) => sku),
+          ),
+        );
+
+        const missingSKUs = difference(wooSkus, zohoSkus);
 
         throw new CustomError(
           `Missing items in Zoho Inventory for SKUs: ${missingSKUs.join(', ')}`,
