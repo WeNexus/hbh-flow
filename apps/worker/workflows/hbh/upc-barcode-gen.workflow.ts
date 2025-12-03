@@ -437,7 +437,7 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
 
     const baseOptions: JsBarcode.Options = {
       xmlDocument: document,
-      format: this.payload,
+      format: type,
       background: '#FFFFFF',
       lineColor: '#000000',
       fontSize: 18,
