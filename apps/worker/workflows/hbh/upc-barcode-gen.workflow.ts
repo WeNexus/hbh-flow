@@ -31,7 +31,8 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
             .map((s) => s.trim())
             .filter(Boolean);
         }),
-      upc: z.string().transform((val) => {
+      type: z.enum(['UPC', 'CODE39']).default('UPC'),
+      value: z.string().transform((val) => {
         const trimmed = val.trim();
         if (!trimmed) return [] as string[];
 
@@ -53,46 +54,39 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
         .optional(), // standard UPC label height in points
     })
     .superRefine((val, ctx) => {
-      // 2. There must be at least one UPC and one SKU
-      if (!val.upc.length) {
+      // 2. There must be at least one value and one SKU
+      if (!val.value.length) {
         ctx.addIssue({
           code: 'custom',
-          path: ['upc'],
-          message: 'At least one UPC is required.',
-        });
-      }
-
-      if (!val.sku.length) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['sku'],
-          message: 'At least one SKU is required.',
-        });
-      }
-
-      // Make sure they line up 1:1
-      if (
-        val.upc.length &&
-        val.sku.length &&
-        val.upc.length !== val.sku.length
-      ) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['sku'],
-          message: 'The number of SKUs must match the number of UPCs.',
+          path: ['value'],
+          message: 'At least one value is required.',
         });
       }
 
       // Basic UPC sanity check: 12 numeric digits
-      val.upc.forEach((code, index) => {
-        if (!/^\d{12}$/.test(code)) {
-          ctx.addIssue({
-            code: 'custom',
-            path: ['upc', index],
-            message: `UPC at index ${index} must be 12 numeric digits.`,
-          });
-        }
-      });
+      if (val.type === 'UPC') {
+        val.value.forEach((code, index) => {
+          if (!/^\d{12}$/.test(code)) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['upc', index],
+              message: `UPC at index ${index} must be 12 numeric digits.`,
+            });
+          }
+        });
+      } else if (val.type === 'CODE39') {
+        // Basic CODE39 sanity check: only valid characters
+        const CODE39_REGEX = /^[0-9A-Z \-.$/+%]*$/;
+        val.value.forEach((code, index) => {
+          if (!CODE39_REGEX.test(code)) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['value'],
+              message: `CODE39 at index ${index} contains invalid characters.`,
+            });
+          }
+        });
+      }
     });
 
   private getSvgIntrinsicSize(svg: string): { svgW: number; svgH: number } {
@@ -422,7 +416,11 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
   }*/
 
   // Original
-  private generateBarcodeSvg(upc: string, sku?: string): string {
+  private generateBarcodeSvg(
+    upc: string,
+    type: 'UPC' | 'CODE39',
+    sku?: string,
+  ): string {
     const xmlSerializer = new XMLSerializer();
     const document = new DOMImplementation().createDocument(
       'http://www.w3.org/1999/xhtml',
@@ -437,9 +435,9 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
     const MAX_FONT = 24;
     const SKU_PADDING = 12;
 
-    const baseOptions = {
+    const baseOptions: JsBarcode.Options = {
       xmlDocument: document,
-      format: 'UPC' as const,
+      format: this.payload,
       background: '#FFFFFF',
       lineColor: '#000000',
       fontSize: 18,
@@ -450,7 +448,7 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
       displayValue: true,
       font: 'Helvetica, Arial, sans-serif',
       fontOptions: '',
-      textAlign: 'center' as const,
+      textAlign: 'center',
     };
 
     // First render just to let JsBarcode decide the intrinsic width.
@@ -567,7 +565,7 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
       value.replace(/[^a-zA-Z0-9_.-]+/g, '_');
 
     const filenameParts =
-      payload.sku && payload.sku.length ? payload.sku : payload.upc;
+      payload.sku && payload.sku.length ? payload.sku : payload.value;
 
     const baseFilename =
       filenameParts.length > 0
@@ -579,7 +577,7 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
         ? 'zip'
         : payload.fileType === 'pdf'
           ? 'pdf'
-          : payload.upc.length > 1
+          : payload.value.length > 1
             ? 'zip'
             : payload.fileType;
 
@@ -589,7 +587,7 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
           ? 'application/zip'
           : payload.fileType === 'pdf'
             ? 'application/pdf'
-            : payload.upc.length > 1
+            : payload.value.length > 1
               ? 'application/zip'
               : payload.fileType === 'svg'
                 ? 'image/svg+xml'
@@ -626,14 +624,14 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
       void this.sendResponse(c, false);
     });
 
-    for (let i = 0; i < payload.upc.length; i++) {
+    for (let i = 0; i < payload.value.length; i++) {
       const sku = payload.sku?.[i];
-      const upc = payload.upc[i];
+      const upc = payload.value[i];
 
-      const svg = this.generateBarcodeSvg(payload.upc[i], sku);
+      const svg = this.generateBarcodeSvg(payload.value[i], payload.type, sku);
 
       if (payload.fileType === 'svg') {
-        if (payload.upc.length === 1) {
+        if (payload.value.length === 1) {
           return this.sendResponse(svg, true);
         }
 
@@ -657,7 +655,7 @@ export class UpcBarcodeGenWorkflow extends WorkflowBase {
       if (payload.fileType === 'png') {
         const pngBuffer = await this.svgToPNG(svg);
 
-        if (payload.upc.length === 1) {
+        if (payload.value.length === 1) {
           return this.sendResponse(pngBuffer, true);
         }
 
