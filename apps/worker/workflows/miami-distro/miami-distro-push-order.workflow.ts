@@ -285,16 +285,13 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       wooCustomer = data.length > 0 ? data[0] : null;
     }
 
-    const cBilling = wooCustomer?.billing;
-    const oBilling = order.billing;
-    const cShipping = wooCustomer?.shipping;
-    const oShipping = order.shipping;
+    const billing = order.billing || wooCustomer?.billing;
+    const shipping = order.shipping || wooCustomer?.shipping;
 
-    const email = (wooCustomer?.email || oBilling.email).toLowerCase();
-    const firstName = wooCustomer?.first_name || oBilling.first_name;
-    const lastName = wooCustomer?.last_name || oBilling.last_name || '.';
-    const company =
-      cBilling?.company || oBilling.company || `${firstName} ${lastName}`;
+    const email = (wooCustomer?.email || billing.email).toLowerCase();
+    const firstName = billing.first_name || wooCustomer?.first_name;
+    const lastName = billing.last_name || wooCustomer?.last_name || '.';
+    const company = billing?.company || `${firstName} ${lastName || '.'}`;
 
     let crmContact = await this.queryCRM(
       `select Account_Name.id as accountId
@@ -312,10 +309,10 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       };
     }
 
-    const billing1 = cBilling?.address_1 || oBilling.address_1;
-    const billing2 = cBilling?.address_2 || oBilling.address_2;
-    const shipping1 = cShipping?.address_1 || oShipping.address_1;
-    const shipping2 = cShipping?.address_2 || oShipping.address_2;
+    const billing1 = billing.address_1;
+    const billing2 = billing.address_2;
+    const shipping1 = shipping.address_1;
+    const shipping2 = shipping.address_2;
 
     // Create new account in Zoho CRM
     const { data: accountResults } = await this.zohoService.post(
@@ -325,16 +322,16 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
           {
             Account_Name: company,
             Email: email,
-            Phone: cBilling?.phone || oBilling.phone,
-            Billing_City: cBilling?.city || oBilling.city,
-            Billing_State: cBilling?.state || oBilling.state,
-            Billing_Country: cBilling?.country || oBilling.country,
-            Billing_Code: cBilling?.postcode || oBilling.postcode,
+            Phone: billing.phone,
+            Billing_City: billing.city,
+            Billing_State: billing.state,
+            Billing_Country: billing.country,
+            Billing_Code: billing.postcode,
             Billing_Street: `${billing2 ? (billing1 ? billing2 + ', ' : billing2) : ''}${billing1}`,
-            Shipping_City: cShipping?.city || oShipping.city,
-            Shipping_State: cShipping?.state || oShipping.state,
-            Shipping_Country: cShipping?.country || oShipping.country,
-            Shipping_Code: cShipping?.postcode || oShipping.postcode,
+            Shipping_City: shipping.city,
+            Shipping_State: shipping.state,
+            Shipping_Country: shipping.country,
+            Shipping_Code: shipping.postcode,
             Shipping_Street: `${shipping2 ? (shipping1 ? shipping2 + ', ' : shipping2) : ''}${billing2}`,
           },
         ],
@@ -407,7 +404,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     const billingAddresses = [customer.billing_address, ...customer.addresses];
 
     const billingAddress = {
-      attention: `${order.billing.first_name} ${order.billing.last_name}`,
+      attention: `${order.billing.first_name} ${order.billing.last_name || '.'}`,
       city: order.billing.city,
       country_code: order.billing.country,
       zip: order.billing.postcode,
@@ -418,7 +415,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     };
 
     const shippingAddress = {
-      attention: `${order.shipping.first_name} ${order.shipping.last_name}`,
+      attention: `${order.shipping.first_name} ${order.shipping.last_name || '.'}`,
       city: order.shipping.city,
       country_code: order.shipping.country,
       zip: order.shipping.postcode,
