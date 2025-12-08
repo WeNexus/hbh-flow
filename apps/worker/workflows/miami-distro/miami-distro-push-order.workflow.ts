@@ -28,6 +28,10 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
 
   private logger = new Logger(MiamiDistroPushOrderWorkflow.name);
 
+  private customerIds: Record<string, string> = {
+    the_delta_boss: '6673885000000482445',
+  };
+
   getSource() {
     return new URL(this.payload._links.self[0].href).origin;
   }
@@ -270,7 +274,13 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
 
   @Step(3)
   async ensureCRMAccount() {
-    const client = this.wooService.getClient(this.getWooConnection());
+    const connection = this.getWooConnection();
+
+    if (Object.prototype.hasOwnProperty.call(this.customerIds, connection)) {
+      return;
+    }
+
+    const client = this.wooService.getClient(connection);
     const order = this.payload;
 
     let wooCustomer: Customers | null;
@@ -372,15 +382,25 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
 
   @Step(4)
   async ensureInventoryCustomer() {
-    const crmContact = await this.getResult('ensureCRMAccount');
+    const connection = this.getWooConnection();
 
-    const inventoryAccount = await this.importIntoBooks(
-      crmContact.accountId,
-      'account',
-    );
+    let contactId: string | undefined;
+
+    if (Object.prototype.hasOwnProperty.call(this.customerIds, connection)) {
+      contactId = this.customerIds[connection];
+    } else {
+      const crmContact = await this.getResult('ensureCRMAccount');
+
+      const inventoryAccount = await this.importIntoBooks(
+        crmContact.accountId,
+        'account',
+      );
+
+      contactId = inventoryAccount.contact_id;
+    }
 
     const { data: result } = await this.zohoService.get(
-      `/inventory/v1/contacts/${inventoryAccount.contact_id}`,
+      `/inventory/v1/contacts/${contactId}`,
       {
         connection: 'miami_distro',
         params: {
@@ -893,5 +913,33 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       topic: 'new_order',
       payload,
     });
+  }
+
+  @Step(13)
+  async deleteAddresses() {
+    const connection = this.getWooConnection();
+
+    if (!Object.prototype.hasOwnProperty.call(this.customerIds, connection)) {
+      return;
+    }
+
+    const customer = await this.getResult('ensureInventoryCustomer');
+
+    const { billingAddressId, shippingAddressId } =
+      await this.getResult('ensureAddresses');
+
+    const addresses = [billingAddressId, shippingAddressId];
+
+    for (const addressId of addresses) {
+      await this.zohoService.delete(
+        `/inventory/v1/contacts/${customer.contact_id}/address/${addressId}`,
+        {
+          connection: 'miami_distro',
+          params: {
+            organization_id: '893457005',
+          },
+        },
+      );
+    }
   }
 }
