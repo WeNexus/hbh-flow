@@ -901,7 +901,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
           type: 'label',
           title: 'Details',
           data: [
-            { Customer: customer.email },
+            { Customer: this.payload.billing.email },
             { 'Order Total': `${order.total} ${order.currency}` },
           ],
         },
