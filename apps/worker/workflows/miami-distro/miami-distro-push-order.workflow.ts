@@ -931,15 +931,19 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     const addresses = [billingAddressId, shippingAddressId];
 
     for (const addressId of addresses) {
-      await this.zohoService.delete(
-        `/inventory/v1/contacts/${customer.contact_id}/address/${addressId}`,
-        {
-          connection: 'miami_distro',
-          params: {
-            organization_id: '893457005',
+      try {
+        await this.zohoService.delete(
+          `/inventory/v1/contacts/${customer.contact_id}/address/${addressId}`,
+          {
+            connection: 'miami_distro',
+            params: {
+              organization_id: '893457005',
+            },
           },
-        },
-      );
+        );
+      } catch {
+        // Ignore
+      }
     }
   }
 }
