@@ -135,6 +135,24 @@
       "compilerOptions": {
         "tsConfigPath": "libs/duoplane/tsconfig.lib.json"
       }
+    },
+    "leaftrade": {
+      "type": "library",
+      "root": "libs/leaftrade",
+      "entryFile": "index",
+      "sourceRoot": "libs/leaftrade",
+      "compilerOptions": {
+        "tsConfigPath": "libs/leaftrade/tsconfig.lib.json"
+      }
+    },
+    "orderdesk": {
+      "type": "library",
+      "root": "libs/orderdesk",
+      "entryFile": "index",
+      "sourceRoot": "libs/orderdesk",
+      "compilerOptions": {
+        "tsConfigPath": "libs/orderdesk/tsconfig.lib.json"
+      }
     }
   }
 }

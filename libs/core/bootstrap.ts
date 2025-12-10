@@ -3,7 +3,9 @@ import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { BigCommerceModule } from '#lib/bigcommerce/bigcommerce.module';
 import { APP_TYPE, RedisIoAdapter, RUNTIME_ID } from '#lib/core/misc';
+import { LeafTradeModule } from '#lib/leaftrade/leaf-trade.module';
 import { PrismaExtensionRedis } from '#lib/core/misc/prisma-cache';
+import { OrderDeskModule } from '#lib/orderdesk/order-desk.module';
 import { FujimausaModule } from '#lib/fujimausa/fujimausa.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DuoplaneModule } from '#lib/duoplane/duoplane.module';
@@ -115,6 +117,8 @@ export async function bootstrap(
       }),
       FujimausaModule,
       BigCommerceModule,
+      LeafTradeModule,
+      OrderDeskModule,
       LlmModule,
       FlodeskModule,
       WoocommerceModule,
