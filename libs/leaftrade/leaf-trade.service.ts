@@ -66,8 +66,6 @@ export class LeafTradeService extends TokenHttpClient {
       connection,
     });
 
-    console.log(res.data);
-
     return res.status === 200;
   }
 }
