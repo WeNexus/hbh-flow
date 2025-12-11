@@ -199,6 +199,8 @@ export async function bootstrap(
       JwtModule,
       HubModule,
       ZohoModule,
+      LeafTradeModule,
+      OrderDeskModule,
       GlobalEventService,
       ActivityService,
       IPInfoService,
