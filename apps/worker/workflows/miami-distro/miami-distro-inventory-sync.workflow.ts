@@ -64,7 +64,7 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
     }
 
     for (let page = 1; ; page++) {
-      const searchParams = {
+      const searchParams = new URLSearchParams({
         page: page.toString(),
         per_page: '5000',
         sort_order: 'A',
@@ -86,13 +86,12 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
         formatneeded: 'true',
         organization_id: '893457005',
         accept: 'json',
-      };
+      });
 
       const { data } = await this.zohoService.get<Record<string, any>>(
-        `/inventory/v1/reports/inventorysummary`,
+        `/inventory/v1/reports/inventorysummary?${searchParams.toString()}`,
         {
           connection: 'miami_distro',
-          params: searchParams,
         },
       );
 
