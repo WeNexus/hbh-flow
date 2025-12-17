@@ -13,8 +13,10 @@ import { WithId } from 'mongodb';
   webhook: true,
   concurrency: 1,
   triggers: [
-    cron('*/30 * * * *', {
-      timezone: 'America/New_York', // Every 30 minutes
+    cron('*/60 * * * *', {
+      // Every 60 minutes
+      timezone: 'America/New_York',
+      oldPattern: '*/30 * * * *',
     }),
   ],
 })
