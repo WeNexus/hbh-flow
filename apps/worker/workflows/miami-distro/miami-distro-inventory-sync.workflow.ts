@@ -137,14 +137,20 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
 
           // Update simple products
           if (productUpdates.length > 0) {
-            const res = await wooClient.post('products/batch', {
-              update: productUpdates,
-            });
+            try {
+              const res = await wooClient.post('products/batch', {
+                update: productUpdates,
+              });
 
-            errors.push(...res.data.update.filter((u: any) => u.error));
+              errors.push(...res.data.update.filter((u: any) => u.error));
 
-            for (const product of productUpdates) {
-              erroredSKUs.add(product.sku);
+              if (res.status >= 400 && res.status < 600) {
+                throw new Error();
+              }
+            } catch {
+              for (const product of productUpdates) {
+                erroredSKUs.add(product.sku);
+              }
             }
           }
 
@@ -152,17 +158,23 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
           for (const [parentId, updates] of Object.entries(
             variationUpdatesByProduct,
           )) {
-            const res = await wooClient.post(
-              `products/${parentId}/variations/batch`,
-              {
-                update: updates,
-              },
-            );
+            try {
+              const res = await wooClient.post(
+                `products/${parentId}/variations/batch`,
+                {
+                  update: updates,
+                },
+              );
 
-            errors.push(...res.data.update.filter((u: any) => u.error));
+              errors.push(...res.data.update.filter((u: any) => u.error));
 
-            for (const update of updates) {
-              erroredSKUs.add(update.sku);
+              if (res.status >= 400 && res.status < 600) {
+                throw new Error();
+              }
+            } catch {
+              for (const update of updates) {
+                erroredSKUs.add(update.sku);
+              }
             }
           }
         }
@@ -170,19 +182,19 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
         this.logger.log(`Processed chunk ${i + 1}/${chunks.length}`);
       }
 
-      await mongo
-        .db('hbh')
-        .collection('miami_distro_inventory_snapshots')
-        .updateOne(
-          {},
-          {
-            $set: {
-              timestamp: Date.now(),
-              items: items.filter((item) => !erroredSKUs.has(item.sku)),
-            },
-          },
-          { upsert: true },
-        );
+      // await mongo
+      //   .db('hbh')
+      //   .collection('miami_distro_inventory_snapshots')
+      //   .updateOne(
+      //     {},
+      //     {
+      //       $set: {
+      //         timestamp: Date.now(),
+      //         items: items.filter((item) => !erroredSKUs.has(item.sku)),
+      //       },
+      //     },
+      //     { upsert: true },
+      //   );
     }
 
     await mongo.close();
