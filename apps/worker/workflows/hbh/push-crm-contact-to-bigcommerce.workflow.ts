@@ -2,10 +2,7 @@ import { BigCommerceService } from '#lib/bigcommerce/bigcommerce.service';
 import { FlodeskService } from '#lib/flodesk/flodesk.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { WorkflowBase } from '#lib/workflow/misc';
-import { EnvService } from '#lib/core/env';
-import mongodb from 'mongodb';
-
-const MongoClient = mongodb.MongoClient;
+import { MongoService } from '#lib/core/services';
 
 @Workflow({
   webhook: true,
@@ -15,7 +12,7 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
   constructor(
     private readonly bigCommerceService: BigCommerceService,
     private readonly flodeskService: FlodeskService,
-    private readonly envService: EnvService,
+    private readonly mongo: MongoService,
   ) {
     super();
   }
@@ -155,19 +152,13 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
         : event.contact;
     const customers = await this.getBigCommerceCustomers(contact);
 
-    const client = await MongoClient.connect(
-      this.envService.getString('MONGO_URL'),
-    );
-
     for (const customer of customers) {
-      customer.groups = await client
+      customer.groups = await this.mongo
         .db(customer.channel)
         .collection('customer_group')
         .find({})
         .toArray();
     }
-
-    await client.close();
 
     return {
       flodeskSegments: await this.getFlodeskSegments(),
@@ -279,11 +270,7 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
     }
 
     if (enableHbh || enableDispomart) {
-      const client = await MongoClient.connect(
-        this.envService.getString('MONGO_URL'),
-      );
-
-      const db = client.db('hbh');
+      const db = this.mongo.db('hbh');
 
       await db.collection('contact_person').updateOne(
         {
@@ -295,8 +282,6 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
           },
         },
       );
-
-      await client.close();
     }
 
     let flodeskSubscriptionResult;
