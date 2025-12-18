@@ -103,11 +103,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
             firstName: `${contact.First_Name}`,
             lastName: `${contact.Last_Name}`,
             email: `${contact.Email}`,
-            phone:
-              contact.Phone ||
-              contact.Cell_Phone ||
-              contact.Mobile ||
-              contact.Secondary_Mobile,
+            phone: contact.Phone || contact.Cell_Phone,
             note: `Company: ${account.Account_Name}`,
           },
         },
