@@ -99,15 +99,17 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
         connection: 'cannadevices',
         root: 'customerCreate',
         variables: {
-          firstName: `${contact.First_Name}`,
-          lastName: `${contact.Last_Name}`,
-          email: `${contact.Email}`,
-          phone:
-            contact.Phone ||
-            contact.Cell_Phone ||
-            contact.Mobile ||
-            contact.Secondary_Mobile,
-          note: `Company: ${account.Account_Name}`,
+          input: {
+            firstName: `${contact.First_Name}`,
+            lastName: `${contact.Last_Name}`,
+            email: `${contact.Email}`,
+            phone:
+              contact.Phone ||
+              contact.Cell_Phone ||
+              contact.Mobile ||
+              contact.Secondary_Mobile,
+            note: `Company: ${account.Account_Name}`,
+          },
         },
       });
     } else {
