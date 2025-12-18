@@ -116,9 +116,8 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
         `/crm/v8/Contacts/${contact.id}`,
         {
           data: {
-            CannaDevices_Shopify_ID: customerResult.customer.id
-              .split('/')
-              .pop(),
+            CannaDevices_Shopify_ID:
+              customerResult?.customer?.id ?? customer.id.split('/').pop(),
           },
         },
         {
