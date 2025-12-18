@@ -56,7 +56,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     }
     `,
         variables: {
-          id,
+          id: `gid://shopify/Customer/${id}`,
         },
         connection: 'cannadevices',
         root: 'customer',
@@ -112,23 +112,19 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     }
 
     if (!contact.CannaDevices_Shopify_ID) {
-      try {
-        await this.zohoService.put(
-          `/crm/v8/Contacts/${contact.id}`,
-          {
-            data: {
-              CannaDevices_Shopify_ID: customerResult.customer.id
-                .split('/')
-                .pop(),
-            },
+      await this.zohoService.put(
+        `/crm/v8/Contacts/${contact.id}`,
+        {
+          data: {
+            CannaDevices_Shopify_ID: customerResult.customer.id
+              .split('/')
+              .pop(),
           },
-          {
-            connection: 'hbh',
-          },
-        );
-      } catch {
-        // Ignore
-      }
+        },
+        {
+          connection: 'hbh',
+        },
+      );
     }
 
     if (!this.responseMetaSent) {
