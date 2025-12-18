@@ -94,8 +94,6 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
         }
       `;
 
-      const phone = contact.Phone || contact.Cell_Phone;
-
       customerResult = await this.shopifyService.gql({
         query: mutation,
         connection: 'cannadevices',
@@ -105,7 +103,6 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
             firstName: `${contact.First_Name}`,
             lastName: `${contact.Last_Name}`,
             email: `${contact.Email}`,
-            phone: !phone ? null : !phone.startsWith('+') ? `+` : phone,
             note: `Company: ${account.Account_Name}`,
           },
         },
