@@ -149,7 +149,10 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
   async fetchData() {
     const event = this.payload;
 
-    const contact = JSON.parse(event.contact);
+    const contact =
+      typeof event.contact === 'string'
+        ? JSON.parse(event.contact)
+        : event.contact;
     const customers = await this.getBigCommerceCustomers(contact);
 
     const client = await MongoClient.connect(
@@ -168,7 +171,10 @@ export class PushCrmContactToBigcommerceWorkflow extends WorkflowBase {
 
     return {
       flodeskSegments: await this.getFlodeskSegments(),
-      account: JSON.parse(event.account),
+      account:
+        typeof event.account === 'string'
+          ? JSON.parse(event.account)
+          : event.account,
       customers,
       contact,
     };
