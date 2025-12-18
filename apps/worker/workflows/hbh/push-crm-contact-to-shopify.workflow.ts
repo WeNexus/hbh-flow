@@ -115,10 +115,13 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       await this.zohoService.put(
         `/crm/v8/Contacts/${contact.id}`,
         {
-          data: {
-            CannaDevices_Shopify_ID:
-              customerResult?.customer?.id ?? customer.id.split('/').pop(),
-          },
+          data: [
+            {
+              id: contact.id,
+              CannaDevices_Shopify_ID:
+                customerResult?.customer?.id ?? customer.id.split('/').pop(),
+            },
+          ],
         },
         {
           connection: 'hbh',
