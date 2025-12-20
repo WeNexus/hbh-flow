@@ -163,10 +163,6 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
             `Fetched ${products.data?.length ?? 0} products with ${ch.map((i) => i.sku).join(',')} for connection ${connection}`,
           );
 
-          if (!products.data || products.data.length === 0) {
-            continue;
-          }
-
           // Separate products from variations
           const productUpdates: any[] = [];
           const variationUpdatesByProduct: Record<string, any[]> = {};
@@ -174,7 +170,13 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
           for (const item of ch) {
             const product = products.data.find((p) => p.sku === item.sku);
 
-            if (!product) continue;
+            if (!product) {
+              this.logger.warn(
+                `Product with SKU ${item.sku} not found in WooCommerce for connection ${connection}`,
+              );
+              erroredSKUs.add(item.sku);
+              continue;
+            }
 
             if (product.parent_id && product.type === 'variation') {
               // Variation
@@ -184,6 +186,10 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
                 stock_quantity: item.quantity_available,
                 manage_stock: true,
               });
+
+              this.logger.log(
+                `Variation ${item.sku}: ${item.quantity_available} units available`,
+              );
             } else {
               // Simple product
               productUpdates.push({
@@ -191,6 +197,10 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
                 stock_quantity: item.quantity_available,
                 manage_stock: true,
               });
+
+              this.logger.log(
+                `Product ${item.sku}: ${item.quantity_available} units available`,
+              );
             }
           }
 
@@ -210,6 +220,10 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
               for (const product of productUpdates) {
                 erroredSKUs.add(product.sku);
               }
+
+              this.logger.error(
+                `Failed to update ${productUpdates.map((p) => p.id).join(', ')} in connection ${connection}`,
+              );
             }
           }
 
