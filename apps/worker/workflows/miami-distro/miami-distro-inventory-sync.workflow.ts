@@ -142,7 +142,7 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
 
       const connections = [
         'miami_distro',
-        'savage_me_dolls',
+        // 'savage_me_dolls',
         'the_delta_boss',
         // 'shop_full_circle',
         // 'hempthrill',
@@ -166,8 +166,6 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
           if (!products.data || products.data.length === 0) {
             continue;
           }
-
-          this.logger.log(typeof products.data, products.data);
 
           // Separate products from variations
           const productUpdates: any[] = [];
