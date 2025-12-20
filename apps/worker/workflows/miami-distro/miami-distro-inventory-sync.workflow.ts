@@ -182,15 +182,14 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
       for (const connection of connections) {
         const wooClient = this.wooService.getClient(connection);
 
-        const products = await wooClient.getProducts({
-          sku: ch.map((i) => i.sku).join(','),
-        });
-
         // Separate products from variations
         const variationUpdates: Record<string, any[]> = {};
         const productUpdates: any[] = [];
 
         for (const item of ch) {
+          const products = await wooClient.getProducts({
+            sku: item.sku,
+          });
           const product = products.data.find((p) => p.sku === item.sku);
 
           if (!product) {
