@@ -235,7 +235,7 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
             }
           } catch {
             for (const update of productUpdates) {
-              const prod = products.data.find((p) => p.id === update.id);
+              const prod = products.find((p) => p.id === update.id);
               if (prod) {
                 results[connection].failed.push(prod.sku);
               }
@@ -262,7 +262,7 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
             }
           } catch {
             for (const update of updates) {
-              const prod = products.data.find((p) => p.id === update.id);
+              const prod = products.find((p) => p.id === update.id);
               if (prod) {
                 results[connection].failed.push(prod.sku);
               }
