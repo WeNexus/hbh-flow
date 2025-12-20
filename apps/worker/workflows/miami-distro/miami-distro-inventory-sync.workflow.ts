@@ -2,22 +2,19 @@ import { WoocommerceService } from '#lib/woocommerce/woocommerce.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { cron, WorkflowBase } from '#lib/workflow/misc';
 import { ZohoService } from '#lib/zoho/zoho.service';
-import { MongoService } from '#lib/core/services';
 import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
 import { chunk } from 'lodash-es';
-import { WithId } from 'mongodb';
-import { Products } from 'woocommerce-rest-ts-api';
 
 @Workflow({
   name: 'Miami Distro - Inventory Sync',
   webhook: true,
   concurrency: 1,
   triggers: [
-    cron('0 */2 * * *', {
-      // Every 60 minutes
+    cron('*/30 * * * *', {
+      // Every 30 minutes
       timezone: 'America/New_York',
-      oldPattern: '*/60 * * * *',
+      oldPattern: '0 */2 * * *',
     }),
   ],
 })
@@ -26,19 +23,13 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
     private readonly wooService: WoocommerceService,
     private readonly zohoService: ZohoService,
     private readonly envService: EnvService,
-    private readonly mongo: MongoService,
   ) {
     super();
   }
 
   private logger = new Logger(MiamiDistroInventorySyncWorkflow.name);
 
-  @Step(1)
   async fetchInventorySummary() {
-    if (!this.envService.isProd) {
-      return this.cancel('Not running in development environment');
-    }
-
     const itemDetails: Record<string, any>[] = [];
 
     const rule: Record<string, any> = {
@@ -126,19 +117,16 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
       ),
     }));
 
-    const prevSnapshot = await this.mongo
-      .db('hbh')
-      .collection('miami_distro_inventory_snapshots')
-      .findOne<WithId<Snapshot>>();
-
-    const changedItems = this.getChangedItems(prevSnapshot?.items || [], items);
-
-    return changedItems;
+    return items;
   }
 
   @Step(2)
   async execute() {
-    const items = await this.getResult('fetchInventorySummary');
+    if (!this.envService.isProd) {
+      return this.cancel('Not running in development environment');
+    }
+
+    const items = await this.fetchInventorySummary();
 
     const connections = [
       'miami_distro',
@@ -149,169 +137,42 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
       // 'shop_be_savage',
     ];
 
-    const results = connections.reduce(
-      (acc, conn) => {
-        acc[conn] = {
-          failed: [],
-          missing: [],
-          error: [],
-        };
-        return acc;
-      },
-      {} as Record<
-        string,
-        {
-          failed: string[];
-          missing: string[];
-          error: any[];
-        }
-      >,
-    );
+    const results: Record<string, any>[] = [];
 
     if (items.length === 0) {
       return results;
     }
 
-    this.logger.log(`Updating inventory for ${items.length} changed items`);
+    const chunks = chunk(items, 200);
 
-    const chunks = chunk(items, 50);
+    this.logger.log(
+      `Updating inventory for ${items.length} items in ${chunks.length} chunks`,
+    );
 
     for (let i = 0; i < chunks.length; i++) {
-      const ch = chunks[i];
+      const chunk = chunks[i];
 
       for (const connection of connections) {
+        this.logger.log(
+          `Updating inventory for chunk ${i + 1} on connection ${connection}`,
+        );
+
         const wooClient = this.wooService.getClient(connection);
 
-        // Separate products from variations
-        const variationUpdates: Record<string, any[]> = {};
-        const productUpdates: any[] = [];
-        const products: Products[] = [];
-
-        for (const item of ch) {
-          const res = await wooClient.getProducts({
+        const res = await wooClient.put('inventory', {
+          update: chunk.map((item) => ({
             sku: item.sku,
-          });
-          const product = res.data.find((p) => p.sku === item.sku);
+            stock: item.quantity_available,
+          })),
+        });
 
-          if (!product) {
-            results[connection].missing.push(item.sku);
-            continue;
-          }
-
-          products.push(product);
-
-          if (product.parent_id && product.type === 'variation') {
-            // Variation
-            variationUpdates[product.parent_id] ??= [];
-            variationUpdates[product.parent_id].push({
-              id: product.id,
-              stock_quantity: item.quantity_available,
-              manage_stock: true,
-            });
-          } else {
-            // Simple product
-            productUpdates.push({
-              id: product.id,
-              stock_quantity: item.quantity_available,
-              manage_stock: true,
-            });
-          }
-        }
-
-        // Update simple products
-        if (productUpdates.length > 0) {
-          try {
-            const res = await wooClient.post('products/batch', {
-              update: productUpdates,
-            });
-
-            results[connection].error.push(
-              ...res.data.update.filter((u: any) => u.error),
-            );
-
-            if (res.status >= 400 && res.status < 600) {
-              throw new Error();
-            }
-          } catch {
-            for (const update of productUpdates) {
-              const prod = products.find((p) => p.id === update.id);
-              if (prod) {
-                results[connection].failed.push(prod.sku);
-              }
-            }
-          }
-        }
-
-        // Update variations, grouped by parent
-        for (const [parentId, updates] of Object.entries(variationUpdates)) {
-          try {
-            const res = await wooClient.post(
-              `products/${parentId}/variations/batch`,
-              {
-                update: updates,
-              },
-            );
-
-            results[connection].error.push(
-              ...res.data.update.filter((u: any) => u.error),
-            );
-
-            if (res.status >= 400 && res.status < 600) {
-              throw new Error();
-            }
-          } catch {
-            for (const update of updates) {
-              const prod = products.find((p) => p.id === update.id);
-              if (prod) {
-                results[connection].failed.push(prod.sku);
-              }
-            }
-          }
-        }
+        results.push({ connection, response: res });
       }
 
-      this.logger.log(`Processed chunk ${i + 1}/${chunks.length}`);
+      this.logger.log(`Completed chunk ${i + 1} of ${chunks.length}`);
     }
-
-    await this.mongo
-      .db('hbh')
-      .collection('miami_distro_inventory_snapshots')
-      .updateOne(
-        {},
-        {
-          $set: {
-            timestamp: Date.now(),
-            items,
-          },
-        },
-        { upsert: true },
-      );
 
     return results;
-  }
-
-  private getChangedItems(oldItems: Item[], newItems: Item[]): Item[] {
-    if (oldItems.length === 0) {
-      return newItems;
-    }
-
-    const oldMap = new Map(oldItems.map((item) => [item.sku, item]));
-    const items: Item[] = [];
-
-    for (const newItem of newItems) {
-      const oldItem = oldMap.get(newItem.sku);
-
-      if (!oldItem) {
-        items.push(newItem);
-        continue;
-      }
-
-      if (oldItem.quantity_available !== newItem.quantity_available) {
-        items.push(newItem);
-      }
-    }
-
-    return items;
   }
 }
 
@@ -321,9 +182,4 @@ interface Item {
   item_name: string;
   quantity_available: number;
   quantity_available_for_sale: number;
-}
-
-interface Snapshot {
-  timestamp: number;
-  items: Item[];
 }
