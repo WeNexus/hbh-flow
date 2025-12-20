@@ -33,7 +33,7 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
   private logger = new Logger(MiamiDistroInventorySyncWorkflow.name);
 
   @Step(1)
-  async execute() {
+  async fetchInventorySummary() {
     if (!this.envService.isProd) {
       return this.cancel('Not running in development environment');
     }
@@ -132,148 +132,160 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
 
     const changedItems =
       /*this.getChangedItems(prevSnapshot?.items || [], items)*/ items;
-    const erroredSKUs = new Set<string>();
-    const errors: any[] = [];
 
-    if (changedItems.length > 0) {
-      this.logger.log(
-        `Updating ${changedItems.length} inventory items in WooCommerce`,
-      );
+    return changedItems;
+  }
 
-      const connections = [
-        'miami_distro',
-        // 'savage_me_dolls',
-        'the_delta_boss',
-        // 'shop_full_circle',
-        // 'hempthrill',
-        // 'shop_be_savage',
-      ];
+  @Step(2)
+  async execute() {
+    const items = await this.getResult('fetchInventorySummary');
 
-      const chunks = chunk(changedItems, 50);
+    const connections = [
+      'miami_distro',
+      // 'savage_me_dolls',
+      'the_delta_boss',
+      // 'shop_full_circle',
+      // 'hempthrill',
+      // 'shop_be_savage',
+    ];
 
-      for (const [i, ch] of chunks.entries()) {
-        for (const connection of connections) {
-          const wooClient = this.wooService.getClient(connection);
+    const results = connections.reduce(
+      (acc, conn) => {
+        acc[conn] = {
+          failed: [],
+          missing: [],
+          error: [],
+        };
+        return acc;
+      },
+      {} as Record<
+        string,
+        {
+          failed: string[];
+          missing: string[];
+          error: any[];
+        }
+      >,
+    );
 
-          const products = await wooClient.getProducts({
-            sku: ch.map((i) => i.sku).join(','),
-          });
+    if (items.length === 0) {
+      return results;
+    }
 
-          this.logger.log(
-            `Fetched ${products.data?.length ?? 0} products with ${ch.map((i) => i.sku).join(',')} for connection ${connection}`,
-          );
+    this.logger.log(`Updating inventory for ${items.length} changed items`);
 
-          // Separate products from variations
-          const productUpdates: any[] = [];
-          const variationUpdatesByProduct: Record<string, any[]> = {};
+    const chunks = chunk(items, 50);
 
-          for (const item of ch) {
-            const product = products.data.find((p) => p.sku === item.sku);
+    for (let i = 0; i < chunks.length; i++) {
+      const ch = chunks[i];
 
-            if (!product) {
-              this.logger.warn(
-                `Product with SKU ${item.sku} not found in WooCommerce for connection ${connection}`,
-              );
-              erroredSKUs.add(item.sku);
-              continue;
-            }
+      for (const connection of connections) {
+        const wooClient = this.wooService.getClient(connection);
 
-            if (product.parent_id && product.type === 'variation') {
-              // Variation
-              variationUpdatesByProduct[product.parent_id] ??= [];
-              variationUpdatesByProduct[product.parent_id].push({
-                id: product.id,
-                stock_quantity: item.quantity_available,
-                manage_stock: true,
-              });
+        const products = await wooClient.getProducts({
+          sku: ch.map((i) => i.sku).join(','),
+        });
 
-              this.logger.log(
-                `Variation ${item.sku}: ${item.quantity_available} units available`,
-              );
-            } else {
-              // Simple product
-              productUpdates.push({
-                id: product.id,
-                stock_quantity: item.quantity_available,
-                manage_stock: true,
-              });
+        // Separate products from variations
+        const variationUpdates: Record<string, any[]> = {};
+        const productUpdates: any[] = [];
 
-              this.logger.log(
-                `Product ${item.sku}: ${item.quantity_available} units available`,
-              );
-            }
+        for (const item of ch) {
+          const product = products.data.find((p) => p.sku === item.sku);
+
+          if (!product) {
+            results[connection].missing.push(item.sku);
+            continue;
           }
 
-          // Update simple products
-          if (productUpdates.length > 0) {
-            try {
-              const res = await wooClient.post('products/batch', {
-                update: productUpdates,
-              });
-
-              errors.push(...res.data.update.filter((u: any) => u.error));
-
-              if (res.status >= 400 && res.status < 600) {
-                throw new Error();
-              }
-            } catch {
-              for (const product of productUpdates) {
-                erroredSKUs.add(product.sku);
-              }
-
-              this.logger.error(
-                `Failed to update ${productUpdates.map((p) => p.id).join(', ')} in connection ${connection}`,
-              );
-            }
+          if (product.parent_id && product.type === 'variation') {
+            // Variation
+            variationUpdates[product.parent_id] ??= [];
+            variationUpdates[product.parent_id].push({
+              id: product.id,
+              stock_quantity: item.quantity_available,
+              manage_stock: true,
+            });
+          } else {
+            // Simple product
+            productUpdates.push({
+              id: product.id,
+              stock_quantity: item.quantity_available,
+              manage_stock: true,
+            });
           }
+        }
 
-          // Update variations, grouped by parent
-          for (const [parentId, updates] of Object.entries(
-            variationUpdatesByProduct,
-          )) {
-            try {
-              const res = await wooClient.post(
-                `products/${parentId}/variations/batch`,
-                {
-                  update: updates,
-                },
-              );
+        // Update simple products
+        if (productUpdates.length > 0) {
+          try {
+            const res = await wooClient.post('products/batch', {
+              update: productUpdates,
+            });
 
-              errors.push(...res.data.update.filter((u: any) => u.error));
+            results[connection].error.push(
+              ...res.data.update.filter((u: any) => u.error),
+            );
 
-              if (res.status >= 400 && res.status < 600) {
-                throw new Error();
-              }
-            } catch {
-              for (const update of updates) {
-                erroredSKUs.add(update.sku);
+            if (res.status >= 400 && res.status < 600) {
+              throw new Error();
+            }
+          } catch {
+            for (const update of productUpdates) {
+              const prod = products.data.find((p) => p.id === update.id);
+              if (prod) {
+                results[connection].failed.push(prod.sku);
               }
             }
           }
         }
 
-        this.logger.log(`Processed chunk ${i + 1}/${chunks.length}`);
+        // Update variations, grouped by parent
+        for (const [parentId, updates] of Object.entries(variationUpdates)) {
+          try {
+            const res = await wooClient.post(
+              `products/${parentId}/variations/batch`,
+              {
+                update: updates,
+              },
+            );
+
+            results[connection].error.push(
+              ...res.data.update.filter((u: any) => u.error),
+            );
+
+            if (res.status >= 400 && res.status < 600) {
+              throw new Error();
+            }
+          } catch {
+            for (const update of updates) {
+              const prod = products.data.find((p) => p.id === update.id);
+              if (prod) {
+                results[connection].failed.push(prod.sku);
+              }
+            }
+          }
+        }
       }
 
-      /*await mongo
-        .db('hbh')
-        .collection('miami_distro_inventory_snapshots')
-        .updateOne(
-          {},
-          {
-            $set: {
-              timestamp: Date.now(),
-              items: items.filter((item) => !erroredSKUs.has(item.sku)),
-            },
-          },
-          { upsert: true },
-        );*/
+      this.logger.log(`Processed chunk ${i + 1}/${chunks.length}`);
     }
 
-    return {
-      changed: changedItems.length,
-      errors,
-    };
+    /*await mongo
+      .db('hbh')
+      .collection('miami_distro_inventory_snapshots')
+      .updateOne(
+        {},
+        {
+          $set: {
+            timestamp: Date.now(),
+            items: items.filter((item) => !erroredSKUs.has(item.sku)),
+          },
+        },
+        { upsert: true },
+      );*/
+
+    return results;
   }
 
   private getChangedItems(oldItems: Item[], newItems: Item[]): Item[] {
