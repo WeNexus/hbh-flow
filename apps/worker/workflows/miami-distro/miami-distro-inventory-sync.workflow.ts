@@ -159,12 +159,13 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
 
         const wooClient = this.wooService.getClient(connection);
 
-        const res = await wooClient.put('inventory', {
-          update: chunk.map((item) => ({
+        const res = await wooClient.put(
+          'inventory',
+          chunk.map((item) => ({
             sku: item.sku,
             stock: item.quantity_available,
-          })),
-        });
+          })) as any,
+        );
 
         results.push({ connection, response: res });
       }
