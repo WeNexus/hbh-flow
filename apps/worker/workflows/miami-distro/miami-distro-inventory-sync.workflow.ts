@@ -120,7 +120,7 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
     return items;
   }
 
-  @Step(2)
+  @Step(1)
   async execute() {
     if (!this.envService.isProd) {
       return this.cancel('Not running in development environment');
