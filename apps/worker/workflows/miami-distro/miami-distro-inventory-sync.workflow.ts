@@ -7,6 +7,7 @@ import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
 import { chunk } from 'lodash-es';
 import { WithId } from 'mongodb';
+import { Products } from 'woocommerce-rest-ts-api';
 
 @Workflow({
   name: 'Miami Distro - Inventory Sync',
@@ -185,17 +186,20 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
         // Separate products from variations
         const variationUpdates: Record<string, any[]> = {};
         const productUpdates: any[] = [];
+        const products: Products[] = [];
 
         for (const item of ch) {
-          const products = await wooClient.getProducts({
+          const res = await wooClient.getProducts({
             sku: item.sku,
           });
-          const product = products.data.find((p) => p.sku === item.sku);
+          const product = res.data.find((p) => p.sku === item.sku);
 
           if (!product) {
             results[connection].missing.push(item.sku);
             continue;
           }
+
+          products.push(product);
 
           if (product.parent_id && product.type === 'variation') {
             // Variation
