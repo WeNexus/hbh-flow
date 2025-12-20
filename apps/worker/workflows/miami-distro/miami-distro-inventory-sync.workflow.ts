@@ -167,6 +167,8 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
             continue;
           }
 
+          this.logger.log(typeof products.data, products.data);
+
           // Separate products from variations
           const productUpdates: any[] = [];
           const variationUpdatesByProduct: Record<string, any[]> = {};
