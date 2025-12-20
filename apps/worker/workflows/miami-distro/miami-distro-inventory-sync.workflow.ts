@@ -160,8 +160,12 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
           });
 
           this.logger.log(
-            `Fetched ${products.data.length} products from WooCommerce for connection ${connection}`,
+            `Fetched ${products.data?.length ?? 0} products with ${ch.map((i) => i.sku).join(',')} for connection ${connection}`,
           );
+
+          if (!products.data || products.data.length === 0) {
+            continue;
+          }
 
           // Separate products from variations
           const productUpdates: any[] = [];
