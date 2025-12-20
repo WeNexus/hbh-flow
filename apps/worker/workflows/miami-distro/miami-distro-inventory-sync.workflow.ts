@@ -13,10 +13,10 @@ import { WithId } from 'mongodb';
   webhook: true,
   concurrency: 1,
   triggers: [
-    cron('*/60 * * * *', {
+    cron('0 */2 * * *', {
       // Every 60 minutes
       timezone: 'America/New_York',
-      oldPattern: '*/30 * * * *',
+      oldPattern: '*/60 * * * *',
     }),
   ],
 })
@@ -118,8 +118,11 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
       item_id: i.item_id as string,
       sku: i.sku as string,
       item_name: i.item_name as string,
-      quantity_available: Number(i.quantity_available),
-      quantity_available_for_sale: Number(i.quantity_available_for_sale),
+      quantity_available: Math.max(0, Number(i.quantity_available)),
+      quantity_available_for_sale: Math.max(
+        0,
+        Number(i.quantity_available_for_sale),
+      ),
     }));
 
     /*const prevSnapshot = await this.mongo
