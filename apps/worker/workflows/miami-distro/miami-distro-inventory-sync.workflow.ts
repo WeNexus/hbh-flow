@@ -126,13 +126,12 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
       ),
     }));
 
-    /*const prevSnapshot = await this.mongo
+    const prevSnapshot = await this.mongo
       .db('hbh')
       .collection('miami_distro_inventory_snapshots')
-      .findOne<WithId<Snapshot>>();*/
+      .findOne<WithId<Snapshot>>();
 
-    const changedItems =
-      /*this.getChangedItems(prevSnapshot?.items || [], items)*/ items;
+    const changedItems = this.getChangedItems(prevSnapshot?.items || [], items);
 
     return changedItems;
   }
@@ -274,7 +273,7 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
       this.logger.log(`Processed chunk ${i + 1}/${chunks.length}`);
     }
 
-    /*await mongo
+    await this.mongo
       .db('hbh')
       .collection('miami_distro_inventory_snapshots')
       .updateOne(
@@ -282,11 +281,11 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
         {
           $set: {
             timestamp: Date.now(),
-            items: items.filter((item) => !erroredSKUs.has(item.sku)),
+            items,
           },
         },
         { upsert: true },
-      );*/
+      );
 
     return results;
   }
