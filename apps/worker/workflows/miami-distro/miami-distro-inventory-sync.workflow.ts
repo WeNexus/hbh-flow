@@ -167,13 +167,16 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
           })) as any,
         );
 
-        results.push({ connection, response: res });
+        results.push({ connection, status: res.status, response: res.data });
       }
 
       this.logger.log(`Completed chunk ${i + 1} of ${chunks.length}`);
     }
 
-    return results;
+    return {
+      results,
+      items,
+    };
   }
 }
 
