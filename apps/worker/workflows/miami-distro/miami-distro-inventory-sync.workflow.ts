@@ -33,7 +33,7 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
     const itemDetails: Record<string, any>[] = [];
 
     const rule: Record<string, any> = {
-      columns: [
+      /*columns: [
         {
           index: 1,
           field: 'location_name',
@@ -42,19 +42,21 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
           group: 'branch',
         },
       ],
-      criteria_string: '1',
+      criteria_string: '1',*/
     };
 
     if (this.payload?.sku) {
       rule.columns.push({
-        index: 1,
+        // index: 1,
+        index: 2,
         field: 'sku',
         value: this.payload.sku,
         comparator: 'equal',
         group: 'report',
       });
 
-      rule.criteria_string = '( 1 AND 2 )';
+      // rule.criteria_string = '( 1 AND 2 )';
+      rule.criteria_string = '1';
     }
 
     for (let page = 1; ; page++) {
