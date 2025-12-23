@@ -43,11 +43,12 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
         },
       ],
       criteria_string: '1',*/
+      columns: [],
     };
 
     if (this.payload?.sku) {
       rule.columns.push({
-        // index: 1,
+        // index: 2,
         index: 1,
         field: 'sku',
         value: this.payload.sku,
