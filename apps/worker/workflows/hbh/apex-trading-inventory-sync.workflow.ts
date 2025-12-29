@@ -55,27 +55,29 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
 
     const rule: Record<string, any> = {
       columns: [
-        {
+        /*{
           index: 1,
           field: 'location_name',
           value: ['3195387000000083052'],
           comparator: 'in',
           group: 'branch',
-        },
+        },*/
       ],
-      criteria_string: '1',
+      // criteria_string: '1',
     };
 
     if (this.payload?.sku) {
       rule.columns.push({
-        index: 2,
+        // index: 2,
+        index: 1,
         field: 'sku',
         value: this.payload.sku,
         comparator: 'equal',
         group: 'report',
       });
 
-      rule.criteria_string = '( 1 AND 2 )';
+      // rule.criteria_string = '( 1 AND 2 )';
+      rule.criteria_string = '1';
     }
 
     for (let page = 1; ; page++) {
@@ -143,6 +145,7 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
       throw new Error('No items fetched from inventory summary');
     }
 
+    const itemsBySku = keyBy(items, 'sku');
     const timestamp = await this.getPrevTimestamp();
 
     for (let page = 1; ; page++) {
@@ -156,7 +159,7 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
       );
 
       const products = data.products.filter((p) =>
-        Object.prototype.hasOwnProperty.call(items, p.product_sku),
+        Object.prototype.hasOwnProperty.call(itemsBySku, p.product_sku),
       );
 
       this.logger.log(
