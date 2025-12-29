@@ -4,7 +4,7 @@ import { JobPayload, JobResMeta } from '#lib/workflow/types';
 import { jobResEndSignal } from './job-res-end-signal';
 import { StepInfoSchema } from '#lib/workflow/schema';
 import { PrismaService } from '#lib/core/services';
-import { Job as DBJob } from '@prisma/client';
+import { Job as DBJob, Prisma } from '@prisma/client';
 import { ModuleRef } from '@nestjs/core';
 import { Redis } from 'ioredis';
 
@@ -361,5 +361,42 @@ export abstract class WorkflowBase<P = any, C = any> {
         jobResEndSignal,
       );
     }
+  }
+
+  /**
+   * Retrieves the previous job in the workflow chain.
+   * The previous job is determined by either the parentId or the trigger information.
+   *
+   * @returns A promise that resolves to the previous job, or null if there is no previous job.
+   */
+  async getPrevJob(): Promise<DBJob | null> {
+    if (this.dbJob.parentId) {
+      return this.prisma.job
+        .findUnique({
+          where: {
+            id: this.dbJob.parentId,
+          },
+        })
+        .then((r) => r.result);
+    }
+
+    if (this.dbJob.trigger === 'SCHEDULE' && this.dbJob.triggerId) {
+      return this.prisma.job
+        .findFirst({
+          where: {
+            trigger: 'SCHEDULE',
+            triggerId: this.dbJob.triggerId,
+            id: {
+              not: this.dbJob.id,
+            },
+          },
+          orderBy: {
+            id: 'desc',
+          },
+        })
+        .then((r) => r.result);
+    }
+
+    return null;
   }
 }
