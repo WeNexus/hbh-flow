@@ -1,3 +1,4 @@
+import { ApexTradingModule } from '#lib/apex-trading/apex-trading.module';
 import { WoocommerceModule } from '#lib/woocommerce/woocommerce.module';
 import { APP_FILTER, HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
@@ -125,6 +126,7 @@ export async function bootstrap(
       ShopifyModule,
       DuoplaneModule,
       OdooModule,
+      ApexTradingModule,
     ],
     providers: [
       {
@@ -213,6 +215,7 @@ export async function bootstrap(
       MondayModule,
       DuoplaneModule,
       OdooModule,
+      ApexTradingModule,
     ],
   })
   class WrapperModule {}

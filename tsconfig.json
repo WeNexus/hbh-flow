@@ -55,6 +55,8 @@
       "#lib/leaftrade/*": ["libs/leaftrade/*"],
       "#lib/orderdesk": ["libs/orderdesk"],
       "#lib/orderdesk/*": ["libs/orderdesk/*"],
+      "#lib/apex-trading": ["libs/apex-trading"],
+      "#lib/apex-trading/*": ["libs/apex-trading/*"],
       "#app/api": ["apps/api"],
       "#app/api/*": ["apps/api/*"],
       "#app/worker": ["apps/worker"],

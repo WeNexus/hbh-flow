@@ -153,6 +153,15 @@
       "compilerOptions": {
         "tsConfigPath": "libs/orderdesk/tsconfig.lib.json"
       }
+    },
+    "apex-trading": {
+      "type": "library",
+      "root": "libs/apex-trading",
+      "entryFile": "index",
+      "sourceRoot": "libs/apex-trading",
+      "compilerOptions": {
+        "tsConfigPath": "libs/apex-trading/tsconfig.lib.json"
+      }
     }
   }
 }
