@@ -838,7 +838,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     const { salesorder } = await this.getResult('createOrder');
     const { invoice } = await this.getResult('createInvoice');
 
-    await this.mongo.collection('miami_distro_order').insertOne({
+    await this.mongo.db('hbh').collection('miami_distro_order').insertOne({
       wooOrderId: order.id,
       zohoOrderId: salesorder.salesorder_id,
       invoiceId: invoice?.invoice_id,
