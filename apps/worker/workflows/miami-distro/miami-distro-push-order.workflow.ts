@@ -196,17 +196,12 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       return this.cancel(`Order status is ${this.payload.status}`);
     }
 
-    const client = await MongoClient.connect(
-      this.envService.getString('MONGO_URL'),
-    );
+    const source = this.getSource();
 
-    const db = client.db('hbh');
-
-    const existing = await db
+    const existing = await this.mongo
+      .db('hbh')
       .collection('miami_distro_order')
-      .findOne({ wooOrderId: this.payload.id });
-
-    await client.close();
+      .findOne({ wooOrderId: this.payload.id, source });
 
     if (!existing && this.payload.status === 'cancelled') {
       return this.cancel(`Order does not exist and is cancelled`);
@@ -266,6 +261,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
         .updateOne(
           {
             wooOrderId: this.payload.id,
+            source: this.getSource(),
           },
           {
             $set: {
@@ -509,11 +505,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
         }
       }
 
-      const client = await MongoClient.connect(
-        this.envService.getString('MONGO_URL'),
-      );
-
-      const countries = await client
+      const countries = await this.mongo
         .db('hbh')
         .collection('inventory_countries')
         .find({
@@ -522,8 +514,6 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
           },
         })
         .toArray();
-
-      await client.close();
 
       for (const address of addressesToCreate) {
         const country = countries.find(
@@ -848,13 +838,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     const { salesorder } = await this.getResult('createOrder');
     const { invoice } = await this.getResult('createInvoice');
 
-    const client = await MongoClient.connect(
-      this.envService.getString('MONGO_URL'),
-    );
-
-    const db = client.db('hbh');
-
-    await db.collection('miami_distro_order').insertOne({
+    await this.mongo.collection('miami_distro_order').insertOne({
       wooOrderId: order.id,
       zohoOrderId: salesorder.salesorder_id,
       invoiceId: invoice?.invoice_id,
@@ -867,8 +851,6 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       ),
       createdAt: new Date(),
     });
-
-    await client.close();
   }
 
   @Step(12)
