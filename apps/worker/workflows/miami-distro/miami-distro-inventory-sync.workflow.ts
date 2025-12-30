@@ -166,7 +166,7 @@ export class MiamiDistroInventorySyncWorkflow extends WorkflowBase {
           'konnecthub/inventory',
           chunk.map((item) => ({
             sku: item.sku,
-            stock: item.quantity_available,
+            stock: item.quantity_available_for_sale,
           })) as any,
         );
 
