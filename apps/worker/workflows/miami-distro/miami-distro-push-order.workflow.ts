@@ -1,12 +1,13 @@
 import { WoocommerceService } from '#lib/woocommerce/woocommerce.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { ZohoService } from '#lib/zoho/zoho.service';
+import { keyBy, difference, pick } from 'lodash-es';
 import { Customers } from 'woocommerce-rest-ts-api';
 import { WorkflowBase } from '#lib/workflow/misc';
-import { keyBy, difference } from 'lodash-es';
 import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
 import mongodb from 'mongodb';
+import { MongoService } from '#lib/core/services';
 
 const MongoClient = mongodb.MongoClient;
 
@@ -22,6 +23,7 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     private readonly wooService: WoocommerceService,
     private readonly zohoService: ZohoService,
     private readonly envService: EnvService,
+    private readonly mongo: MongoService,
   ) {
     super();
   }
@@ -226,48 +228,53 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     }
 
     // void the invoice
-    await this.zohoService.post(
-      `/inventory/v1/invoices/${existing.invoiceId}/status/void`,
-      {},
-      {
-        connection: 'miami_distro',
-        params: {
-          organization_id: '893457005',
+    if (existing.invoiceId) {
+      await this.zohoService.post(
+        `/inventory/v1/invoices/${existing.invoiceId}/status/void`,
+        {},
+        {
+          connection: 'miami_distro',
+          params: {
+            organization_id: '893457005',
+          },
         },
-      },
-    );
+      );
+    }
 
     // void the order
-    await this.zohoService.post(
-      `/inventory/v1/salesorders/${existing.zohoOrderId}/status/void`,
-      {},
-      {
-        connection: 'miami_distro',
-        params: {
-          organization_id: '893457005',
+    if (existing.zohoOrderId) {
+      await this.zohoService.post(
+        `/inventory/v1/salesorders/${existing.zohoOrderId}/status/void`,
+        {},
+        {
+          connection: 'miami_distro',
+          params: {
+            organization_id: '893457005',
+          },
         },
-      },
-    );
+      );
+    }
 
-    const client = await MongoClient.connect(
-      this.envService.getString('MONGO_URL'),
-    );
-
-    const db = client.db('hbh');
-
-    await db.collection('miami_distro_order').updateOne(
-      {
-        wooOrderId: this.payload.id,
-      },
-      {
-        $set: {
-          void: true,
-          updatedAt: new Date(),
-        },
-      },
-    );
-
-    await client.close();
+    if (
+      this.payload.status === 'cancelled' ||
+      this.payload.status === 'refunded' ||
+      this.payload.status === 'failed'
+    ) {
+      await this.mongo
+        .db('hbh')
+        .collection('miami_distro_order')
+        .updateOne(
+          {
+            wooOrderId: this.payload.id,
+          },
+          {
+            $set: {
+              void: true,
+              updatedAt: new Date(),
+            },
+          },
+        );
+    }
 
     return this.exit();
   }
@@ -852,8 +859,12 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       zohoOrderId: salesorder.salesorder_id,
       invoiceId: invoice?.invoice_id,
       referenceNumber: order.number,
-      lineItems: salesorder.line_items,
-      wooItems: order.line_items,
+      lineItems: salesorder.line_items.map((i) =>
+        pick(i, 'sku', 'item_id', 'product_id', 'quantity'),
+      ),
+      wooItems: order.line_items.map((i) =>
+        pick(i, 'id', 'product_id', 'variation_id', 'sku', 'quantity'),
+      ),
       createdAt: new Date(),
     });
 
