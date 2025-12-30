@@ -206,7 +206,7 @@ export class EastWestInventorySync extends WorkflowBase {
             locationId: this.locationId,
             inventoryItemId: variant.inventoryItem.id,
             compareQuantity:
-              variant.inventoryItem.inventoryLevel.quantities[0].quantity,
+              variant.inventoryItem.inventoryLevel?.quantities[0].quantity || 0,
             quantity: stock.UnitOnHand,
           };
         });
@@ -252,6 +252,6 @@ interface Variant {
       quantities: {
         quantity: number;
       }[];
-    };
+    } | null;
   };
 }
