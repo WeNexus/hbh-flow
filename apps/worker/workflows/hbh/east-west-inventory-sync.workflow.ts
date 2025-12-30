@@ -28,7 +28,7 @@ export class EastWestInventorySync extends WorkflowBase {
   }
 
   private logger = new Logger(EastWestInventorySync.name);
-  private locationId = 'gid://shopify/Location/38654869548';
+  private locationId = 'gid://shopify/Location/83996541085';
 
   @Step(1)
   async exportShopifyProducts() {
