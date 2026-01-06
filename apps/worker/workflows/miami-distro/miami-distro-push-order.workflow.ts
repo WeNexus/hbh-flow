@@ -250,27 +250,21 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
       );
     }
 
-    if (
-      this.payload.status === 'cancelled' ||
-      this.payload.status === 'refunded' ||
-      this.payload.status === 'failed'
-    ) {
-      await this.mongo
-        .db('hbh')
-        .collection('miami_distro_order')
-        .updateOne(
-          {
-            wooOrderId: this.payload.id,
-            source: this.getSource(),
+    await this.mongo
+      .db('hbh')
+      .collection('miami_distro_order')
+      .updateOne(
+        {
+          wooOrderId: this.payload.id,
+          source: this.getSource(),
+        },
+        {
+          $set: {
+            void: true,
+            updatedAt: new Date(),
           },
-          {
-            $set: {
-              void: true,
-              updatedAt: new Date(),
-            },
-          },
-        );
-    }
+        },
+      );
 
     return this.exit();
   }
@@ -838,19 +832,22 @@ export class MiamiDistroPushOrderWorkflow extends WorkflowBase {
     const { salesorder } = await this.getResult('createOrder');
     const { invoice } = await this.getResult('createInvoice');
 
-    await this.mongo.db('hbh').collection('miami_distro_order').insertOne({
-      wooOrderId: order.id,
-      zohoOrderId: salesorder.salesorder_id,
-      invoiceId: invoice?.invoice_id,
-      referenceNumber: order.number,
-      lineItems: salesorder.line_items.map((i) =>
-        pick(i, 'sku', 'item_id', 'product_id', 'quantity'),
-      ),
-      wooItems: order.line_items.map((i) =>
-        pick(i, 'id', 'product_id', 'variation_id', 'sku', 'quantity'),
-      ),
-      createdAt: new Date(),
-    });
+    await this.mongo
+      .db('hbh')
+      .collection('miami_distro_order')
+      .insertOne({
+        wooOrderId: order.id,
+        zohoOrderId: salesorder.salesorder_id,
+        invoiceId: invoice?.invoice_id,
+        referenceNumber: order.number,
+        lineItems: salesorder.line_items.map((i) =>
+          pick(i, 'sku', 'item_id', 'product_id', 'quantity'),
+        ),
+        wooItems: order.line_items.map((i) =>
+          pick(i, 'id', 'product_id', 'variation_id', 'sku', 'quantity'),
+        ),
+        createdAt: new Date(),
+      });
   }
 
   @Step(12)
