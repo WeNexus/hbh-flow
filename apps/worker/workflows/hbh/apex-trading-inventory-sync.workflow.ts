@@ -1,5 +1,6 @@
 import { ApexTradingService } from '#lib/apex-trading/apex-trading.service';
-import { Batch, PaginatedResponse, Product } from '#lib/apex-trading/types';
+import { Batch, Product } from '#lib/apex-trading/types/product';
+import { PaginatedResponse } from '#lib/apex-trading/types';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { cron, WorkflowBase } from '#lib/workflow/misc';
 import { ZohoService } from '#lib/zoho/zoho.service';
@@ -158,8 +159,12 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
         },
       );
 
-      const products = data.products.filter((p) =>
-        Object.prototype.hasOwnProperty.call(itemsBySku, p.product_sku),
+      const products = data.products.filter(
+        (p) =>
+          Object.prototype.hasOwnProperty.call(
+            itemsBySku,
+            p.product_sku,
+          ) as boolean,
       );
 
       this.logger.log(

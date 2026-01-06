@@ -1,31 +1,11 @@
-export interface Links {
-  first: string;
-  last: string;
-  prev: string;
-  next: string;
+interface UnitMeasurement {
+  name: string;
+  alias: string;
 }
 
-export interface Meta {
-  current_page: number;
-  from: number;
-  last_page: number;
-  links: Link[];
-  path: string;
-  per_page: number;
-  to: number;
-  total: number;
+interface UnitPrice {
+  message: string;
 }
-
-export interface Link {
-  url?: string;
-  label: string;
-  active: boolean;
-}
-
-export type PaginatedResponse<T> = {
-  links: Links;
-  meta: Meta;
-} & T;
 
 export interface Product {
   id: number;
@@ -102,7 +82,7 @@ export interface Product {
   distillate_extract_sub_type: any;
   crude_extract_sub_type: any;
   unit_measurement: UnitMeasurement;
-  unit_size_unit_measurement: UnitSizeUnitMeasurement;
+  unit_size_unit_measurement: UnitMeasurement;
   state_of_material: any;
   grow_environment: any;
   grow_medium: any;
@@ -123,33 +103,23 @@ export interface Product {
   environmental_issues: any[];
 }
 
-export interface Brand {
+interface Brand {
   id: number;
   name: string;
 }
 
-export interface Category {
+interface Category {
   id: number;
   name: string;
   short_display_name: string;
   long_display_name: string;
 }
 
-export interface ProductType {
+interface ProductType {
   id: number;
   name: string;
   product_category_id: number;
   company_id: number;
-}
-
-export interface UnitMeasurement {
-  name: string;
-  alias: string;
-}
-
-export interface UnitSizeUnitMeasurement {
-  name: string;
-  alias: string;
 }
 
 export interface Batch {
@@ -206,8 +176,4 @@ export interface Batch {
   restricted: boolean;
   created_at: string;
   updated_at: string;
-}
-
-export interface UnitPrice {
-  message: string;
 }
