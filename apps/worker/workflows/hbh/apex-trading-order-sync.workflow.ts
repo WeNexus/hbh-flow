@@ -198,6 +198,10 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
       }
     }
 
+    if (orders.length === 0) {
+      return this.cancel('No orders to process.');
+    }
+
     return orders;
   }
 
