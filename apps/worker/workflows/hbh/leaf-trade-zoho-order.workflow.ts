@@ -314,7 +314,7 @@ export class LeafTradeZohoOrderWorkflow extends WorkflowBase {
         ],
       },
       {
-        connection: 'miami_distro',
+        connection: 'hbh',
       },
     );
 
@@ -329,14 +329,10 @@ export class LeafTradeZohoOrderWorkflow extends WorkflowBase {
   async ensureInventoryCustomer() {
     const crmContact = await this.getResult('ensureCRMAccount');
 
-    /*const inventoryAccount = await this.importIntoBooks(
+    const inventoryAccount = await this.importIntoBooks(
       crmContact.accountId,
       'account',
-    );*/
-
-    const inventoryAccount = {
-      contact_id: '3195387000099467479',
-    };
+    );
 
     const {
       data: { contact },
