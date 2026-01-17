@@ -44,11 +44,43 @@ export class ShopifyService extends TokenHttpClient {
               },
             },
             {
-              id: 'cannadevices',
-              description: 'CannaDevices Shopify Store',
+              id: 'ai1wholesale',
+              description: 'All In One Wholesale Shopify Store',
               tokens: {
-                accessToken: env.getString('CANNADEVICES_ACCESS_TOKEN'),
-                storeUrl: env.getString('CANNADEVICES_STORE_URL'),
+                accessToken: env.getString('ALL_IN_ONE_WS_ACCESS_TOKEN'),
+                storeUrl: env.getString('ALL_IN_ONE_WS_STORE_URL'),
+              },
+            },
+            {
+              id: 'bakerbrands',
+              description: 'Baker Brands Shopify Store',
+              tokens: {
+                accessToken: env.getString('BAKER_BRANDS_ACCESS_TOKEN'),
+                storeUrl: env.getString('BAKER_BRANDS_STORE_URL'),
+              },
+            },
+            {
+              id: 'donkey-distro',
+              description: 'Donkey Distro Shopify Store',
+              tokens: {
+                accessToken: env.getString('DONKEY_DISTRO_ACCESS_TOKEN'),
+                storeUrl: env.getString('DONKEY_DISTRO_STORE_URL'),
+              },
+            },
+            {
+              id: 'smokeand-vape-wholesale',
+              description: 'Smoke Vape Wholesale Shopify Store',
+              tokens: {
+                accessToken: env.getString('SMOKE_AND_VAPE_WS_ACCESS_TOKEN'),
+                storeUrl: env.getString('SMOKE_AND_VAPE_WS_STORE_URL'),
+              },
+            },
+            {
+              id: 'a13distro',
+              description: 'A13 Distro Shopify Store',
+              tokens: {
+                accessToken: env.getString('A13_DISTRO_ACCESS_TOKEN'),
+                storeUrl: env.getString('A13_DISTRO_STORE_URL'),
               },
             },
           ],
