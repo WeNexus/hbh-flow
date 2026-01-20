@@ -44,6 +44,14 @@ export class ShopifyService extends TokenHttpClient {
               },
             },
             {
+              id: 'cannadevices',
+              description: 'CannaDevices Shopify Store',
+              tokens: {
+                accessToken: env.getString('CANNADEVICES_ACCESS_TOKEN'),
+                storeUrl: env.getString('CANNADEVICES_STORE_URL'),
+              },
+            },
+            {
               id: 'ai1wholesale',
               description: 'All In One Wholesale Shopify Store',
               tokens: {
