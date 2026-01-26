@@ -58,10 +58,10 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
 
   private destConnections: ShopifyConnection[] = [
     'ai1wholesale',
-    'bakerbrands',
+    // 'bakerbrands',
     'donkey-distro',
     'smokeand-vape-wholesale',
-    'a13distro',
+    // 'a13distro',
   ];
 
   private snapshotDbName = 'hbh';
@@ -382,11 +382,11 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
       );
     }
 
-    if (!res.collection?.id) {
+    if (!res.collectionCreate.collection?.id) {
       throw new Error('collectionCreate: missing collection id in response');
     }
 
-    return res.collection.id;
+    return res.collectionCreate.collection.id;
   }
 
   private async collectionUpdate(
@@ -420,11 +420,11 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
       );
     }
 
-    if (!res.collection?.id) {
+    if (!res.collectionUpdate.collection?.id) {
       throw new Error('collectionUpdate: missing collection id in response');
     }
 
-    return res.collection.id;
+    return res.collectionUpdate.collection.id;
   }
 
   private async collectionDelete(
