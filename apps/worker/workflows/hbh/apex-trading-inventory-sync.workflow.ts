@@ -34,11 +34,11 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
   private beginning = '2000-01-01T00:00:00Z';
 
   async getPrevTimestamp(): Promise<Date> {
-    const job = await this.getPrevJob();
-
-    if (job) {
-      return job.createdAt;
-    }
+    // const job = await this.getPrevJob();
+    //
+    // if (job) {
+    //   return job.createdAt;
+    // }
 
     return new Date(this.beginning);
   }
@@ -153,7 +153,7 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
       const { data } = await this.apexTrading.get<
         PaginatedResponse<{ products: Product[] }>
       >(
-        `/v1/products?page=${page}&per_page=200&updated_at_from=${timestamp.toISOString()}`,
+        `/v1/products?page=${page}&per_page=200&updated_at_from=${timestamp.toISOString()}&with_batches=true&include_sold_out_batches=true`,
         {
           connection: 'dispomart',
         },
