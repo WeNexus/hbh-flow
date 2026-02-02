@@ -1,14 +1,16 @@
 import { ApexTradingService } from '#lib/apex-trading/apex-trading.service';
-import { Batch, Product } from '#lib/apex-trading/types/product';
+import { ShopifyService } from '#lib/shopify/shopify.service';
 import { PaginatedResponse } from '#lib/apex-trading/types';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { cron, WorkflowBase } from '#lib/workflow/misc';
+import { Batch } from '#lib/apex-trading/types/product';
 import { ZohoService } from '#lib/zoho/zoho.service';
 import { MongoService } from '#lib/core/services';
 import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
-import { AxiosError } from 'axios';
+import axios, { AxiosError } from 'axios';
 import { keyBy } from 'lodash-es';
+import readline from 'node:readline';
 
 @Workflow({
   name: 'HBH - Apex Trading Inventory Sync',
@@ -24,6 +26,7 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
   constructor(
     private readonly apexTrading: ApexTradingService,
     private readonly zohoService: ZohoService,
+    private readonly shopify: ShopifyService,
     private readonly envService: EnvService,
     private readonly mongo: MongoService,
   ) {
@@ -31,6 +34,7 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
   }
 
   private logger = new Logger(ApexTradingInventorySyncWorkflow.name);
+  private locationId = 'gid://shopify/Location/83996541085';
   private beginning = '2000-01-01T00:00:00Z';
 
   async getPrevTimestamp(): Promise<Date> {
@@ -40,7 +44,7 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
     //   return job.createdAt;
     // }
 
-    return new Date(this.beginning);
+    return Promise.resolve(new Date(this.beginning));
   }
 
   @Step(1)
@@ -51,176 +55,185 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
   }
 
   @Step(2)
-  async fetchInventorySummary() {
-    const itemDetails: Record<string, any>[] = [];
-
-    const rule: Record<string, any> = {
-      columns: [
-        /*{
-          index: 1,
-          field: 'location_name',
-          value: ['3195387000000083052'],
-          comparator: 'in',
-          group: 'branch',
-        },*/
-      ],
-      // criteria_string: '1',
-    };
-
-    if (this.payload?.sku) {
-      rule.columns.push({
-        // index: 2,
-        index: 1,
-        field: 'sku',
-        value: this.payload.sku,
-        comparator: 'equal',
-        group: 'report',
-      });
-
-      // rule.criteria_string = '( 1 AND 2 )';
-      rule.criteria_string = '1';
-    }
-
-    for (let page = 1; ; page++) {
-      const searchParams = new URLSearchParams({
-        page: page.toString(),
-        per_page: '5000',
-        sort_order: 'A',
-        sort_column: 'item_name',
-        filter_by: 'TransactionDate.Today',
-        stock_on_hand_filter: 'All',
-        group_by: JSON.stringify([{ field: 'none', group: 'report' }]),
-        show_actual_stock: 'true',
-        rule: JSON.stringify(rule),
-        select_columns: JSON.stringify([
-          { field: 'item_name', group: 'report' },
-          { field: 'sku', group: 'report' },
-          { field: 'quantity_available', group: 'report' },
-          { field: 'quantity_available_for_sale', group: 'report' },
-        ]),
-        usestate: 'true',
-        show_sub_categories: 'false',
-        response_option: '1',
-        formatneeded: 'true',
-        organization_id: '776003162',
-        accept: 'json',
-      });
-
-      const { data } = await this.zohoService.get<Record<string, any>>(
-        `/inventory/v1/reports/inventorysummary?${searchParams.toString()}`,
-        {
-          connection: 'hbh',
-        },
-      );
-
-      this.logger.log(
-        `Fetched page ${page} with ${data.inventory[0].item_details.length} items`,
-      );
-
-      const pageCtx = data.page_context;
-      const items = data.inventory[0].item_details;
-      itemDetails.push(...items);
-
-      if (
-        items.length < pageCtx.per_page ||
-        page >= pageCtx.total_pages ||
-        itemDetails.length >= pageCtx.total
-      ) {
-        break;
+  async exportShopifyProducts() {
+    const query = `#graphql
+    query {
+      productVariants(first: 10, query: "sku:EW_DM-*") {
+        edges {
+          node {
+            inventoryItem {
+              id
+              sku
+              inventoryLevel(locationId: "${this.locationId}") {
+                quantities(names: ["on_hand"]) {
+                  quantity
+                }
+              }
+            }
+          }
+        }
       }
     }
+    `;
 
-    const items: Item[] = itemDetails.map((i) => ({
-      sku: i.sku as string,
-      quantity_available: Math.max(0, Number(i.quantity_available)),
-    }));
+    const bulkOperationRunQuery = await this.shopify.gql<{
+      bulkOperation: BulkOperation;
+    }>({
+      connection: 'hbh_wholesale',
+      root: 'bulkOperationRunQuery',
+      variables: {
+        query: query,
+      },
+      query: `#graphql
+      mutation ($query: String!) {
+        bulkOperationRunQuery(query: $query) {
+          bulkOperation {
+            id
+            status
+            url
+            errorCode
+          }
+          userErrors {
+            code
+            field
+            message
+          }
+        }
+      }
+      `,
+    });
 
-    return items;
+    if (bulkOperationRunQuery.userErrors?.length) {
+      throw new Error(
+        `Shopify GQL Error: ${bulkOperationRunQuery.userErrors
+          .map((e) => e.message)
+          .join(', ')}`,
+      );
+    }
+
+    this.delay(5000);
+
+    return bulkOperationRunQuery.bulkOperation;
   }
 
   @Step(3)
-  async storeProductIds() {
-    const items = await this.getResult<Item[]>('fetchInventorySummary');
+  async checkExportStatus() {
+    const operation = await this.getResult<BulkOperation>(
+      'exportShopifyProducts',
+    );
 
-    if (!items) {
-      throw new Error('No items fetched from inventory summary');
+    if (!operation) {
+      throw new Error(`Bulk operation not found`);
     }
 
-    const itemsBySku = keyBy(items, 'sku');
-    const timestamp = await this.getPrevTimestamp();
+    const node = await this.shopify.gql<BulkOperation | null>({
+      connection: 'hbh_wholesale',
+      root: 'node',
+      variables: {
+        operationId: operation.id,
+      },
+      query: `#graphql
+      query ($operationId: ID!) {
+        node(id: $operationId) {
+          ... on BulkOperation {
+            id
+            status
+            url
+            errorCode
+          }
+        }
+      }
+      `,
+    });
 
-    for (let page = 1; ; page++) {
-      const { data } = await this.apexTrading.get<
-        PaginatedResponse<{ products: Product[] }>
-      >(
-        `/v1/products?page=${page}&per_page=200&updated_at_from=${timestamp.toISOString()}&with_batches=true&include_sold_out_batches=true`,
-        {
-          connection: 'dispomart',
-        },
+    if (!node) {
+      throw new Error(`Bulk operation not found`);
+    }
+
+    if (
+      node.status === 'RUNNING' ||
+      node.status === 'CREATED' ||
+      node.status === 'CANCELING'
+    ) {
+      return this.rerun(5000); // Rerun after 5 seconds
+    }
+
+    if (
+      node.status === 'FAILED' ||
+      node.status === 'CANCELED' ||
+      node.status === 'EXPIRED'
+    ) {
+      throw new Error(
+        `Bulk operation failed with status ${node.status} and error code ${node.errorCode}`,
       );
+    }
 
-      const products = data.products.filter(
-        (p) =>
-          Object.prototype.hasOwnProperty.call(
-            itemsBySku,
-            p.product_sku,
-          ) as boolean,
-      );
+    return node;
+  }
 
-      this.logger.log(
-        `Fetched page ${page} with ${data.products.length} products, storing ${products.length} matching products`,
-      );
+  @Step(4)
+  async storeQtyInMongo() {
+    const operation = await this.getResult<BulkOperation>('checkExportStatus');
 
-      if (products.length > 0) {
+    if (!operation?.url) {
+      throw new Error(`No URL for bulk operation`);
+    }
+
+    const res = await axios.get(operation.url, {
+      responseType: 'stream',
+    });
+
+    const rl = readline.createInterface({
+      input: res.data as NodeJS.ReadableStream,
+      crlfDelay: Infinity,
+    });
+
+    const queue: Variant[] = [];
+    let timestamp = Date.now();
+
+    for await (const line of rl) {
+      queue.push(JSON.parse(line.trim()) as Variant);
+
+      if (queue.length >= 300 || Date.now() - timestamp > 10000) {
+        // Process in batches of 300 or every 10 seconds
+
         await this.mongo
           .db('hbh')
           .collection('apex_products')
           .bulkWrite(
-            products.map((p) => ({
+            queue.map((v) => ({
               updateOne: {
-                filter: { id: p.id },
+                filter: { sku: v.inventoryItem.sku },
                 update: {
                   $set: {
-                    id: p.id,
-                    sku: p.product_sku,
+                    sku: v.inventoryItem.sku,
+                    qty:
+                      v.inventoryItem.inventoryLevel?.quantities[0].quantity ||
+                      0,
                   },
                 },
                 upsert: true,
               },
             })),
           );
-      }
 
-      if (data.meta.last_page <= page) {
-        break;
+        queue.length = 0;
+        timestamp = Date.now();
+
+        await new Promise((r) => setTimeout(r, 1000)); // Avoid rate limits
       }
     }
   }
 
-  @Step(4)
+  @Step(5)
   async execute() {
-    const items = await this.getResult<Item[]>('fetchInventorySummary');
-
-    if (!items) {
-      throw new Error('No items fetched from inventory summary');
-    }
+    const items = await this.mongo
+      .db('hbh')
+      .collection<Item>('apex_products')
+      .find()
+      .toArray();
 
     const itemsBySku = keyBy(items, 'sku');
-
-    const products = await this.mongo
-      .db('hbh')
-      .collection<{ id: number; sku: string }>('apex_products')
-      .find()
-      .toArray()
-      .then((arr) =>
-        arr.reduce(
-          (acc, curr) => {
-            acc[curr.id] = curr.sku;
-            return acc;
-          },
-          {} as Record<number, string>,
-        ),
-      );
 
     const timestamp = await this.getPrevTimestamp();
 
@@ -241,13 +254,7 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
       );
 
       for (const batch of data.batches) {
-        const sku = products[batch.product_id];
-
-        if (!sku) {
-          continue;
-        }
-
-        const item = itemsBySku[sku];
+        const item = itemsBySku[`EW_DM-${batch.name}`];
 
         if (!item) {
           continue;
@@ -257,7 +264,7 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
           await this.apexTrading.patch(
             `/v2/batches/${batch.id}`,
             {
-              quantity: Math.max(0, Number(item.quantity_available) || 0),
+              quantity: Math.max(0, Number(item.qty) || 0),
             },
             {
               connection: 'hbh',
@@ -265,19 +272,19 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
           );
 
           results.push({
-            sku,
+            sku: batch.name,
             batchId: batch.id,
-            quantity: item.quantity_available,
+            quantity: item.qty,
           });
         } catch (e) {
           if (e instanceof AxiosError) {
             this.logger.error(
-              `Failed to update batch ${batch.id} for SKU ${sku}: ${e.response?.data}`,
+              `Failed to update batch ${batch.id} for SKU EW_DM-${batch.name}: ${e.response?.data}`,
             );
           }
 
           results.push({
-            sku,
+            sku: batch.name,
             batchId: batch.id,
             error: e instanceof Error ? e.message : 'Unknown error',
           });
@@ -295,5 +302,24 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
 
 interface Item {
   sku: string;
-  quantity_available: number;
+  qty: number;
+}
+
+interface BulkOperation {
+  id: string;
+  status: string;
+  url?: string;
+  errorCode: string | null;
+}
+
+interface Variant {
+  inventoryItem: {
+    id: string;
+    sku: string;
+    inventoryLevel: {
+      quantities: {
+        quantity: number;
+      }[];
+    } | null;
+  };
 }
