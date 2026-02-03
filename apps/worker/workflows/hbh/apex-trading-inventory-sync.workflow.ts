@@ -267,7 +267,7 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
               quantity: Math.max(0, Number(item.qty) || 0),
             },
             {
-              connection: 'hbh',
+              connection: 'dispomart',
             },
           );
 
