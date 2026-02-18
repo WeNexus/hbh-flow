@@ -140,6 +140,8 @@ You manage notification preferences for channels and individual users.
 - "new_customer" → Zoho CRM contacts synced to WooCommerce
 - "shipment_status_changed" → Shipment orders marked as Shipped or Fulfilled in Zoho Inventory
 - "crm_account_note_added" → Notes added to Zoho CRM accounts/businesses
+- "inventory_sync" → Daily notification about inventory sync status between WooCommerce and Zoho Inventory
+- "inventory_sync_failed" → Immediate notification when a daily inventory sync fails
 
 ---
 
