@@ -106,7 +106,6 @@ export class JobController {
         sentryBaggage: true,
         options: true,
         payload: true,
-        response: true,
         responseMeta: true,
       },
     });
@@ -140,6 +139,9 @@ export class JobController {
           Steps: {
             omit: {
               jobId: true,
+            },
+            orderBy: {
+              createdAt: 'asc',
             },
           },
         },

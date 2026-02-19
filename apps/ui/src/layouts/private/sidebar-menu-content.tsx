@@ -2,8 +2,8 @@ import { Link, useLocation } from 'react-router';
 
 import {
   AccountTreeRounded as AccountTreeIcon,
-  Inventory2Rounded as Inventory2Icon,
-  AnalyticsRounded as AnalyticsIcon,
+  // Inventory2Rounded as Inventory2Icon,
+  // AnalyticsRounded as AnalyticsIcon,
   HistoryRounded as HistoryIcon,
   PeopleRounded as PeopleIcon,
   CableRounded as CableIcon,
@@ -23,8 +23,8 @@ const mainListItems = [
   { text: 'Home', icon: <HomeIcon />, href: '/' },
   { text: 'Workflows', icon: <AccountTreeIcon />, href: '/workflows' },
   { text: 'Connections', icon: <CableIcon />, href: '/connections' },
-  { text: 'Analytics', icon: <AnalyticsIcon />, href: '/analytics' },
-  { text: 'Products', icon: <Inventory2Icon />, href: '/products' },
+  // { text: 'Analytics', icon: <AnalyticsIcon />, href: '/analytics' },
+  // { text: 'Products', icon: <Inventory2Icon />, href: '/products' },
 ];
 
 const secondaryListItems = [

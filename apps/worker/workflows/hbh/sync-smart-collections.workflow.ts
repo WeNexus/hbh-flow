@@ -1,7 +1,8 @@
 import { ShopifyService } from '#lib/shopify/shopify.service';
-import { MongoService } from '#lib/core/services';
-import { cron, WorkflowBase } from '#lib/workflow/misc';
 import { Step, Workflow } from '#lib/workflow/decorators';
+import { cron, WorkflowBase } from '#lib/workflow/misc';
+import { MongoService } from '#lib/core/services';
+import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
 import { keyBy } from 'lodash-es';
 
@@ -48,6 +49,7 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
   constructor(
     private readonly shopify: ShopifyService,
     private readonly mongo: MongoService,
+    private readonly env: EnvService,
   ) {
     super();
   }
@@ -69,6 +71,10 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
 
   @Step(1)
   async fetchSnapshot(): Promise<string[]> {
+    if (!this.env.isProd) {
+      return this.cancel('Not running in production environment.');
+    }
+
     const doc = await this.mongo
       .db(this.snapshotDbName)
       .collection(this.snapshotCollectionName)
