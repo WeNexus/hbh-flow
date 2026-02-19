@@ -29,7 +29,7 @@ RUN pnpm prune --prod
 
 WORKDIR /app/apps/ui
 
-RUN pnpm install --frozen-lockfile --prefer-offline --ignore-workspace
+RUN pnpm install --prefer-offline --ignore-workspace
 RUN pnpm build:skiptsc
 
 WORKDIR /app
