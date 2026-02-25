@@ -201,26 +201,28 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
           .db('hbh')
           .collection('apex_products')
           .bulkWrite(
-            queue.map((v) => {
-              const sku = v.inventoryItem.sku.startsWith('EW_DM-')
-                ? v.inventoryItem.sku.slice(6)
-                : v.inventoryItem.sku;
+            queue
+              .filter((v) => v.inventoryItem.sku)
+              .map((v) => {
+                const sku = v.inventoryItem.sku.startsWith('EW_DM-')
+                  ? v.inventoryItem.sku.slice(6)
+                  : v.inventoryItem.sku;
 
-              return {
-                updateOne: {
-                  filter: { sku },
-                  update: {
-                    $set: {
-                      sku,
-                      qty:
-                        v.inventoryItem.inventoryLevel?.quantities[0]
-                          .quantity || 0,
+                return {
+                  updateOne: {
+                    filter: { sku },
+                    update: {
+                      $set: {
+                        sku,
+                        qty:
+                          v.inventoryItem.inventoryLevel?.quantities[0]
+                            .quantity || 0,
+                      },
                     },
+                    upsert: true,
                   },
-                  upsert: true,
-                },
-              };
-            }),
+                };
+              }),
           );
 
         queue.length = 0;
