@@ -177,7 +177,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
       const { data } = await this.apexTrading.get<
         PaginatedResponse<{ orders: Order[] }>
       >(
-        `/v1/shipping-orders?page=${page}&per_page=200&updated_at_from=${this.beginning}&created_at_from=${timestamp.toISOString()}&with_items=true`,
+        `/v1/shipping-orders?page=${page}&per_page=200&updated_at_from=${timestamp.toISOString()}&created_at_from=${timestamp.toISOString()}&with_items=true`,
         {
           connection: 'dispomart',
         },
@@ -199,7 +199,10 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
     }
 
     if (orders.length === 0) {
-      return this.cancel('No orders to process.');
+      return this.cancel({
+        message: 'No orders found updated since last sync',
+        timestamp: timestamp.toISOString(),
+      });
     }
 
     return orders;
