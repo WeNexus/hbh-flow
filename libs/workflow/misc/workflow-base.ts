@@ -370,23 +370,11 @@ export abstract class WorkflowBase<P = any, C = any> {
    * @returns A promise that resolves to the previous job, or null if there is no previous job.
    */
   async getPrevJob(): Promise<DBJob | null> {
-    if (this.dbJob.parentId) {
-      return this.prisma.job
-        .findUnique({
-          where: {
-            id: this.dbJob.parentId,
-          },
-        })
-        .then((r) => r.result);
-    }
-
     return this.prisma.job
       .findFirst({
         where: {
-          trigger: 'SCHEDULE',
-          triggerId: this.dbJob.triggerId,
           id: {
-            lt: this.dbJob.id,
+            lt: this.dbJob.parentId || this.dbJob.id,
           },
         },
         orderBy: {
