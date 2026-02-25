@@ -387,7 +387,7 @@ export abstract class WorkflowBase<P = any, C = any> {
             trigger: 'SCHEDULE',
             triggerId: this.dbJob.triggerId,
             id: {
-              not: this.dbJob.id,
+              lt: this.dbJob.id,
             },
           },
           orderBy: {

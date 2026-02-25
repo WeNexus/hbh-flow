@@ -1,6 +1,6 @@
 import type { JobListOutputSchema } from '@/types/schema.ts';
 import OptionsMenu from '@/components/options-menu.tsx';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useApi } from '@/hooks/use-api.ts';
 import { AxiosError } from 'axios';
 
@@ -12,9 +12,7 @@ import {
   CheckCircleRounded as CheckIcon,
   ScheduleRounded as ScheduleIcon,
   PauseCircleRounded as PauseIcon,
-  PlayCircleOutlined as PlayIcon,
   WebhookRounded as WebhookIcon,
-  CancelOutlined as CancelIcon,
   ReplayRounded as ReplayIcon,
   BlockRounded as BlockIcon,
   ErrorRounded as ErrorIcon,
@@ -51,10 +49,8 @@ export function Jobs({
 
   const limit = 15;
 
-  useEffect(() => {
-    const ac = new AbortController();
-
-    (async () => {
+  const load = useCallback(
+    async (ac: AbortController, autoSelect = true) => {
       try {
         const { data } = await api.get<JobListOutputSchema>('/jobs', {
           signal: ac.signal,
@@ -70,6 +66,7 @@ export function Jobs({
         setRes(data);
 
         if (
+          autoSelect &&
           data.data.length > 0 &&
           !data.data.some((job) => job.id === selectedJobId)
         ) {
@@ -83,9 +80,44 @@ export function Jobs({
           );
         }
       }
-    })();
+    },
+    [api, onSelect, page, selectedJobId, workflowId],
+  );
+
+  const replay = useCallback(
+    async (id: string) => {
+      await api.post(`/jobs/${id}/replay`);
+      setTimeout(() => load(new AbortController(), false), 1000);
+    },
+    [api, load],
+  );
+
+  const execute = useCallback(
+    async (id: string) => {
+      await api.post(`/jobs/${id}/execute`);
+      setTimeout(() => load(new AbortController(), false), 1000);
+    },
+    [api, load],
+  );
+
+  useEffect(() => {
+    const ac = new AbortController();
+    let timeout: any;
+
+    const refresh = () => {
+      if (page === 1) {
+        load(ac, false).then(() => {
+          timeout = setTimeout(refresh, 5000);
+        });
+      }
+    };
+
+    load(ac).then(() => {
+      timeout = setTimeout(refresh, 5000);
+    });
 
     return () => {
+      clearTimeout(timeout);
       ac.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -126,32 +158,32 @@ export function Jobs({
                 key={job.id}
                 disablePadding
                 secondaryAction={
-                  <OptionsMenu
-                    items={[
-                      {
-                        label: 'Replay',
-                        icon: <ReplayIcon fontSize="small" />,
-                        onClick: console.log,
-                      },
-                      {
-                        label: 'Resume',
-                        icon: <PlayIcon fontSize="small" />,
-                        onClick: console.log,
-                      },
-                      {
-                        label: 'Cancel',
-                        icon: <CancelIcon fontSize="small" />,
-                        onClick: console.log,
-                      },
-                      {
-                        label: 'Execute',
-                        icon: <ExecuteIcon fontSize="small" />,
-                        onClick: console.log,
-                      },
-                    ]}
-                    title="Actions"
-                    sx={{ ml: 'auto' }}
-                  />
+                  job.status !== 'RUNNING' ? (
+                    <OptionsMenu
+                      items={[
+                        {
+                          label: 'Replay',
+                          icon: <ReplayIcon fontSize="small" />,
+                          ctx: job.id,
+                          onClick: replay,
+                          disabled:
+                            job.status !== 'CANCELLED' &&
+                            job.status !== 'FAILED' &&
+                            job.status !== 'SUCCEEDED' &&
+                            job.status !== 'STALLED',
+                        },
+                        {
+                          label: 'Execute',
+                          icon: <ExecuteIcon fontSize="small" />,
+                          ctx: job.id,
+                          onClick: execute,
+                          disabled: job.status !== 'DRAFT',
+                        },
+                      ]}
+                      title="Actions"
+                      sx={{ ml: 'auto' }}
+                    />
+                  ) : null
                 }
               >
                 <ListItemButton
