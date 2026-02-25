@@ -380,23 +380,19 @@ export abstract class WorkflowBase<P = any, C = any> {
         .then((r) => r.result);
     }
 
-    if (this.dbJob.trigger === 'SCHEDULE' && this.dbJob.triggerId) {
-      return this.prisma.job
-        .findFirst({
-          where: {
-            trigger: 'SCHEDULE',
-            triggerId: this.dbJob.triggerId,
-            id: {
-              lt: this.dbJob.id,
-            },
+    return this.prisma.job
+      .findFirst({
+        where: {
+          trigger: 'SCHEDULE',
+          triggerId: this.dbJob.triggerId,
+          id: {
+            lt: this.dbJob.id,
           },
-          orderBy: {
-            id: 'desc',
-          },
-        })
-        .then((r) => r.result);
-    }
-
-    return null;
+        },
+        orderBy: {
+          id: 'desc',
+        },
+      })
+      .then((r) => r.result);
   }
 }
