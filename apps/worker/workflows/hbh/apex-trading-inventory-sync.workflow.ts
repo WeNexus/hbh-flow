@@ -58,7 +58,7 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
   async exportShopifyProducts() {
     const query = `#graphql
     query {
-      productVariants(first: 10, query: "sku:EW_DM-*") {
+      productVariants {
         edges {
           node {
             inventoryItem {
@@ -201,20 +201,26 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
           .db('hbh')
           .collection('apex_products')
           .bulkWrite(
-            queue.map((v) => ({
-              updateOne: {
-                filter: { sku: v.inventoryItem.sku },
-                update: {
-                  $set: {
-                    sku: v.inventoryItem.sku,
-                    qty:
-                      v.inventoryItem.inventoryLevel?.quantities[0].quantity ||
-                      0,
+            queue.map((v) => {
+              const sku = v.inventoryItem.sku.startsWith('EW_DM-')
+                ? v.inventoryItem.sku.slice(6)
+                : v.inventoryItem.sku;
+
+              return {
+                updateOne: {
+                  filter: { sku },
+                  update: {
+                    $set: {
+                      sku,
+                      qty:
+                        v.inventoryItem.inventoryLevel?.quantities[0]
+                          .quantity || 0,
+                    },
                   },
+                  upsert: true,
                 },
-                upsert: true,
-              },
-            })),
+              };
+            }),
           );
 
         queue.length = 0;
@@ -227,14 +233,6 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
 
   @Step(5)
   async execute() {
-    const items = await this.mongo
-      .db('hbh')
-      .collection<Item>('apex_products')
-      .find()
-      .toArray();
-
-    const itemsBySku = keyBy(items, 'sku');
-
     const timestamp = await this.getPrevTimestamp();
 
     const results: Record<string, any>[] = [];
@@ -253,8 +251,20 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
         `Fetched page ${page} with ${data.batches.length} batches`,
       );
 
+      const items = await this.mongo
+        .db('hbh')
+        .collection<Item>('apex_products')
+        .find({
+          sku: {
+            $in: data.batches.map((b) => b.name),
+          },
+        })
+        .toArray();
+
+      const itemsBySku = keyBy(items, 'sku');
+
       for (const batch of data.batches) {
-        const item = itemsBySku[`EW_DM-${batch.name}`];
+        const item = itemsBySku[batch.name];
 
         if (!item) {
           continue;

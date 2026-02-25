@@ -2,14 +2,14 @@ import { ApexTradingService } from '#lib/apex-trading/apex-trading.service';
 import { PaginatedResponse } from '#lib/apex-trading/types';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { WebhookPayloadType } from '#lib/workflow/types';
+import { cron, WorkflowBase } from '#lib/workflow/misc';
 import { Order } from '#lib/apex-trading/types/order';
+import { Buyer } from '#lib/apex-trading/types/buyer';
 import { ZohoService } from '#lib/zoho/zoho.service';
 import { MongoService } from '#lib/core/services';
-import { cron, WorkflowBase } from '#lib/workflow/misc';
 import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
-import { keyBy } from 'lodash-es';
-import { Buyer } from '#lib/apex-trading/types/buyer';
+import { keyBy, uniq } from 'lodash-es';
 
 @Workflow({
   name: 'HBH - Apex Trading Order Sync',
@@ -164,13 +164,6 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
     const timestamp = await this.getPrevTimestamp();
 
-    const apexProducts = await this.mongo
-      .db('hbh')
-      .collection('apex_products')
-      .find<{ id: number; sku: string }>({})
-      .toArray()
-      .then((arr) => new Set(arr.map((p) => p.id)));
-
     const orders: Order[] = [];
 
     for (let page = 1; ; page++) {
@@ -183,9 +176,25 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         },
       );
 
+      const apexProducts = await this.mongo
+        .db('hbh')
+        .collection('apex_products')
+        .find<{ qty: number; sku: string }>({
+          sku: {
+            $in: uniq(
+              data.orders
+                .flatMap((o) => o.items)
+                .map((i) => i.batch_name.trim())
+                .filter(Boolean),
+            ),
+          },
+        })
+        .toArray()
+        .then((arr) => new Set(arr.map((p) => p.sku)));
+
       for (const order of data.orders) {
         const hasMatchingItem = order.items.some((item) =>
-          apexProducts.has(item.product_id),
+          apexProducts.has(item.batch_name),
         );
 
         if (hasMatchingItem) {
@@ -200,7 +209,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
     if (orders.length === 0) {
       return this.cancel({
-        message: 'No orders found updated since last sync',
+        message: 'No orders created since last sync',
         timestamp: timestamp.toISOString(),
       });
     }
