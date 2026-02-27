@@ -26,6 +26,11 @@ export function StepDetails(props: Props) {
   }, [step]);
 
   return (
-    <ReactJsonView displayDataTypes={false} src={result} name={props.step} />
+    <ReactJsonView
+      displayDataTypes={false}
+      src={result}
+      name={props.step}
+      shouldCollapse={() => true}
+    />
   );
 }
