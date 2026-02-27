@@ -17,8 +17,9 @@ import { keyBy, uniq } from 'lodash-es';
   concurrency: 1,
   webhookPayloadType: WebhookPayloadType.Full,
   triggers: [
-    cron('*/60 * * * *', {
-      timezone: 'America/New_York', // Every 60 minutes
+    cron('*/30 * * * *', {
+      oldPattern: '*/60 * * * *',
+      timezone: 'America/New_York', // Every 30 minutes, on the hour and half hour
     }),
   ],
 })
@@ -35,7 +36,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
   private logger = new Logger(ApexTradingOrderSyncWorkflow.name);
 
-  private beginning = '2000-01-01T00:00:00Z';
+  private beginning = '2026-02-25T00:00:00Z';
 
   queryCRM(query) {
     return this.zohoService
@@ -138,7 +139,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         connection: 'hbh',
         params: {
           [`zcrm_${type}_id`]: id,
-          organization_id: '893457005',
+          organization_id: '776003162',
         },
       },
     );
@@ -154,6 +155,35 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
     }
 
     return new Date(this.beginning);
+  }
+
+  async findCrmAccount(buyer: Buyer): Promise<[string, string] | null> {
+    const {
+      data: { data: accounts },
+    } = await this.zohoService.get(
+      `/crm/v8/Accounts/search?criteria=(Apex_Trading_IDs:equals:'A${buyer.id}T')`,
+      {
+        connection: 'hbh',
+      },
+    );
+
+    if (accounts?.length) {
+      return [accounts[0].id.toString(), accounts[0].Apex_Trading_IDs];
+    }
+
+    const emails = buyer.contacts.map((c) => `'${c.email.toLowerCase()}'`);
+    const query = `select Account_Name.id as accountId, Account_Name.Apex_Trading_IDs as apexIds
+       from Contacts
+       where (Email in (${emails.join(',')}) or Removed_Email in (${emails.join(',')})) or Account_Name.Account_Name = '${buyer.name.replaceAll("'", "''").trim()}'
+       limit 1`;
+
+    const crmContact = await this.queryCRM(query);
+
+    if (crmContact) {
+      return [crmContact.accountId, crmContact.apexIds];
+    }
+
+    return null;
   }
 
   @Step(1)
@@ -237,46 +267,13 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
       });
 
       const email = order.buyer_contact_email.toLowerCase();
-      const firstName = order.buyer_contact_name.split(' ')[0];
-      const lastName =
-        order.buyer_contact_name.split(' ').slice(1).join(' ') || '.';
-      const company = apexCustomer.name;
+      const crmAccFindRes = await this.findCrmAccount(apexCustomer);
 
-      const {
-        data: { data: accounts },
-      } = await this.zohoService.get(
-        `/crm/v8/Accounts/search?criteria=(Apex_Trading_IDs:equals:'A${apexCustomer.id}T')`,
-        {
-          connection: 'hbh',
-        },
-      );
-
-      if (accounts.length > 0) {
+      if (crmAccFindRes) {
         result.push({
           orderId: order.id,
-          apexIds: accounts[0].Apex_Trading_IDs,
-          accountId: accounts[0].id.toString(),
-          created: false,
-        });
-        continue;
-      }
-
-      const crmContact = await this.queryCRM(
-        `select Account_Name.id as accountId, Account_Name.Apex_Trading_IDs as apexIds
-       from Contacts
-       where (Email = '${email}' or Removed_Email = '${email}') or (Account_Name.Account_Name = '${company.replaceAll("'", "''").trim()}')
-       limit 1`,
-      );
-
-      if (crmContact) {
-        this.logger.log(
-          `Found existing CRM contact for email/company: ${email} / ${company}`,
-        );
-
-        result.push({
-          orderId: order.id,
-          apexIds: crmContact.apexIds,
-          accountId: crmContact.accountId.toString(),
+          apexIds: crmAccFindRes[1],
+          accountId: crmAccFindRes[0],
           created: false,
         });
         continue;
@@ -288,7 +285,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         {
           data: [
             {
-              Account_Name: company,
+              Account_Name: apexCustomer.name,
               Account_Owner: {
                 id: '5279830000097788053',
               },
@@ -316,8 +313,9 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         {
           data: [
             {
-              First_Name: firstName,
-              Last_Name: lastName,
+              First_Name: order.buyer_contact_name.split(' ')[0],
+              Last_Name:
+                order.buyer_contact_name.split(' ').slice(1).join(' ') || '.',
               Email: email,
               Account_Name: {
                 id: accountId,
@@ -545,24 +543,44 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
       items: Record<string, any>[];
     }[] = [];
 
-    for (const order of orders) {
-      const skus = new Set(
+    const skus = orders
+      .flatMap((order) =>
         order.items.map((i) => i.product_sku?.trim()).filter(Boolean),
-      );
+      )
+      .map((s) => `'${s}'`)
+      .join(',');
 
-      const zohoItems = await this.mongo
-        .db('hbh')
-        .collection('item')
-        .find({
-          sku: {
-            $in: Array.from(skus),
-          },
+    const params = encodeURIComponent(
+      JSON.stringify({
+        responseFormat: 'json',
+        selectedColumns: ['Item ID', 'SKU'],
+        criteria: `("SKU" in (${skus}))`,
+      }),
+    );
+
+    const { data } = await this.zohoService.get(
+      `/restapi/v2/workspaces/2556056000000249007/views/2556056000000249116/data?CONFIG=${params}`,
+      {
+        connection: 'hbh',
+        baseURL: 'https://analyticsapi.zoho.com',
+        headers: {
+          'ZANALYTICS-ORGID': '776004901',
+        },
+      },
+    );
+
+    for (const order of orders) {
+      const items = order.items
+        .map((i) => {
+          const sku = i.product_sku?.trim();
+
+          return data?.data?.find((d) => d.SKU?.trim() === sku);
         })
-        .toArray();
+        .filter(Boolean);
 
       results.push({
         orderId: order.id,
-        items: zohoItems,
+        items,
       });
     }
 
@@ -604,13 +622,13 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
       }
 
       const createOrder = async () => {
-        const zohoItemsBySKU = keyBy(zohoItems, 'sku');
+        const zohoItemsBySKU = keyBy(zohoItems, 'SKU');
 
-        const total = order.items.reduce(
-          (acc, item) => acc + (Number(item.unit_price) || 0),
-          0,
-        );
-        const discount = total - Number(order.subtotal);
+        // const total = order.items.reduce(
+        //   (acc, item) => acc + (Number(item.listing_price) || 0),
+        //   0,
+        // );
+        // const discount = total - Number(order.subtotal);
 
         const deliveryDate = order.delivery_date
           ? new Date(order.delivery_date)
@@ -621,11 +639,11 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
             `/inventory/v1/salesorders`,
             {
               customer_id: customer.contact_id,
-              reference_number: `AT_Order_${order.id}`,
+              reference_number: `Apex_CD-${order.invoice_number.slice(8)}`,
               notes: order.notes,
               shipping_charge: 0,
-              discount_type: 'entity_level',
-              discount: discount.toFixed(2),
+              // discount_type: 'entity_level',
+              // discount: discount.toFixed(2),
               shipping_address_id: shippingAddressesId,
               shipment_date: deliveryDate,
               pricebook_id: customer.pricebook_id,
@@ -640,9 +658,8 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
                   const item = zohoItemsBySKU[i.product_sku?.trim()];
 
                   return {
-                    item_id: item.item_id,
+                    item_id: item['Item ID'],
                     quantity: i.order_quantity,
-                    rate: item.unit_price_original,
                   };
                 })
                 .reduce((a, b) => {
@@ -670,21 +687,10 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
       const { salesorder } = await createOrder();
 
-      await this.zohoService
-        .post(
-          `/inventory/v1/salesorders/${salesorder.salesorder_id}/status/confirmed`,
-          {},
-          {
-            connection: 'hbh',
-            params: {
-              organization_id: '776003162',
-            },
-          },
-        )
-        .then((res) => res.data);
-
       try {
-        await this.zohoService.post(
+        const {
+          data: { invoice },
+        } = await this.zohoService.post(
           `/inventory/v1/invoices`,
           {
             customer_id: customer.contact_id,
@@ -718,9 +724,20 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
           },
         );
 
+        await this.zohoService.post(
+          `/inventory/v1/invoices/${invoice.invoice_id}/status/sent`,
+          {},
+          {
+            connection: 'hbh',
+            params: {
+              organization_id: '776003162',
+            },
+          },
+        );
+
         results.push({
           order: salesorder,
-          invoice: null,
+          invoice,
         });
       } catch (e) {
         console.log(e.response?.data ?? e);
