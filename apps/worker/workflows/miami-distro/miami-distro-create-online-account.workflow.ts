@@ -1,4 +1,5 @@
 import { WoocommerceService } from '#lib/woocommerce/woocommerce.service';
+import { ShopifyService } from '#lib/shopify/shopify.service';
 import { WooCommerceApiError } from 'woocommerce-rest-ts-api';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { ZohoService } from '#lib/zoho/zoho.service';
@@ -14,6 +15,7 @@ import { Logger } from '@nestjs/common';
 export class MiamiDistroCreateOnlineAccountWorkflow extends WorkflowBase {
   constructor(
     private readonly wooCommerceService: WoocommerceService,
+    private readonly shopifyService: ShopifyService,
     private readonly zohoService: ZohoService,
     private readonly envService: EnvService,
   ) {
