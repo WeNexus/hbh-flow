@@ -40,12 +40,7 @@ import { merge } from 'lodash-es';
   ],
 })
 export class Shopify2Service extends OAuth2HttpClient {
-  constructor(
-    reflector: Reflector,
-    moduleRef: ModuleRef,
-    env: EnvService,
-    @Inject(OAUTH2_CLIENT_OPTIONS) options: OAuth2ClientOptions,
-  ) {
+  constructor(reflector: Reflector, moduleRef: ModuleRef, env: EnvService) {
     super(
       moduleRef,
       merge(
@@ -64,7 +59,6 @@ export class Shopify2Service extends OAuth2HttpClient {
           ],
         },
         reflector.get<OAuth2ClientOptions>('HBH_HUB_CLIENT', Shopify2Service),
-        options,
       ),
       env,
     );
