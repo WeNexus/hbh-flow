@@ -101,6 +101,19 @@ export class FatAssGlassHBHFulfillmentTrackingWorkflow extends WorkflowBase<
       query: mainQuery,
     });
 
+    if (edges.length === 0) {
+      return this.cancel(
+        `No order found using ${salesOrder.reference_number.replace('FGC', '')} reference number`,
+      );
+    }
+
+    if (edges[0].node.fulfillmentOrders.edges.length === 0) {
+      return this.cancel({
+        message: `No open fulfillment order found in the specified location: 74968563910`,
+        order: edges[0].node,
+      });
+    }
+
     const fulfillmentOrder: Record<string, any> =
       edges[0].node.fulfillmentOrders.edges[0].node;
 
