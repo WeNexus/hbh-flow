@@ -717,4 +717,136 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
     return results;
   }
+
+  @Step(7)
+  async createPo() {
+    const orders = (await this.getResult<Order[]>('fetchOrders'))!;
+    const allCustomers = (await this.getResult<
+      ReturnType<ApexTradingOrderSyncWorkflow['ensureInventoryCustomer']>
+    >('ensureInventoryCustomer'))!;
+    const allAddresses =
+      (await this.getResult<
+        ReturnType<ApexTradingOrderSyncWorkflow['ensureAddresses']>
+      >('ensureAddresses'))!;
+    const allItems =
+      (await this.getResult<
+        ReturnType<ApexTradingOrderSyncWorkflow['fetchItems']>
+      >('fetchItems'))!;
+
+    const results: Record<string, any>[] = [];
+
+    for (const order of orders) {
+      const zohoItems = (
+        allItems.find((i) => i.orderId === order.id)?.items || []
+      ).filter((i) => i.sku.startsWith('EW_DM-'));
+
+      if (zohoItems.length === 0) {
+        continue;
+      }
+
+      const zohoItemsBySKU = keyBy(zohoItems, 'sku');
+
+      const customer = allCustomers.find(
+        (c) => c.orderId === order.id,
+      )?.contact;
+      const shippingAddressesId = allAddresses.find(
+        (a) => a.orderId === order.id,
+      )?.shippingAddressId;
+
+      const result = await this.zohoService
+        .post(
+          `/inventory/v1/purchaseorders`,
+
+          {
+            autonumbergenerationgroup_id: '3195387000142115382',
+            location_id: '3195387000000247111',
+            vendor_id: '3195387000039754305',
+            adjustment_description: 'Adjustment',
+            reference_number: 'test',
+            date: '2026-03-10',
+            delivery_date: '2026-03-12',
+            discount: 0,
+            discount_account_id: '',
+            is_discount_before_tax: true,
+            discount_type: 'entity_level',
+            custom_fields: [
+              { value: 'NO', customfield_id: '3195387000202583053' },
+              { value: 'N/A', customfield_id: '3195387000203950822' },
+              { value: 'N/A', customfield_id: '3195387000203950842' },
+            ],
+            line_items: order.items
+              .map((i) => {
+                const item = zohoItemsBySKU[i.product_sku?.trim()];
+
+                if (!item) {
+                  return null;
+                }
+
+                return {
+                  item_id: item.item_id,
+                  quantity: i.order_quantity,
+                  rate: item.unit_price_original,
+                  account_id: '3195387000129743274',
+                  description: 'Dropship SKU fullfilled by East West Trading',
+                  item_custom_fields: [
+                    { label: 'Item Classification', value: 'Dropship-SKU-B2B' },
+                    { label: 'Vendor Supplier Code', value: item.sku.slice(6) },
+                  ],
+                  location_id: '3195387000000247111',
+                  unit: 'PCS',
+                };
+              })
+              .filter(Boolean)
+              .reduce((a, b) => {
+                const existing = a.find((i) => i.item_id === b.item_id);
+
+                if (existing) {
+                  existing.quantity += b.quantity;
+                } else {
+                  a.push(b);
+                }
+
+                return a;
+              }, []),
+            notes: '',
+            terms: '',
+            pricebook_id: '',
+            delivery_org_address_id: '',
+            delivery_customer_id: customer.contact_id,
+            delivery_customer_address_id: shippingAddressesId,
+            attention: '',
+            tax_override_preference: 'no_override',
+            template_id: '3195387000000842166',
+            is_inclusive_tax: false,
+            billing_address_id: '3195387000039754307',
+            shipping_address_id: '3195387000039754309',
+            documents: [],
+            payment_terms: 45,
+            payment_terms_label: 'Net 45',
+            is_adv_tracking_in_receive: false,
+            contact_persons_associated: [
+              {
+                contact_person_id: '3195387000170084416',
+                communication_preference: {
+                  is_email_enabled: true,
+                  is_whatsapp_enabled: false,
+                },
+              },
+            ],
+          },
+          {
+            connection: 'hbh',
+            params: {
+              organization_id: '776003162',
+              ignore_auto_number_generation: false,
+            },
+          },
+        )
+        .then((r) => r.data);
+
+      results.push(result);
+    }
+
+    return results;
+  }
 }
