@@ -78,9 +78,10 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     const { account, contact, customer } = await this.getResult('fetchData');
 
     let customerResult: Record<string, any>;
+    let invitationResult: Record<string, any>;
 
     if (!customer) {
-      const mutation = `#graphql
+      const customerMutation = `#graphql
         mutation ($input: CustomerInput!) {
           customerCreate(input: $input) {
             customer {
@@ -95,7 +96,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       `;
 
       customerResult = await this.shopifyService.gql({
-        query: mutation,
+        query: customerMutation,
         connection: 'cannadevices',
         root: 'customerCreate',
         variables: {
@@ -105,6 +106,30 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
             email: `${contact.Email}`,
             note: `Company: ${account.Account_Name}`,
           },
+        },
+      });
+
+      // Send invitation email
+      const invitationMutation = `#graphql
+      mutation ($customerId: ID!) {
+        customerSendAccountInviteEmail(customerId: $customerId, email: { subject: "Customer account activation - CannaDevices - Accessories Distribution"}) {
+          customer {
+            id
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+      `;
+
+      invitationResult = await this.shopifyService.gql({
+        query: invitationMutation,
+        connection: 'cannadevices',
+        root: 'customerSendAccountInviteEmail',
+        variables: {
+          customerId: customerResult.customer.id,
         },
       });
     } else {
@@ -148,6 +173,6 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       );
     }
 
-    return customerResult;
+    return { customerResult, invitationResult };
   }
 }
