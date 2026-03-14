@@ -36,7 +36,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
   private logger = new Logger(ApexTradingOrderSyncWorkflow.name);
 
-  private beginning = '2026-02-25T00:00:00Z';
+  private beginning = '2000-01-01T00:00:00Z';
 
   queryCRM(query) {
     return this.zohoService
@@ -201,7 +201,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
       const { data } = await this.apexTrading.get<
         PaginatedResponse<{ orders: Order[] }>
       >(
-        `/v1/shipping-orders?page=${page}&per_page=200&updated_at_from=${timestamp.toISOString()}&created_at_from=${timestamp.toISOString()}&with_items=true`,
+        `/v1/shipping-orders?page=${page}&per_page=200&updated_at_from=${this.beginning}&created_at_from=${timestamp.toISOString()}&with_items=true`,
         {
           connection: 'dispomart',
         },
