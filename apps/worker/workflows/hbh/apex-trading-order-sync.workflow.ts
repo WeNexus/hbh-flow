@@ -195,6 +195,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
     const timestamp = await this.getPrevTimestamp();
 
     const orders: Order[] = [];
+    const nonMatchingOrders: Order[] = [];
 
     for (let page = 1; ; page++) {
       const { data } = await this.apexTrading.get<
@@ -229,6 +230,8 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
         if (hasMatchingItem) {
           orders.push(order);
+        } else {
+          nonMatchingOrders.push(order);
         }
       }
 
@@ -239,7 +242,8 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
     if (orders.length === 0) {
       return this.cancel({
-        message: 'No orders created since last sync',
+        message: 'No order with matching items found since last sync',
+        orders: nonMatchingOrders,
         timestamp: timestamp.toISOString(),
       });
     }
