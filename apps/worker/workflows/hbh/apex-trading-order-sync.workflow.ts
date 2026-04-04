@@ -797,7 +797,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
             location_id: '3195387000000247111',
             vendor_id: '3195387000039754305',
             adjustment_description: 'Adjustment',
-            reference_number: 'test',
+            reference_number: `Apex_PO-${order.invoice_number.slice(7)}`,
             date: '2026-03-10',
             delivery_date: '2026-03-12',
             discount: 0,
