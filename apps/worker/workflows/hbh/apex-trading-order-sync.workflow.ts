@@ -824,7 +824,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
                   description: 'Dropship SKU fullfilled by East West Trading',
                   item_custom_fields: [
                     { label: 'Item Classification', value: 'Dropship-SKU-B2B' },
-                    { label: 'Vendor Supplier Code', value: item.sku.slice(6) },
+                    { label: 'Vendor Supplier Code', value: item.SKU.slice(6) },
                   ],
                   location_id: '3195387000000247111',
                   unit: 'PCS',
