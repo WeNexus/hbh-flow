@@ -645,7 +645,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
             `/inventory/v1/salesorders`,
             {
               customer_id: customer.contact_id,
-              reference_number: `Apex_CD-${order.invoice_number.slice(8)}`,
+              reference_number: `Apex_CD-${order.invoice_number.slice(7)}`,
               notes: order.notes,
               shipping_charge: 0,
               // discount_type: 'entity_level',
@@ -773,7 +773,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
     for (const order of orders) {
       const zohoItems = (
         allItems.find((i) => i.orderId === order.id)?.items || []
-      ).filter((i) => i.sku.startsWith('EW_DM-'));
+      ).filter((i) => i.SKU.startsWith('EW_DM-'));
 
       if (zohoItems.length === 0) {
         continue;
