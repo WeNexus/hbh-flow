@@ -266,7 +266,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         data: { buyer: apexCustomer },
       } = await this.apexTrading.get<{
         buyer: Buyer;
-      }>(`/v1/buyers/${order.buyer_id}`, {
+      }>(`/v1/buyers/${order.buyer.id}`, {
         connection: 'dispomart',
       });
 
