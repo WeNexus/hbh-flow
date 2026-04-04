@@ -373,6 +373,7 @@ export abstract class WorkflowBase<P = any, C = any> {
     return this.prisma.job
       .findFirst({
         where: {
+          workflowId: this.dbJob.workflowId,
           id: {
             lt: this.dbJob.parentId || this.dbJob.id,
           },

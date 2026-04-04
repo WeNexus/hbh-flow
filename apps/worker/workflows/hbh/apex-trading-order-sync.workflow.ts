@@ -535,6 +535,8 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
       });
     }
 
+    this.setContext()
+
     return results;
   }
 
