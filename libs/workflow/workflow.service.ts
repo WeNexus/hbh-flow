@@ -477,10 +477,7 @@ export class WorkflowService implements OnApplicationBootstrap {
     return `${provider ? `${provider}.` : ''}${connection ? `${connection}.` : ''}${event}`;
   }
 
-  private async updateDBJob(
-    instance: WorkflowBase,
-    data: Prisma.JobUpdateInput,
-  ) {
+  async updateDBJob(instance: WorkflowBase, data: Prisma.JobUpdateInput) {
     const select = Object.keys(data).reduce((acc, key) => {
       acc[key] = true;
       return acc;

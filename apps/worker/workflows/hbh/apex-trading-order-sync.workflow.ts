@@ -1,4 +1,5 @@
 import { ApexTradingService } from '#lib/apex-trading/apex-trading.service';
+import { WorkflowService } from '#lib/workflow/workflow.service';
 import { PaginatedResponse } from '#lib/apex-trading/types';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { WebhookPayloadType } from '#lib/workflow/types';
@@ -10,6 +11,7 @@ import { MongoService } from '#lib/core/services';
 import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
 import { keyBy, uniq } from 'lodash-es';
+import { workflows } from '#app/worker/workflows';
 
 @Workflow({
   name: 'HBH - Apex Trading Order Sync',
@@ -26,7 +28,7 @@ import { keyBy, uniq } from 'lodash-es';
 export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
   constructor(
     private readonly apexTrading: ApexTradingService,
-
+    readonly workflowService: WorkflowService,
     private readonly zohoService: ZohoService,
     private readonly mongo: MongoService,
     private readonly env: EnvService,
@@ -36,7 +38,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
   private logger = new Logger(ApexTradingOrderSyncWorkflow.name);
 
-  private beginning = '2000-01-01T00:00:00Z';
+  private beginning = '2026-04-04T08:23:05.607Z';
 
   queryCRM(query) {
     return this.zohoService
@@ -150,8 +152,8 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
   async getPrevTimestamp(): Promise<Date> {
     const job = await this.getPrevJob();
 
-    if (job) {
-      return job.createdAt;
+    if (job?.payload?.timestamp) {
+      return new Date(job.payload.timestamp);
     }
 
     return new Date(this.beginning);
@@ -241,12 +243,24 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
     }
 
     if (orders.length === 0) {
+      await this.workflowService.updateDBJob(this, {
+        payload: {
+          timestamp: timestamp.toISOString(),
+        },
+      });
+
       return this.cancel({
         message: 'No order with matching items found since last sync',
         orders: nonMatchingOrders,
         timestamp: timestamp.toISOString(),
       });
     }
+
+    await this.workflowService.updateDBJob(this, {
+      payload: {
+        timestamp: this.dbJob.createdAt.toISOString(),
+      },
+    });
 
     return orders;
   }
@@ -535,7 +549,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
       });
     }
 
-    this.setContext()
+    this.setContext();
 
     return results;
   }
