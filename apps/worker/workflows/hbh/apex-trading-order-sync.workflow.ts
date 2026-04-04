@@ -779,7 +779,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         continue;
       }
 
-      const zohoItemsBySKU = keyBy(zohoItems, 'sku');
+      const zohoItemsBySKU = keyBy(zohoItems, 'SKU');
 
       const customer = allCustomers.find(
         (c) => c.orderId === order.id,
@@ -818,9 +818,8 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
                 }
 
                 return {
-                  item_id: item.item_id,
+                  item_id: item['Item ID'],
                   quantity: i.order_quantity,
-                  rate: item.unit_price_original,
                   account_id: '3195387000129743274',
                   description: 'Dropship SKU fullfilled by East West Trading',
                   item_custom_fields: [
