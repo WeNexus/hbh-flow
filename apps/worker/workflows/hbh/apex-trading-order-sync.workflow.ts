@@ -11,7 +11,6 @@ import { MongoService } from '#lib/core/services';
 import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
 import { keyBy, uniq } from 'lodash-es';
-import { workflows } from '#app/worker/workflows';
 
 @Workflow({
   name: 'HBH - Apex Trading Order Sync',
@@ -203,7 +202,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
       const { data } = await this.apexTrading.get<
         PaginatedResponse<{ orders: Order[] }>
       >(
-        `/v1/shipping-orders?page=${page}&per_page=200&updated_at_from=${this.beginning}&created_at_from=${timestamp.toISOString()}&with_items=true`,
+        `/v1/shipping-orders?page=${page}&per_page=200&updated_at_from=${timestamp.toISOString()}&with_items=true&order_status_ids[0]=60253`,
         {
           connection: 'dispomart',
         },
@@ -262,7 +261,24 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
       },
     });
 
-    return orders;
+    const records = await this.mongo
+      .db('hbh')
+      .collection('apex_orders')
+      .find<{
+        orderId: number;
+        quoted: boolean;
+      }>({
+        orderId: {
+          $in: orders.map((o) => o.id),
+        },
+      })
+      .toArray();
+
+    const quotedIds = new Set(
+      records.filter((r) => r.quoted).map((r) => r.orderId),
+    );
+
+    return orders.filter((o) => !quotedIds.has(o.id));
   }
 
   @Step(2)
@@ -549,8 +565,6 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
       });
     }
 
-    this.setContext();
-
     return results;
   }
 
@@ -608,7 +622,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
   }
 
   @Step(6)
-  async createOrder() {
+  async createQuote() {
     const orders = (await this.getResult<Order[]>('fetchOrders'))!;
     const allCustomers = (await this.getResult<
       ReturnType<ApexTradingOrderSyncWorkflow['ensureInventoryCustomer']>
@@ -641,7 +655,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         return this.cancel('No matching items found in Zoho Inventory.');
       }
 
-      const createOrder = async () => {
+      const createQuote = async () => {
         const zohoItemsBySKU = keyBy(zohoItems, 'SKU');
 
         // const total = order.items.reduce(
@@ -650,29 +664,15 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         // );
         // const discount = total - Number(order.subtotal);
 
-        const deliveryDate = order.delivery_date
-          ? new Date(order.delivery_date)
-          : null;
-
         return await this.zohoService
           .post(
-            `/inventory/v1/salesorders`,
+            `/books/v3/estimates`,
+
             {
+              location_id: '3195387000000247111',
+              autonumbergenerationgroup_id: '3195387000142115382',
+              reference_number: `APM_CD-${order.invoice_number.slice(7)}`,
               customer_id: customer.contact_id,
-              reference_number: `Apex_CD-${order.invoice_number.slice(7)}`,
-              notes: order.notes,
-              shipping_charge: 0,
-              // discount_type: 'entity_level',
-              // discount: discount.toFixed(2),
-              shipping_address_id: shippingAddressesId,
-              shipment_date: deliveryDate,
-              pricebook_id: customer.pricebook_id,
-              custom_fields: [
-                {
-                  customfield_id: '3195387000014025119',
-                  value: !!deliveryDate,
-                },
-              ],
               line_items: order.items
                 .map((i) => {
                   const item = zohoItemsBySKU[i.product_sku?.trim()];
@@ -680,6 +680,12 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
                   return {
                     item_id: item['Item ID'],
                     quantity: i.order_quantity,
+                    item_custom_fields: [
+                      {
+                        label: 'Item Classification',
+                        value: 'Dropship-SKU-B2B',
+                      },
+                    ],
                   };
                 })
                 .reduce((a, b) => {
@@ -693,6 +699,31 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
                   return a;
                 }, []),
+              notes: order.notes,
+              is_inclusive_tax: false,
+              is_discount_before_tax: '',
+              discount: 0,
+              discount_type: 'item_level',
+              shipping_charge: order.delivery_cost,
+              adjustment: '',
+              adjustment_description: 'Adjustment',
+              salesperson_id: '3195387000016554046',
+              tax_exemption_code: 'BUSINESS',
+              tax_authority_name: 'Business Wholesale',
+              tax_id: '',
+              zcrm_potential_id: '',
+              zcrm_potential_name: '',
+              template_id: '3195387000203378660',
+              accept_retainer: true,
+              retainer_percentage: '100.00',
+              payment_options: {
+                payment_gateways: [{ gateway_name: 'authorize_net' }],
+              },
+              documents: [],
+              mail_attachments: [],
+              shipping_address_id: shippingAddressesId,
+              project_id: '',
+              tax_override_preference: 'no_override',
             },
             {
               connection: 'hbh',
@@ -705,196 +736,158 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
           .then((r) => r.data);
       };
 
-      const { salesorder } = await createOrder();
+      const { estimate } = await createQuote();
+      results.push(estimate);
 
-      try {
-        const {
-          data: { invoice },
-        } = await this.zohoService.post(
-          `/inventory/v1/invoices`,
+      await this.mongo
+        .db('hbh')
+        .collection('apex_orders')
+        .updateOne(
+          { orderId: order.id },
           {
-            customer_id: customer.contact_id,
-            reference_number: salesorder.reference_number,
-            shipping_charge: salesorder.shipping_charge,
-            date: salesorder.date,
-            is_inclusive_tax: false,
-            discount: salesorder.discount,
-            discount_type: salesorder.discount_type,
-            billing_address_id: salesorder.billing_address_id,
-            shipping_address_id: salesorder.shipping_address_id,
-            delivery_method: salesorder.delivery_method,
-            location_id: salesorder.location_id,
-            line_items: salesorder.line_items.map((i) => ({
-              item_id: i.item_id,
-              quantity: i.quantity,
-              rate: i.rate,
-              location_id: i.location_id,
-              salesorder_item_id: i.line_item_id,
-            })),
-            template_id: '3195387000000842128',
-            pricebook_id: customer.pricebook_id,
-            due_date: salesorder.date,
-          },
-          {
-            connection: 'hbh',
-            params: {
-              organization_id: '776003162',
-              ignore_auto_number_generation: false,
+            $set: {
+              quoted: true,
+              quoteId: estimate.estimate_id,
             },
           },
-        );
-
-        await this.zohoService.post(
-          `/inventory/v1/invoices/${invoice.invoice_id}/status/sent`,
-          {},
           {
-            connection: 'hbh',
-            params: {
-              organization_id: '776003162',
-            },
+            upsert: true,
           },
         );
-
-        results.push({
-          order: salesorder,
-          invoice,
-        });
-      } catch (e) {
-        console.log(e.response?.data ?? e);
-      }
     }
 
     return results;
   }
 
-  @Step(7)
-  async createPo() {
-    const orders = (await this.getResult<Order[]>('fetchOrders'))!;
-    const allCustomers = (await this.getResult<
-      ReturnType<ApexTradingOrderSyncWorkflow['ensureInventoryCustomer']>
-    >('ensureInventoryCustomer'))!;
-    const allAddresses =
-      (await this.getResult<
-        ReturnType<ApexTradingOrderSyncWorkflow['ensureAddresses']>
-      >('ensureAddresses'))!;
-    const allItems =
-      (await this.getResult<
-        ReturnType<ApexTradingOrderSyncWorkflow['fetchItems']>
-      >('fetchItems'))!;
-
-    const results: Record<string, any>[] = [];
-
-    for (const order of orders) {
-      const zohoItems = (
-        allItems.find((i) => i.orderId === order.id)?.items || []
-      ).filter((i) => i.SKU.startsWith('EW_DM-'));
-
-      if (zohoItems.length === 0) {
-        continue;
-      }
-
-      const zohoItemsBySKU = keyBy(zohoItems, 'SKU');
-
-      const customer = allCustomers.find(
-        (c) => c.orderId === order.id,
-      )?.contact;
-      const shippingAddressesId = allAddresses.find(
-        (a) => a.orderId === order.id,
-      )?.shippingAddressId;
-
-      const result = await this.zohoService
-        .post(
-          `/inventory/v1/purchaseorders`,
-
-          {
-            autonumbergenerationgroup_id: '3195387000142115382',
-            location_id: '3195387000000247111',
-            vendor_id: '3195387000039754305',
-            adjustment_description: 'Adjustment',
-            reference_number: `Apex_PO-${order.invoice_number.slice(7)}`,
-            date: '2026-03-10',
-            delivery_date: '2026-03-12',
-            discount: 0,
-            discount_account_id: '',
-            is_discount_before_tax: true,
-            discount_type: 'entity_level',
-            custom_fields: [
-              { value: 'NO', customfield_id: '3195387000202583053' },
-              { value: 'N/A', customfield_id: '3195387000203950822' },
-              { value: 'N/A', customfield_id: '3195387000203950842' },
-            ],
-            line_items: order.items
-              .map((i) => {
-                const item = zohoItemsBySKU[i.product_sku?.trim()];
-
-                if (!item) {
-                  return null;
-                }
-
-                return {
-                  item_id: item['Item ID'],
-                  quantity: i.order_quantity,
-                  account_id: '3195387000129743274',
-                  description: 'Dropship SKU fullfilled by East West Trading',
-                  item_custom_fields: [
-                    { label: 'Item Classification', value: 'Dropship-SKU-B2B' },
-                    { label: 'Vendor Supplier Code', value: item.SKU.slice(6) },
-                  ],
-                  location_id: '3195387000000247111',
-                  unit: 'PCS',
-                };
-              })
-              .filter(Boolean)
-              .reduce((a, b) => {
-                const existing = a.find((i) => i.item_id === b.item_id);
-
-                if (existing) {
-                  existing.quantity += b.quantity;
-                } else {
-                  a.push(b);
-                }
-
-                return a;
-              }, []),
-            notes: '',
-            terms: '',
-            pricebook_id: '',
-            delivery_org_address_id: '',
-            delivery_customer_id: customer.contact_id,
-            delivery_customer_address_id: shippingAddressesId,
-            attention: '',
-            tax_override_preference: 'no_override',
-            template_id: '3195387000000842166',
-            is_inclusive_tax: false,
-            billing_address_id: '3195387000039754307',
-            shipping_address_id: '3195387000039754309',
-            documents: [],
-            payment_terms: 45,
-            payment_terms_label: 'Net 45',
-            is_adv_tracking_in_receive: false,
-            contact_persons_associated: [
-              {
-                contact_person_id: '3195387000170084416',
-                communication_preference: {
-                  is_email_enabled: true,
-                  is_whatsapp_enabled: false,
-                },
-              },
-            ],
-          },
-          {
-            connection: 'hbh',
-            params: {
-              organization_id: '776003162',
-              ignore_auto_number_generation: false,
-            },
-          },
-        )
-        .then((r) => r.data);
-
-      results.push(result);
-    }
-
-    return results;
-  }
+  // @Step(7)
+  // async createPo() {
+  //   const orders =
+  //     (await this.getResult<Order[]>('fetchOrders'))!;
+  //   const allCustomers = (await this.getResult<
+  //     ReturnType<ApexTradingOrderSyncWorkflow['ensureInventoryCustomer']>
+  //   >('ensureInventoryCustomer'))!;
+  //   const allAddresses =
+  //     (await this.getResult<
+  //       ReturnType<ApexTradingOrderSyncWorkflow['ensureAddresses']>
+  //     >('ensureAddresses'))!;
+  //   const allItems =
+  //     (await this.getResult<
+  //       ReturnType<ApexTradingOrderSyncWorkflow['fetchItems']>
+  //     >('fetchItems'))!;
+  //
+  //   const results: Record<string, any>[] = [];
+  //
+  //   for (const order of orders) {
+  //     const zohoItems = (
+  //       allItems.find((i) => i.orderId === order.id)?.items || []
+  //     ).filter((i) => i.SKU.startsWith('EW_DM-'));
+  //
+  //     if (zohoItems.length === 0) {
+  //       continue;
+  //     }
+  //
+  //     const zohoItemsBySKU = keyBy(zohoItems, 'SKU');
+  //
+  //     const customer = allCustomers.find(
+  //       (c) => c.orderId === order.id,
+  //     )?.contact;
+  //     const shippingAddressesId = allAddresses.find(
+  //       (a) => a.orderId === order.id,
+  //     )?.shippingAddressId;
+  //
+  //     const result = await this.zohoService
+  //       .post(
+  //         `/inventory/v1/purchaseorders`,
+  //
+  //         {
+  //           autonumbergenerationgroup_id: '3195387000142115382',
+  //           location_id: '3195387000000247111',
+  //           vendor_id: '3195387000039754305',
+  //           adjustment_description: 'Adjustment',
+  //           reference_number: `Apex_PO-${order.invoice_number.slice(7)}`,
+  //           date: '2026-03-10',
+  //           delivery_date: '2026-03-12',
+  //           discount: 0,
+  //           discount_account_id: '',
+  //           is_discount_before_tax: true,
+  //           discount_type: 'entity_level',
+  //           custom_fields: [
+  //             { value: 'NO', customfield_id: '3195387000202583053' },
+  //             { value: 'N/A', customfield_id: '3195387000203950822' },
+  //             { value: 'N/A', customfield_id: '3195387000203950842' },
+  //           ],
+  //           line_items: order.items
+  //             .map((i) => {
+  //               const item = zohoItemsBySKU[i.product_sku?.trim()];
+  //
+  //               if (!item) {
+  //                 return null;
+  //               }
+  //
+  //               return {
+  //                 item_id: item['Item ID'],
+  //                 quantity: i.order_quantity,
+  //                 account_id: '3195387000129743274',
+  //                 description: 'Dropship SKU fullfilled by East West Trading',
+  //                 item_custom_fields: [
+  //                   { label: 'Item Classification', value: 'Dropship-SKU-B2B' },
+  //                   { label: 'Vendor Supplier Code', value: item.SKU.slice(6) },
+  //                 ],
+  //                 location_id: '3195387000000247111',
+  //                 unit: 'PCS',
+  //               };
+  //             })
+  //             .filter(Boolean)
+  //             .reduce((a, b) => {
+  //               const existing = a.find((i) => i.item_id === b.item_id);
+  //
+  //               if (existing) {
+  //                 existing.quantity += b.quantity;
+  //               } else {
+  //                 a.push(b);
+  //               }
+  //
+  //               return a;
+  //             }, []),
+  //           notes: '',
+  //           terms: '',
+  //           pricebook_id: '',
+  //           delivery_org_address_id: '',
+  //           delivery_customer_id: customer.contact_id,
+  //           delivery_customer_address_id: shippingAddressesId,
+  //           attention: '',
+  //           tax_override_preference: 'no_override',
+  //           template_id: '3195387000000842166',
+  //           is_inclusive_tax: false,
+  //           billing_address_id: '3195387000039754307',
+  //           shipping_address_id: '3195387000039754309',
+  //           documents: [],
+  //           payment_terms: 45,
+  //           payment_terms_label: 'Net 45',
+  //           is_adv_tracking_in_receive: false,
+  //           contact_persons_associated: [
+  //             {
+  //               contact_person_id: '3195387000170084416',
+  //               communication_preference: {
+  //                 is_email_enabled: true,
+  //                 is_whatsapp_enabled: false,
+  //               },
+  //             },
+  //           ],
+  //         },
+  //         {
+  //           connection: 'hbh',
+  //           params: {
+  //             organization_id: '776003162',
+  //             ignore_auto_number_generation: false,
+  //           },
+  //         },
+  //       )
+  //       .then((r) => r.data);
+  //
+  //     results.push(result);
+  //   }
+  //
+  //   return results;
+  // }
 }
