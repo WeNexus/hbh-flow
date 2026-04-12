@@ -278,7 +278,16 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
       records.filter((r) => r.quoted).map((r) => r.orderId),
     );
 
-    return orders.filter((o) => !quotedIds.has(o.id));
+    const filtered = orders.filter((o) => !quotedIds.has(o.id));
+
+    if (filtered.length === 0) {
+      return this.cancel({
+        message: 'All orders found have already been quoted',
+        orders: orders,
+      });
+    }
+
+    return filtered;
   }
 
   @Step(2)
