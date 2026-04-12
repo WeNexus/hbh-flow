@@ -11,6 +11,7 @@ import { MongoService } from '#lib/core/services';
 import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
 import { keyBy, uniq } from 'lodash-es';
+import axios from 'axios';
 
 @Workflow({
   name: 'HBH - Apex Trading Order Sync',
@@ -645,10 +646,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         ReturnType<ApexTradingOrderSyncWorkflow['fetchItems']>
       >('fetchItems'))!;
 
-    const results: {
-      order: Record<string, any>;
-      invoice: Record<string, any> | null;
-    }[] = [];
+    const results: Record<string, any>[] = [];
 
     for (const order of orders) {
       const zohoItems =
@@ -759,6 +757,32 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
     }
 
     return results;
+  }
+
+  @Step(7)
+  async triggerSignals() {
+    const quotes =
+      (await this.getResult<Record<string, any>[]>('createQuote'))!;
+
+    for (const quote of quotes) {
+      await axios.post(
+        `https://www.zohoapis.com/books/v3/signals/notify?auth_type=apikey&encapiKey=wSsVR60n%2BBLxC6opnTX%2BIOduylRWDg73EBx73Vr1unOqH63E9MdqkUGYBgevSvYdF284QjsaprgryxoF1WZd2tklm10CASiF9mqRe1U4J3x14dOGyHekXWxUlhCAK4oIxw5pm2liEskjvg%3D%3D`,
+        {
+          signals: [
+            {
+              namespace: 'sg_konnecthub_apex_orde',
+              subject: 'Quote Created',
+              message: `A quote has been created for Apex Order ${quote.reference_number}`,
+              entity_type: 'estimate',
+              entity_id: quote.estimate_id,
+              actions: [],
+            },
+          ],
+        },
+      );
+    }
+
+    return quotes;
   }
 
   // @Step(7)
