@@ -686,6 +686,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
                   return {
                     item_id: item['Item ID'],
+                    rate: i.order_price,
                     quantity: i.order_quantity,
                     item_custom_fields: [
                       {
