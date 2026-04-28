@@ -113,7 +113,7 @@ export class Shopify2Service extends OAuth2HttpClient {
       data?: Record<string, any>;
       errors?: { message: string; locations?: []; extensions?: [] }[];
     }>(
-      '/admin/api/2025-10/graphql.json',
+      '/graphql.json',
       {
         query: input.query,
         variables: input.variables || {},
