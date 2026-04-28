@@ -250,6 +250,8 @@ export async function bootstrap(
             frameSrc: [`'self'`],
             connectSrc: [`'self'`, 'https:', 'wss:'],
             workerSrc: [`'self'`, 'blob:'],
+            // Allow any site to embed the API in an iframe (for embedded apps)
+            frameAncestors: [`'self'`, 'https:'],
           },
         },
       }),
