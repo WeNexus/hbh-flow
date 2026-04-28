@@ -1,12 +1,15 @@
 import { GQLInput, GQLResponse } from '#lib/shopify/types';
 import type { OAuth2ClientOptions } from '#lib/hub/types';
+import { UnauthorizedException } from '@nestjs/common';
 import { ModuleRef, Reflector } from '@nestjs/core';
 import { OAuth2HttpClient } from '#lib/hub/clients';
 import { ApiVersion } from '@shopify/shopify-api';
 import { AxiosRequestConfig } from 'axios';
 import { EnvService } from '#lib/core/env';
 import { Client } from '#lib/hub/misc';
+import type { Request } from 'express';
 import { merge } from 'lodash-es';
+import crypto from 'crypto';
 
 @Client('oauth2', {
   id: 'shopify-2',
@@ -136,13 +139,13 @@ export class Shopify2Service extends OAuth2HttpClient {
     const data = await this.gql<Record<string, any>>({
       connection,
       query: `#graphql
-        query {
-          shop {
-            name
-            email
-            myshopifyDomain
-          }
-        }`,
+      query {
+        shop {
+          name
+          email
+          myshopifyDomain
+        }
+      }`,
       root: 'shop',
     });
 
@@ -150,5 +153,63 @@ export class Shopify2Service extends OAuth2HttpClient {
       name: data.name,
       domain: data.myshopifyDomain,
     };
+  }
+
+  landingPage(connectionId: string, req: Request) {
+    const connection = this.clientOptions.connections.find(
+      (c) => c.id === connectionId,
+    )!;
+
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string
+    const expectedHmac = req.query.hmac?.toString();
+
+    if (!expectedHmac) {
+      throw new UnauthorizedException(
+        'Missing HMAC signature for verification.',
+      );
+    }
+
+    const searchParams = new URLSearchParams(
+      Object.entries(req.query as Record<string, any>)
+        .filter(([key]) => key !== 'hmac') // Exclude HMAC from params used for verification
+        .sort(([a], [b]) => a.codePointAt(0) - b.codePointAt(0)), // Sort params alphabetically by key
+    );
+
+    // Create HMAC-SHA256 digest
+    const generatedHmac = crypto
+      .createHmac(
+        'sha256',
+        connection.clientSecret ?? this.clientOptions.clientSecret,
+      )
+      .update(searchParams.toString(), 'utf8')
+      .digest('hex');
+
+    const isValid = this.secureCompare(generatedHmac, expectedHmac);
+
+    if (!isValid) {
+      throw new UnauthorizedException(
+        'Invalid HMAC signature. Possible tampering detected.',
+      );
+    }
+
+    return `
+      <h1 style="margin-left: auto; margin-right: auto; text-align: center;">
+        ? Successfully connected to Shopify (${connectionId})!.
+        
+        <code>
+          ${JSON.stringify(req.query, null, 2)}
+        </code>
+      </h1>
+    `;
+  }
+
+  private secureCompare(a: string, b: string): boolean {
+    const aBuf = Buffer.from(a, 'utf8');
+    const bBuf = Buffer.from(b, 'utf8');
+
+    // Length check is required before timingSafeEqual
+    if (aBuf.length !== bBuf.length) return false;
+
+    return crypto.timingSafeEqual(aBuf, bBuf);
   }
 }

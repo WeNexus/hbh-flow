@@ -9,6 +9,7 @@ import { OAuth2Token } from '@prisma/client';
 import { EnvService } from '#lib/core/env';
 import * as Sentry from '@sentry/nestjs';
 import { ModuleRef } from '@nestjs/core';
+import type { Request } from 'express';
 import * as arctic from 'arctic';
 
 import {
@@ -367,5 +368,9 @@ export abstract class OAuth2Client {
     });
 
     return token;
+  }
+
+  landingPage(connection: string, req: Request): string | Promise<string> {
+    return `<h3>Connection successful!</h3>`;
   }
 }
