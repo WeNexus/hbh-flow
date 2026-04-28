@@ -4,4 +4,6 @@ export interface OAuth2Connection {
   authorizationURL: string;
   tokenURL: string;
   scopes?: string[];
+  clientId?: string;
+  clientSecret?: string;
 }

@@ -1,4 +1,3 @@
-import { Client, OAUTH2_CLIENT_OPTIONS } from '#lib/hub/misc';
 import { GQLInput, GQLResponse } from '#lib/shopify/types';
 import type { OAuth2ClientOptions } from '#lib/hub/types';
 import { ModuleRef, Reflector } from '@nestjs/core';
@@ -6,7 +5,7 @@ import { OAuth2HttpClient } from '#lib/hub/clients';
 import { ApiVersion } from '@shopify/shopify-api';
 import { AxiosRequestConfig } from 'axios';
 import { EnvService } from '#lib/core/env';
-import { Inject } from '@nestjs/common';
+import { Client } from '#lib/hub/misc';
 import { merge } from 'lodash-es';
 
 @Client('oauth2', {
@@ -16,14 +15,24 @@ import { merge } from 'lodash-es';
   scopes: [
     'read_assigned_fulfillment_orders',
     'write_assigned_fulfillment_orders',
+    'write_draft_orders',
+    'read_draft_orders',
+    'read_merchant_managed_fulfillment_orders',
+    'write_merchant_managed_fulfillment_orders',
+    'write_order_edits',
+    'read_order_edits',
+    'read_orders',
+    'write_orders',
+    'read_products',
+    'write_products',
+    'read_third_party_fulfillment_orders',
+    'write_third_party_fulfillment_orders',
     'read_customers',
     'write_customers',
     'read_price_rules',
     'write_price_rules',
     'read_discounts',
     'write_discounts',
-    'write_draft_orders',
-    'read_draft_orders',
     'read_fulfillments',
     'write_fulfillments',
     'write_inventory',
@@ -31,10 +40,6 @@ import { merge } from 'lodash-es';
     'read_locations',
     'read_metaobjects',
     'write_metaobjects',
-    'read_orders',
-    'write_orders',
-    'read_products',
-    'write_products',
     'customer_read_orders',
     'customer_write_orders',
   ],
@@ -55,6 +60,16 @@ export class Shopify2Service extends OAuth2HttpClient {
                 'https://miamidistro.myshopify.com/admin/oauth/authorize',
               tokenURL:
                 'https://miamidistro.myshopify.com/admin/oauth/access_token',
+            },
+            {
+              id: 'canna-devices',
+              description: 'New Cannadevices Shopify Store',
+              authorizationURL:
+                'https://canna-devices.myshopify.com/admin/oauth/authorize',
+              tokenURL:
+                'https://canna-devices.myshopify.com/admin/oauth/access_token',
+              clientId: env.getString('CANNADEVICE_NEW_CLIENT_ID'),
+              clientSecret: env.getString('CANNADEVICE_NEW_CLIENT_SECRET'),
             },
           ],
         },
@@ -135,10 +150,5 @@ export class Shopify2Service extends OAuth2HttpClient {
       name: data.name,
       domain: data.myshopifyDomain,
     };
-  }
-
-  async validateSession(token: string) {
-    console.log(`Validating session for token: ${token}`);
-    // TODO: implement
   }
 }

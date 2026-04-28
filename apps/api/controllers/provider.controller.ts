@@ -1,6 +1,7 @@
 import { ProviderListOutputSchema, ProviderDetailSchema } from '../schema';
 import { ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { PaginationSchema } from '#lib/core/schema';
+import { PrismaService } from '#lib/core/services';
 import { HubService } from '#lib/hub/hub.service';
 import { Protected } from '#lib/auth/decorators';
 
@@ -20,7 +21,10 @@ import {
 
 @Controller('api/providers')
 export class ProviderController {
-  constructor(private readonly hubService: HubService) {}
+  constructor(
+    private readonly hubService: HubService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Get('/')
   @Protected('OBSERVER')
@@ -86,12 +90,28 @@ export class ProviderController {
     status: 404,
     description: 'Provider not found.',
   })
-  singleProvider(@Param('id') id: string): ProviderDetailSchema {
+  async singleProvider(@Param('id') id: string): Promise<ProviderDetailSchema> {
     try {
       const provider = this.hubService.validateProvider(id);
+      const connectionIds = provider.client.clientOptions.connections.map(
+        (c) => (c as OAuth2Connection).id,
+      );
+      const { result: connectionStatuses } =
+        await this.prisma.connectionStatus.findMany({
+          where: {
+            provider: id,
+            connection: {
+              in: connectionIds,
+            },
+          },
+          select: {
+            working: true,
+            connection: true,
+          },
+        });
 
       return {
-        id: provider.client.clientOptions.id,
+        id,
         type: provider.type,
         name: provider.client.clientOptions.name,
         icon: provider.client.clientOptions.icon,
@@ -101,6 +121,9 @@ export class ProviderController {
             id: c.id,
             description: c.description,
             scopes: (c as OAuth2Connection).scopes ?? undefined,
+            working:
+              connectionStatuses.find((s) => s.connection === c.id)?.working ??
+              false,
           }),
         ),
       };

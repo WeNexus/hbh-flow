@@ -51,8 +51,8 @@ export abstract class OAuth2Client {
       this.arcticClients.set(
         connection.id,
         new ArcticClient(
-          this.clientOptions.clientId,
-          this.clientOptions.clientSecret,
+          connection.clientId ?? this.clientOptions.clientId,
+          connection.clientSecret ?? this.clientOptions.clientSecret,
           url.toString(),
         ),
       );

@@ -63,7 +63,7 @@ export class HubController {
 
       return `
       <h1 style="margin-left: auto; margin-right: auto; text-align: center;">
-        ✅ Connection established successfully! You may now close this window.
+        ? Connection established successfully! You may now close this window.
       </h1>
       `;
     } catch (e: unknown) {
@@ -75,12 +75,34 @@ export class HubController {
       ) {
         return `
       <h1 style="margin-left: auto; margin-right: auto; text-align: center;">
-        ⚠️ ${e.message}<br />Please try again or contact support if the issue persists.
+        ?? ${e.message}<br />Please try again or contact support if the issue persists.
       </h1>
         `;
       }
 
       throw e; // Re-throw unexpected/unhandled errors
     }
+  }
+
+  @Get('/landing/:provider/:connection')
+  @ApiOperation({
+    summary: 'Connection Landing Page',
+    description:
+      'A simple landing page to confirm successful connection. This can be used as the app URL for services like Shopify',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Connection landing page displayed successfully.',
+  })
+  async landing(
+    @Req() req: Request,
+    @Query('provider') provider: string,
+    @Query('connection') connection: string,
+  ) {
+    return `
+      <h1 style="margin-left: auto; margin-right: auto; text-align: center;">
+        ? Successfully connected to ${provider} (${connection})!.
+      </h1>
+    `;
   }
 }
