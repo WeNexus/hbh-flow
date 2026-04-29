@@ -11,6 +11,7 @@ import {
   Req,
   Param,
   NotFoundException,
+  Res,
 } from '@nestjs/common';
 
 import {
@@ -104,6 +105,7 @@ export class HubController {
   })
   async landing(
     @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
     @Param('providerId') providerId: string,
     @Param('connectionId') connectionId: string,
   ) {

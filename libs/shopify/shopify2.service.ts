@@ -193,13 +193,20 @@ export class Shopify2Service extends OAuth2HttpClient {
     }
 
     return `
-      <h1 style="margin-left: auto; margin-right: auto; text-align: center;">
-        ? Successfully connected to Shopify (${connectionId})!.
-        
-        <code>
-          ${JSON.stringify(req.query, null, 2)}
-        </code>
-      </h1>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="shopify-api-key" content="${process.env.SHOPIFY_API_KEY}" />
+    <title>Shopify Connection Successful</title>
+<!--    <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>-->
+  </head>
+  <body style="display: flex; align-items: center; justify-content: center; height: 100vh;">
+    <h1 style="margin-left: auto; margin-right: auto; text-align: center;">
+      ? Successfully connected to Shopify (${connectionId})!.
+    </h1>
+  </body>
     `;
   }
 
