@@ -1,3 +1,4 @@
+import { Shopify2Service } from '#lib/shopify/shopify2.service';
 import { ShopifyService } from '#lib/shopify/shopify.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { cron, WorkflowBase } from '#lib/workflow/misc';
@@ -6,7 +7,10 @@ import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
 import { keyBy } from 'lodash-es';
 
-type ShopifyConnection = string;
+type ShopifyConnection = {
+  id: string;
+  provider: 'shopify' | 'shopify2';
+};
 
 type CollectionRule = {
   column: string;
@@ -48,6 +52,7 @@ type PageInfo = { hasNextPage: boolean; endCursor?: string | null };
 export class SyncSmartCollectionsWorkflow extends WorkflowBase {
   constructor(
     private readonly shopify: ShopifyService,
+    private readonly shopify2: Shopify2Service,
     private readonly mongo: MongoService,
     private readonly env: EnvService,
   ) {
@@ -56,13 +61,29 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
 
   private logger = new Logger(SyncSmartCollectionsWorkflow.name);
 
-  private sourceConnection: ShopifyConnection = 'hbh_wholesale';
+  private sourceConnection: ShopifyConnection = {
+    id: 'hbh_wholesale',
+    provider: 'shopify',
+  };
 
   private destConnections: ShopifyConnection[] = [
-    'ai1wholesale',
+    {
+      id: 'ai1wholesale',
+      provider: 'shopify',
+    },
     // 'bakerbrands',
-    'donkey-distro',
-    'smokeand-vape-wholesale',
+    {
+      id: 'donkey-distro',
+      provider: 'shopify',
+    },
+    {
+      id: 'smokeand-vape-wholesale',
+      provider: 'shopify',
+    },
+    {
+      id: 'canna-devices',
+      provider: 'shopify2',
+    },
     // 'a13distro',
   ];
 
@@ -146,7 +167,7 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
       }
 
       this.logger.log(
-        `[${connection}] Upsert complete: created=${created}, updated=${updated}, skipped=${skipped}`,
+        `[${connection.id}] Upsert complete: created=${created}, updated=${updated}, skipped=${skipped}`,
       );
 
       perStore.push({ connection, created, updated, skipped, errors });
@@ -202,7 +223,7 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
       }
 
       this.logger.log(
-        `[${connection}] Delete complete: deleted=${deleted}, notFound=${notFound}`,
+        `[${connection.id}] Delete complete: deleted=${deleted}, notFound=${notFound}`,
       );
 
       perStore.push({ connection, deleted, notFound, errors });
@@ -256,7 +277,7 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
     let after: string | null = null;
 
     for (;;) {
-      const res = await this.shopify.gql<{
+      const res = await this[connection.provider].gql<{
         collections: {
           edges: Array<{
             cursor: string;
@@ -284,7 +305,7 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
           pageInfo: PageInfo;
         };
       }>({
-        connection,
+        connection: connection.id,
         root: 'collections',
         variables: {
           first: 250,
@@ -361,13 +382,13 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
     connection: ShopifyConnection,
     input: any,
   ): Promise<string> {
-    const res = await this.shopify.gql<{
+    const res = await this[connection.provider].gql<{
       collectionCreate: {
         collection: { id: string } | null;
         userErrors: Array<{ field?: string[]; message: string }>;
       };
     }>({
-      connection,
+      connection: connection.id,
       root: 'collectionCreate',
       variables: { input },
       query: `#graphql
@@ -399,13 +420,13 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
     connection: ShopifyConnection,
     input: any,
   ): Promise<string> {
-    const res = await this.shopify.gql<{
+    const res = await this[connection.provider].gql<{
       collectionUpdate: {
         collection: { id: string } | null;
         userErrors: Array<{ field?: string[]; message: string }>;
       };
     }>({
-      connection,
+      connection: connection.id,
       root: 'collectionUpdate',
       variables: { input },
       query: `#graphql
@@ -437,13 +458,13 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
     connection: ShopifyConnection,
     id: string,
   ): Promise<void> {
-    const res = await this.shopify.gql<{
+    const res = await this[connection.provider].gql<{
       collectionDelete: {
         deletedCollectionId: string | null;
         userErrors: Array<{ field?: string[]; message: string }>;
       };
     }>({
-      connection,
+      connection: connection.id,
       root: 'collectionDelete',
       variables: { input: { id } },
       query: `#graphql
