@@ -401,6 +401,8 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
       `,
     });
 
+    this.logger.log(res);
+
     if (res.userErrors?.length) {
       throw new Error(
         `collectionCreate userErrors: ${res.userErrors
