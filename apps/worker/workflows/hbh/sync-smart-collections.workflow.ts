@@ -92,9 +92,9 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
 
   @Step(1)
   async fetchSnapshot(): Promise<string[]> {
-    if (!this.env.isProd) {
-      return this.cancel('Not running in production environment.');
-    }
+    // if (!this.env.isProd) {
+    //   return this.cancel('Not running in production environment.');
+    // }
 
     const doc = await this.mongo
       .db(this.snapshotDbName)
@@ -278,32 +278,30 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
 
     for (;;) {
       const res = await this[connection.provider].gql<{
-        collections: {
-          edges: Array<{
-            cursor: string;
-            node: {
-              id: string;
-              title: string;
-              handle: string;
-              descriptionHtml?: string | null;
-              sortOrder?: string | null;
-              templateSuffix?: string | null;
-              seo?: {
-                title?: string | null;
-                description?: string | null;
-              } | null;
-              ruleSet?: {
-                appliedDisjunctively: boolean;
-                rules: Array<{
-                  column: string;
-                  relation: string;
-                  condition: string;
-                }>;
-              } | null;
-            };
-          }>;
-          pageInfo: PageInfo;
-        };
+        edges: {
+          cursor: string;
+          node: {
+            id: string;
+            title: string;
+            handle: string;
+            descriptionHtml?: string | null;
+            sortOrder?: string | null;
+            templateSuffix?: string | null;
+            seo?: {
+              title?: string | null;
+              description?: string | null;
+            } | null;
+            ruleSet?: {
+              appliedDisjunctively: boolean;
+              rules: {
+                column: string;
+                relation: string;
+                condition: string;
+              }[];
+            } | null;
+          };
+        }[];
+        pageInfo: PageInfo;
       }>({
         connection: connection.id,
         root: 'collections',
@@ -383,10 +381,8 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
     input: any,
   ): Promise<string> {
     const res = await this[connection.provider].gql<{
-      collectionCreate: {
-        collection: { id: string } | null;
-        userErrors: Array<{ field?: string[]; message: string }>;
-      };
+      collection: { id: string } | null;
+      userErrors: Array<{ field?: string[]; message: string }>;
     }>({
       connection: connection.id,
       root: 'collectionCreate',
@@ -401,8 +397,6 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
       `,
     });
 
-    this.logger.log(res);
-
     if (res.userErrors?.length) {
       throw new Error(
         `collectionCreate userErrors: ${res.userErrors
@@ -411,11 +405,11 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
       );
     }
 
-    if (!res.collectionCreate.collection?.id) {
+    if (!res.collection?.id) {
       throw new Error('collectionCreate: missing collection id in response');
     }
 
-    return res.collectionCreate.collection.id;
+    return res.collection.id;
   }
 
   private async collectionUpdate(
@@ -423,10 +417,8 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
     input: any,
   ): Promise<string> {
     const res = await this[connection.provider].gql<{
-      collectionUpdate: {
-        collection: { id: string } | null;
-        userErrors: Array<{ field?: string[]; message: string }>;
-      };
+      collection: { id: string } | null;
+      userErrors: Array<{ field?: string[]; message: string }>;
     }>({
       connection: connection.id,
       root: 'collectionUpdate',
@@ -449,11 +441,11 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
       );
     }
 
-    if (!res.collectionUpdate.collection?.id) {
+    if (!res.collection?.id) {
       throw new Error('collectionUpdate: missing collection id in response');
     }
 
-    return res.collectionUpdate.collection.id;
+    return res.collection.id;
   }
 
   private async collectionDelete(
@@ -461,10 +453,8 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
     id: string,
   ): Promise<void> {
     const res = await this[connection.provider].gql<{
-      collectionDelete: {
-        deletedCollectionId: string | null;
-        userErrors: Array<{ field?: string[]; message: string }>;
-      };
+      deletedCollectionId: string | null;
+      userErrors: Array<{ field?: string[]; message: string }>;
     }>({
       connection: connection.id,
       root: 'collectionDelete',
