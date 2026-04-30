@@ -3,6 +3,7 @@ import { Step, Workflow } from '#lib/workflow/decorators';
 import { WebhookPayloadType } from '#lib/workflow/types';
 import { ZohoService } from '#lib/zoho/zoho.service';
 import { WorkflowBase } from '#lib/workflow/misc';
+import { ApiVersion } from '@shopify/shopify-api';
 import { Logger } from '@nestjs/common';
 
 @Workflow({
@@ -24,7 +25,7 @@ export class FatAssGlassHBHFulfillmentTrackingWorkflow extends WorkflowBase<
   private logger = new Logger(FatAssGlassHBHFulfillmentTrackingWorkflow.name);
 
   @Step(1)
-  async fetchZohoOrder() {
+  async fetchZohoOrder(): Promise<Record<string, any>> {
     const { data: res } = await this.zoho.get(
       `/inventory/v1/salesorders/${this.payload.shipmentorder.salesorder_id}`,
       {
@@ -32,11 +33,21 @@ export class FatAssGlassHBHFulfillmentTrackingWorkflow extends WorkflowBase<
       },
     );
 
-    return res.salesorder as Record<string, any>;
+    if (!res.salesorder) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      return this.cancel(
+        `Salesorder with ID: ${this.payload.shipmentorder.salesorder_id} not found.`,
+      ) as any;
+    }
+
+    this.delay(30000);
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return res.salesorder;
   }
 
   @Step(2)
-  async fetchShopifyFulfillmentOrder() {
+  async fetchShopifyOrderId(): Promise<string> {
     const salesOrder =
       await this.getResult<Record<string, any>>('fetchZohoOrder');
 
@@ -46,125 +57,80 @@ export class FatAssGlassHBHFulfillmentTrackingWorkflow extends WorkflowBase<
       );
     }
 
-    const mainQuery = `#graphql 
+    const ref = salesOrder.reference_number.replace('FGC', '');
+
+    const query = `#graphql 
     query {
-      orders(first: 1, query: "name:${salesOrder.reference_number.replace('FGC', '')}") {
+      orders(first: 1, query: "name:${ref}") {
         edges {
           node {
-            fulfillmentOrders(first: 1, query: "assigned_location_id:74968563910 AND status:open") {
-              edges {
-                node {
-                  id
-                  lineItems(first: 1) {
-                    pageInfo {
-                      hasNextPage
-                      endCursor
-                    }
-                    edges {
-                      node {
-                        id
-                        sku
-                        remainingQuantity
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            id
           }
         }
       }
     }`;
-    const lineItemQuery = `#graphql
-    query ($cursor: String, $foId: ID!) {
-      fulfillmentOrder(id: $foId) {
-        lineItems(first: 100, after: $cursor) {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-          edges {
-            node {
-              id
-              sku
-              remainingQuantity
-            }
-          }
-        }
-      }
-    }
-    `;
 
-    const { edges } = await this.shopify.gql({
+    const { edges } = await this.shopify.gql<{
+      edges: [
+        {
+          node: {
+            id: string;
+          };
+        },
+      ];
+    }>({
       connection: 'fat_ass',
       root: 'orders',
-      query: mainQuery,
+      query,
     });
 
-    if (edges.length === 0) {
-      return this.cancel(
-        `No order found using ${salesOrder.reference_number.replace('FGC', '')} reference number`,
-      );
+    if (!edges.length) {
+      return this.cancel(`Order ${ref} not found in Shopify`)!;
     }
 
-    if (edges[0].node.fulfillmentOrders.edges.length === 0) {
-      return this.cancel({
-        message: `No open fulfillment order found in the specified location: 74968563910`,
-        order: edges[0].node,
-      });
-    }
+    return edges[0].node.id;
+  }
 
-    const fulfillmentOrder: Record<string, any> =
-      edges[0].node.fulfillmentOrders.edges[0].node;
+  @Step(3)
+  async fetchShopifyFulfillmentOrder(): Promise<FulfillmentOrder> {
+    const shopifyOrderId = (await this.getResult<string>(
+      'fetchShopifyOrderId',
+    ))!;
 
-    while (fulfillmentOrder.lineItems.pageInfo.hasNextPage) {
-      const { lineItems } = await this.shopify.gql({
-        query: lineItemQuery,
+    const { data: res } = await this.shopify.get<FulfillmentOrderRes>(
+      `/admin/api/${ApiVersion.April26}/orders/${shopifyOrderId.split('/').pop()}/fulfillment_orders.json`,
+      {
         connection: 'fat_ass',
-        root: 'fulfillmentOrder',
-        variables: {
-          foId: fulfillmentOrder.id,
-          cursor: fulfillmentOrder.lineItems.pageInfo.endCursor,
-        },
-      });
+      },
+    );
 
-      fulfillmentOrder.lineItems.pageInfo = lineItems.pageInfo;
-      fulfillmentOrder.lineItems.edges.push(...lineItems.edges);
+    const fulfillmentOrder = res.fulfillment_orders.find(
+      (f) => f.status === 'open' && f.assigned_location_id === 74968563910,
+    );
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (!fulfillmentOrder) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      return this.cancel(
+        `No open fulfillment order found in the specified location: 74968563910`,
+      ) as any;
     }
 
     return fulfillmentOrder;
   }
 
-  @Step(3)
+  @Step(4)
   async createFulfillment() {
-    const fulfillmentOrder = await this.getResult<Record<string, any>>(
+    const fulfillmentOrder = (await this.getResult<FulfillmentOrder>(
       'fetchShopifyFulfillmentOrder',
-    );
-    const zohoOrder =
-      (await this.getResult<Record<string, any>>('fetchZohoOrder'))!;
-
-    if (!fulfillmentOrder) {
-      throw new Error(
-        'Something went wrong with the fetchShopifyFulfillmentOrder step',
-      );
-    }
+    ))!;
 
     const shipmentOrder = this.payload.shipmentorder;
-    const zohoSkus = new Set(
-      zohoOrder.line_items.map((i: { sku: string }) => i.sku),
-    );
 
-    const lineItemsToFulfill = fulfillmentOrder.lineItems.edges
-      .map((edge: Record<string, any>) => edge.node)
-      .filter(
-        (item: Record<string, any>) =>
-          item.remainingQuantity > 0 && zohoSkus.has(item.sku),
-      )
-      .map((item: Record<string, any>) => ({
-        id: item.id,
-        quantity: item.remainingQuantity,
+    const lineItemsToFulfill = fulfillmentOrder.line_items
+      .filter((item) => item.fulfillable_quantity > 0)
+      .map((item) => ({
+        id: `gid://shopify/FulfillmentOrderLineItem/${item.id}`,
+        quantity: item.fulfillable_quantity,
       }));
 
     if (lineItemsToFulfill.length === 0) {
@@ -192,7 +158,7 @@ export class FatAssGlassHBHFulfillmentTrackingWorkflow extends WorkflowBase<
       variables: {
         input: {
           lineItemsByFulfillmentOrder: {
-            fulfillmentOrderId: fulfillmentOrder.id,
+            fulfillmentOrderId: `gid://shopify/FulfillmentOrder/${fulfillmentOrder.id}`,
             fulfillmentOrderLineItems: lineItemsToFulfill,
           },
           trackingInfo: {
@@ -204,4 +170,84 @@ export class FatAssGlassHBHFulfillmentTrackingWorkflow extends WorkflowBase<
       },
     });
   }
+}
+
+interface FulfillmentOrderRes {
+  fulfillment_orders: FulfillmentOrder[];
+}
+
+interface FulfillmentOrder {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  shop_id: number;
+  order_id: number;
+  assigned_location_id: number;
+  request_status: string;
+  status: 'closed' | 'open';
+  fulfill_at: string;
+  fulfill_by: any;
+  supported_actions: any[];
+  destination: Destination;
+  line_items: LineItem[];
+  international_duties: any;
+  fulfillment_holds: any[];
+  delivery_method: DeliveryMethod;
+  assigned_location: AssignedLocation;
+  merchant_requests: any[];
+}
+
+interface Destination {
+  id: number;
+  address1: string;
+  address2: string;
+  city: string;
+  company: any;
+  country: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  province: string;
+  zip: string;
+}
+
+interface LineItem {
+  id: number;
+  shop_id: number;
+  fulfillment_order_id: number;
+  quantity: number;
+  line_item_id: number;
+  inventory_item_id: number;
+  fulfillable_quantity: number;
+  variant_id: number;
+}
+
+interface DeliveryMethod {
+  id: number;
+  method_type: string;
+  min_delivery_date_time: any;
+  max_delivery_date_time: any;
+  additional_information: AdditionalInformation;
+  service_code: string;
+  source_reference: any;
+  presented_name: string;
+  branded_promise: any;
+}
+
+interface AdditionalInformation {
+  instructions: any;
+  phone: any;
+}
+
+interface AssignedLocation {
+  address1: string;
+  address2: string;
+  city: string;
+  country_code: string;
+  location_id: number;
+  name: string;
+  phone: string;
+  province: string;
+  zip: string;
 }
