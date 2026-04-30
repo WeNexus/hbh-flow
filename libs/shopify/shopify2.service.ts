@@ -84,7 +84,7 @@ export class Shopify2Service extends OAuth2HttpClient {
 
   protected defaultConfig(connection: string): AxiosRequestConfig {
     return {
-      baseURL: `https://${connection}.myshopify.com/admin/api/${ApiVersion.April26}/`,
+      baseURL: `https://${connection}.myshopify.com`,
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
@@ -116,7 +116,7 @@ export class Shopify2Service extends OAuth2HttpClient {
       data?: Record<string, any>;
       errors?: { message: string; locations?: []; extensions?: [] }[];
     }>(
-      '/graphql.json',
+      `/admin/api/${ApiVersion.April26}/graphql.json`,
       {
         query: input.query,
         variables: input.variables || {},

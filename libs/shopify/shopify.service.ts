@@ -2,6 +2,7 @@ import { GQLInput, GQLResponse, StagedUploadInput } from './types';
 import type { TokenClientOptions } from '#lib/hub/types';
 import { TokenHttpClient } from '#lib/hub/clients';
 import axios, { AxiosRequestConfig } from 'axios';
+import { ApiVersion } from '@shopify/shopify-api';
 import { EnvService } from '#lib/core/env';
 import { Reflector } from '@nestjs/core';
 import { Client } from '#lib/hub/misc';
@@ -152,7 +153,7 @@ export class ShopifyService extends TokenHttpClient {
       data?: Record<string, any>;
       errors?: { message: string; locations?: []; extensions?: [] }[];
     }>(
-      '/admin/api/2025-10/graphql.json',
+      `/admin/api/${ApiVersion.April26}/graphql.json`,
       {
         query: input.query,
         variables: input.variables || {},
