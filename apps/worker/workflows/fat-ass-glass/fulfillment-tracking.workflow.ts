@@ -57,7 +57,13 @@ export class FatAssGlassHBHFulfillmentTrackingWorkflow extends WorkflowBase<
       );
     }
 
-    const ref = salesOrder.reference_number.replace('FGC', '');
+    const ref = salesOrder.reference_number.match(/#\d{1,}/)?.[0]?.trim();
+
+    if (!ref) {
+      throw new Error(
+        `Could not extract order number from salesorder reference number: ${salesOrder.reference_number}`,
+      );
+    }
 
     const query = `#graphql 
     query {
