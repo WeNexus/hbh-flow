@@ -268,6 +268,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
       .find<{
         orderId: number;
         quoted: boolean;
+        paid: boolean;
       }>({
         orderId: {
           $in: orders.map((o) => o.id),
@@ -496,7 +497,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         zip: order.ship_zip,
         state: order.ship_state,
         address: order.ship_line_one,
-        street2: order.ship_from_line_two,
+        street2: order.ship_line_two,
         phone: order.buyer_contact_phone,
       };
 
@@ -707,7 +708,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
                   return a;
                 }, []),
-              notes: order.notes,
+              notes: `${order.notes}\n*** Created by KonnectHub ***`,
               is_inclusive_tax: false,
               discount: 0,
               discount_type: 'item_level',
@@ -739,6 +740,26 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
       const { estimate } = await createQuote();
       results.push(estimate);
+
+      try {
+        await this.zohoService.post(
+          `/books/v3/estimates/${estimate.estimate_id}/comments`,
+          {
+            description:
+              'This quote was created from an order in Apex Trading via KonnectHub.',
+            show_comment_to_clients: false,
+          },
+          {
+            connection: 'hbh',
+            params: {
+              organization_id: '776003162',
+              ignore_auto_number_generation: false,
+            },
+          },
+        );
+      } catch (e) {
+        this.logger.error(e);
+      }
 
       await this.mongo
         .db('hbh')
