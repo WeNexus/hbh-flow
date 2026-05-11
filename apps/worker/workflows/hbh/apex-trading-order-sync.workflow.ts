@@ -674,6 +674,14 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         (a) => a.orderId === order.id,
       )?.shippingAddressId;
 
+      const billingAddressId = !customer.billing_address
+        ? shippingAddressesId
+        : !customer.billing_address.address &&
+            !customer.billing_address.country_code &&
+            !customer.billing_address.state_code
+          ? shippingAddressesId
+          : customer.billing_address.address_id;
+
       if (zohoItems.length === 0) {
         return this.cancel('No matching items found in Zoho Inventory.');
       }
@@ -723,7 +731,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
                   return a;
                 }, []),
-              notes: `${order.notes ?? ''}\n*** Created by KonnectHub ***`,
+              notes: `${order.notes?.trim() ? order.notes + '\n\n' : ''}*** Created by KonnectHub ***`,
               is_inclusive_tax: false,
               discount: 0,
               discount_type: 'item_level',
@@ -740,6 +748,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
               documents: [],
               mail_attachments: [],
               shipping_address_id: shippingAddressesId,
+              billing_address_id: billingAddressId,
               tax_override_preference: 'no_override',
             },
             {
