@@ -1,5 +1,6 @@
 import { ApexTradingService } from '#lib/apex-trading/apex-trading.service';
 import { WorkflowService } from '#lib/workflow/workflow.service';
+import { isUndefined, keyBy, omitBy, uniq } from 'lodash-es';
 import { PaginatedResponse } from '#lib/apex-trading/types';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { WebhookPayloadType } from '#lib/workflow/types';
@@ -10,7 +11,6 @@ import { ZohoService } from '#lib/zoho/zoho.service';
 import { MongoService } from '#lib/core/services';
 import { EnvService } from '#lib/core/env';
 import { Logger } from '@nestjs/common';
-import { keyBy, uniq } from 'lodash-es';
 import axios from 'axios';
 
 @Workflow({
@@ -490,16 +490,31 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         ...customer.addresses,
       ];
 
-      const shippingAddress = {
-        attention: order.ship_name,
-        city: order.ship_city,
-        country_code: order.ship_country,
-        zip: order.ship_zip,
-        state: order.ship_state,
-        address: order.ship_line_one,
-        street2: order.ship_line_two,
-        phone: order.buyer_contact_phone,
-      };
+      const shippingAddress = omitBy(
+        {
+          attention: order.ship_name,
+          city: order.ship_city,
+          country_code: order.ship_country,
+          zip: order.ship_zip,
+          state: order.ship_state,
+          address:
+            !order.ship_line_one ||
+            order.ship_line_one === 'null' ||
+            order.ship_line_one.trim() === '' ||
+            order.ship_line_one.trim() === '.'
+              ? undefined
+              : order.ship_line_one,
+          street2:
+            !order.ship_line_two ||
+            order.ship_line_two === 'null' ||
+            order.ship_line_two.trim() === '' ||
+            order.ship_line_two.trim() === '.'
+              ? undefined
+              : order.ship_line_two,
+          phone: order.buyer_contact_phone,
+        },
+        isUndefined,
+      );
 
       const excludeMatchFields = [
         'first_name',
@@ -708,7 +723,7 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
                   return a;
                 }, []),
-              notes: `${order.notes}\n*** Created by KonnectHub ***`,
+              notes: `${order.notes ?? ''}\n*** Created by KonnectHub ***`,
               is_inclusive_tax: false,
               discount: 0,
               discount_type: 'item_level',
