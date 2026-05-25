@@ -289,41 +289,7 @@ export class SyncPriceListsToShopifyB2BCatalogsWorkflow extends WorkflowBase {
   private async createCatalogWithPriceList(
     name: string,
   ): Promise<CatalogMapping> {
-    const plRes = await this.shopify2.gql<{
-      priceList: { id: string } | null;
-      userErrors: { field: string[]; message: string }[];
-    }>({
-      connection: this.shopifyConnection,
-      root: 'priceListCreate',
-      variables: {
-        input: {
-          name,
-          currency: 'USD',
-          parent: {
-            adjustment: { type: 'PERCENTAGE_DECREASE', value: 0 },
-          },
-        },
-      },
-      query: `#graphql
-        mutation ($input: PriceListCreateInput!) {
-          priceListCreate(input: $input) {
-            priceList { id }
-            userErrors { field message }
-          }
-        }
-      `,
-    });
-
-    if (plRes.userErrors?.length) {
-      throw new Error(
-        `priceListCreate: ${plRes.userErrors.map((e) => e.message).join(', ')}`,
-      );
-    }
-    if (!plRes.priceList?.id) {
-      throw new Error('priceListCreate: missing price list ID');
-    }
-
-    const priceListId = plRes.priceList.id;
+    const priceListId = await this.findOrCreatePriceList(name);
 
     const catRes = await this.shopify2.gql<{
       catalog: { id: string } | null;
@@ -360,6 +326,91 @@ export class SyncPriceListsToShopifyB2BCatalogsWorkflow extends WorkflowBase {
 
     this.logger.log(`Created catalog "${name}": ${catRes.catalog.id}`);
     return { catalogId: catRes.catalog.id, priceListId };
+  }
+
+  private async findOrCreatePriceList(name: string) {
+    // Paginate through all price lists looking for an exact title match
+    let after: string | null = null;
+
+    for (;;) {
+      const res = await this.shopify2.gql<{
+        nodes: Array<{
+          id: string;
+          name: string;
+          catalog?: { id: string } | null;
+        }>;
+        pageInfo: { hasNextPage: boolean; endCursor?: string | null };
+      }>({
+        connection: this.shopifyConnection,
+        root: 'priceLists',
+        variables: { first: 250, after },
+        query: `#graphql
+          query ($first: Int!, $after: String) {
+            priceLists(first: $first, after: $after) {
+              nodes {
+                id
+                name
+                catalog {
+                  id
+                }
+              }
+              pageInfo { hasNextPage endCursor }
+            }
+          }
+        `,
+      });
+
+      for (const node of res?.nodes ?? []) {
+        if (node.name === name && !node.catalog?.id) {
+          this.logger.log(`Found existing priceList for "${name}": ${node.id}`);
+          return node.id;
+        }
+      }
+
+      if (!res?.pageInfo?.hasNextPage) break;
+      after = res.pageInfo.endCursor ?? null;
+      if (!after) break;
+    }
+
+    return this.createPriceList(name);
+  }
+
+  private async createPriceList(name: string) {
+    const plRes = await this.shopify2.gql<{
+      priceList: { id: string } | null;
+      userErrors: { field: string[]; message: string }[];
+    }>({
+      connection: this.shopifyConnection,
+      root: 'priceListCreate',
+      variables: {
+        input: {
+          name,
+          currency: 'USD',
+          parent: {
+            adjustment: { type: 'PERCENTAGE_DECREASE', value: 0 },
+          },
+        },
+      },
+      query: `#graphql
+        mutation ($input: PriceListCreateInput!) {
+          priceListCreate(input: $input) {
+            priceList { id }
+            userErrors { field message }
+          }
+        }
+      `,
+    });
+
+    if (plRes.userErrors?.length) {
+      throw new Error(
+        `priceListCreate: ${plRes.userErrors.map((e) => e.message).join(', ')}`,
+      );
+    }
+    if (!plRes.priceList?.id) {
+      throw new Error('priceListCreate: missing price list ID');
+    }
+
+    return plRes.priceList.id;
   }
 
   private async replaceFixedPrices(
