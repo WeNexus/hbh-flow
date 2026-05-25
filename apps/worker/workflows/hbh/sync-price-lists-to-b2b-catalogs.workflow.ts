@@ -35,7 +35,7 @@ interface ResolvedVariants {
   webhook: true,
   concurrency: 1,
   triggers: [
-    cron('0 */2 * * *', {
+    cron('0 */8 * * *', {
       timezone: 'America/New_York',
     }),
   ],
@@ -300,7 +300,7 @@ export class SyncPriceListsToShopifyB2BCatalogsWorkflow extends WorkflowBase {
           name,
           currency: 'USD',
           parent: {
-            adjustment: { type: 'PERCENTAGE_DECREASE', value: '0.00' },
+            adjustment: { type: 'PERCENTAGE_DECREASE', value: 0 },
           },
         },
       },
