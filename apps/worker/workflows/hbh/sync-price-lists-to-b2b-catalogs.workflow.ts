@@ -349,7 +349,7 @@ export class SyncPriceListsToShopifyB2BCatalogsWorkflow extends WorkflowBase {
           title: name,
           status: 'ACTIVE',
           priceListId,
-          context: { marketId },
+          context: { marketIds: [marketId] },
         },
       },
       query: `#graphql
