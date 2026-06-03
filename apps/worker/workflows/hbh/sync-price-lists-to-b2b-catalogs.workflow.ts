@@ -19,6 +19,7 @@ interface PricebookData {
 }
 
 interface CatalogMapping {
+  marketId: string;
   catalogId: string;
   priceListId: string;
 }
@@ -193,7 +194,7 @@ export class SyncPriceListsToShopifyB2BCatalogsWorkflow extends WorkflowBase {
       this.logger.log(`Syncing catalog for "${pb.name}"...`);
 
       const mapping =
-        snapshot[pb.zohoId] ?? (await this.findOrCreateCatalog(pb.name));
+        snapshot[pb.zohoId] ?? (await this.findOrCreateMarket(pb.name));
 
       updatedSnapshot[pb.zohoId] = mapping;
 
@@ -239,30 +240,35 @@ export class SyncPriceListsToShopifyB2BCatalogsWorkflow extends WorkflowBase {
 
   // -----------------------------------------------------------
 
-  private async findOrCreateCatalog(name: string): Promise<CatalogMapping> {
-    // Paginate through all catalogs looking for an exact title match
+  private async findOrCreateMarket(name: string): Promise<CatalogMapping> {
+    // Paginate through all markets looking for an exact name match
     let after: string | null = null;
 
     for (;;) {
       const res = await this.shopify2.gql<{
         nodes: Array<{
           id: string;
-          title: string;
-          priceList?: { id: string } | null;
+          name: string;
+          catalogs: {
+            nodes: Array<{ id: string; priceList?: { id: string } | null }>;
+          };
         }>;
         pageInfo: { hasNextPage: boolean; endCursor?: string | null };
       }>({
         connection: this.shopifyConnection,
-        root: 'catalogs',
+        root: 'markets',
         variables: { first: 250, after },
         query: `#graphql
           query ($first: Int!, $after: String) {
-            catalogs(first: $first, after: $after) {
+            markets(first: $first, after: $after) {
               nodes {
                 id
-                title
-                ... on CompanyLocationCatalog {
-                  priceList { id }
+                name
+                catalogs(first: 1) {
+                  nodes {
+                    id
+                    priceList { id }
+                  }
                 }
               }
               pageInfo { hasNextPage endCursor }
@@ -272,9 +278,18 @@ export class SyncPriceListsToShopifyB2BCatalogsWorkflow extends WorkflowBase {
       });
 
       for (const node of res?.nodes ?? []) {
-        if (node.title === name && node.priceList?.id) {
-          this.logger.log(`Found existing catalog for "${name}": ${node.id}`);
-          return { catalogId: node.id, priceListId: node.priceList.id };
+        if (node.name === name) {
+          const catalog = node.catalogs?.nodes?.[0];
+          if (catalog?.id && catalog.priceList?.id) {
+            this.logger.log(`Found existing market for "${name}": ${node.id}`);
+            return {
+              marketId: node.id,
+              catalogId: catalog.id,
+              priceListId: catalog.priceList.id,
+            };
+          }
+          // Market exists but has no catalog yet
+          return this.createCatalogForMarket(name, node.id);
         }
       }
 
@@ -283,11 +298,43 @@ export class SyncPriceListsToShopifyB2BCatalogsWorkflow extends WorkflowBase {
       if (!after) break;
     }
 
-    return this.createCatalogWithPriceList(name);
+    return this.createMarketWithCatalog(name);
   }
 
-  private async createCatalogWithPriceList(
+  private async createMarketWithCatalog(name: string): Promise<CatalogMapping> {
+    const marketRes = await this.shopify2.gql<{
+      market: { id: string } | null;
+      userErrors: { field: string[]; message: string; code: string }[];
+    }>({
+      connection: this.shopifyConnection,
+      root: 'marketCreate',
+      variables: { input: { name, status: 'ACTIVE' } },
+      query: `#graphql
+        mutation ($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id }
+            userErrors { field message code }
+          }
+        }
+      `,
+    });
+
+    if (marketRes.userErrors?.length) {
+      throw new Error(
+        `marketCreate: ${marketRes.userErrors.map((e) => e.message).join(', ')}`,
+      );
+    }
+    if (!marketRes.market?.id) {
+      throw new Error('marketCreate: missing market ID');
+    }
+
+    this.logger.log(`Created market "${name}": ${marketRes.market.id}`);
+    return this.createCatalogForMarket(name, marketRes.market.id);
+  }
+
+  private async createCatalogForMarket(
     name: string,
+    marketId: string,
   ): Promise<CatalogMapping> {
     const priceListId = await this.findOrCreatePriceList(name);
 
@@ -302,7 +349,7 @@ export class SyncPriceListsToShopifyB2BCatalogsWorkflow extends WorkflowBase {
           title: name,
           status: 'ACTIVE',
           priceListId,
-          context: { companyLocationIds: [] },
+          context: { marketId },
         },
       },
       query: `#graphql
@@ -324,8 +371,10 @@ export class SyncPriceListsToShopifyB2BCatalogsWorkflow extends WorkflowBase {
       throw new Error('catalogCreate: missing catalog ID');
     }
 
-    this.logger.log(`Created catalog "${name}": ${catRes.catalog.id}`);
-    return { catalogId: catRes.catalog.id, priceListId };
+    this.logger.log(
+      `Created catalog for market "${name}": ${catRes.catalog.id}`,
+    );
+    return { marketId, catalogId: catRes.catalog.id, priceListId };
   }
 
   private async findOrCreatePriceList(name: string) {
