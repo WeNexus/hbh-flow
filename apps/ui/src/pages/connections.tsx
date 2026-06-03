@@ -214,8 +214,8 @@ export function Connections() {
 
       result[id] = [];
 
-      if (item.connectedBy) {
-        if (item.provider.type === 'oauth2' && !item.working) {
+      if (item.provider.type === 'oauth2') {
+        if (item.connectedBy) {
           result[id].push({
             label: 'Disconnect',
             onClick: disconnect,
@@ -223,9 +223,9 @@ export function Connections() {
             ctx: item,
           });
         }
-      } else if (item.provider.type === 'oauth2') {
+
         result[id].push({
-          label: 'Connect',
+          label: item.connectedBy ? 'Reconnect' : 'Connect',
           onClick: connect,
           icon: <PowerIcon />,
           ctx: item,
