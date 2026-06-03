@@ -288,6 +288,10 @@ export class SyncPriceListsToShopifyB2BCatalogsWorkflow extends WorkflowBase {
               priceListId: catalog.priceList.id,
             };
           }
+          if (catalog?.id) {
+            // Market + catalog exist but catalog has no price list yet
+            return this.ensurePriceListOnCatalog(name, node.id, catalog.id, undefined);
+          }
           // Market exists but has no catalog yet
           return this.createCatalogForMarket(name, node.id);
         }
@@ -336,6 +340,18 @@ export class SyncPriceListsToShopifyB2BCatalogsWorkflow extends WorkflowBase {
     name: string,
     marketId: string,
   ): Promise<CatalogMapping> {
+    // Check globally before creating to avoid "Title has already been taken"
+    const existing = await this.findCatalogByTitle(name);
+    if (existing) {
+      this.logger.log(`Found existing catalog "${name}": ${existing.id}`);
+      return this.ensurePriceListOnCatalog(
+        name,
+        marketId,
+        existing.id,
+        existing.priceListId,
+      );
+    }
+
     const priceListId = await this.findOrCreatePriceList(name);
 
     const catRes = await this.shopify2.gql<{
@@ -375,6 +391,88 @@ export class SyncPriceListsToShopifyB2BCatalogsWorkflow extends WorkflowBase {
       `Created catalog for market "${name}": ${catRes.catalog.id}`,
     );
     return { marketId, catalogId: catRes.catalog.id, priceListId };
+  }
+
+  private async ensurePriceListOnCatalog(
+    name: string,
+    marketId: string,
+    catalogId: string,
+    existingPriceListId: string | undefined,
+  ): Promise<CatalogMapping> {
+    const priceListId =
+      existingPriceListId ?? (await this.findOrCreatePriceList(name));
+
+    if (!existingPriceListId) {
+      const updateRes = await this.shopify2.gql<{
+        catalog: { id: string } | null;
+        userErrors: { field: string[]; message: string; code: string }[];
+      }>({
+        connection: this.shopifyConnection,
+        root: 'catalogUpdate',
+        variables: { id: catalogId, input: { priceListId } },
+        query: `#graphql
+          mutation ($id: ID!, $input: CatalogUpdateInput!) {
+            catalogUpdate(id: $id, input: $input) {
+              catalog { id }
+              userErrors { field message code }
+            }
+          }
+        `,
+      });
+
+      if (updateRes.userErrors?.length) {
+        this.logger.warn(
+          `catalogUpdate: ${updateRes.userErrors.map((e) => e.message).join(', ')}`,
+        );
+      }
+    }
+
+    return { marketId, catalogId, priceListId };
+  }
+
+  private async findCatalogByTitle(
+    title: string,
+  ): Promise<{ id: string; priceListId?: string } | null> {
+    let after: string | null = null;
+
+    for (;;) {
+      const res = await this.shopify2.gql<{
+        nodes: Array<{
+          id: string;
+          title: string;
+          priceList?: { id: string } | null;
+        }>;
+        pageInfo: { hasNextPage: boolean; endCursor?: string | null };
+      }>({
+        connection: this.shopifyConnection,
+        root: 'catalogs',
+        variables: { first: 250, after },
+        query: `#graphql
+          query ($first: Int!, $after: String) {
+            catalogs(first: $first, after: $after) {
+              nodes {
+                id
+                title
+                priceList { id }
+              }
+              pageInfo { hasNextPage endCursor }
+            }
+          }
+        `,
+      });
+
+      for (const node of res?.nodes ?? []) {
+        if (node.title === title) {
+          return { id: node.id, priceListId: node.priceList?.id };
+        }
+      }
+
+      if (!res?.pageInfo?.hasNextPage) break;
+      after = res.pageInfo.endCursor ?? null;
+      if (!after) break;
+    }
+
+    return null;
   }
 
   private async findOrCreatePriceList(name: string) {
