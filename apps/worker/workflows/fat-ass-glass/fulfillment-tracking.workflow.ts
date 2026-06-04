@@ -57,7 +57,7 @@ export class FatAssGlassHBHFulfillmentTrackingWorkflow extends WorkflowBase<
       );
     }
 
-    const ref = salesOrder.reference_number.match(/#\d{1,}/)?.[0]?.trim();
+    const ref = this.extractOrderNumber(salesOrder.reference_number);
 
     if (!ref) {
       throw new Error(
@@ -175,6 +175,16 @@ export class FatAssGlassHBHFulfillmentTrackingWorkflow extends WorkflowBase<
         },
       },
     });
+  }
+
+  extractOrderNumber(reference: string): string | null {
+    // Try to find digits after an optional # with optional surrounding spaces
+    const match = reference.match(/#\s*(\d+)/);
+    if (match) return match[1];
+
+    // Fallback: grab any standalone number (e.g. "FGC 33382")
+    const fallback = reference.match(/(?<![#\d])(\d+)(?!\d)/);
+    return fallback?.[1] ?? null;
   }
 }
 
