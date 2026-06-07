@@ -1,5 +1,6 @@
 import { ApexTradingService } from '#lib/apex-trading/apex-trading.service';
 import { WorkflowService } from '#lib/workflow/workflow.service';
+import { usStates, caStates } from '#lib/core/misc/locations';
 import { isUndefined, keyBy, omitBy, uniq } from 'lodash-es';
 import { PaginatedResponse } from '#lib/apex-trading/types';
 import { Step, Workflow } from '#lib/workflow/decorators';
@@ -72,14 +73,14 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
     return objects.length === 0
       ? {
-          object: null as T | null,
-          ref,
-          match: {
-            matched: [],
-            mismatched: [],
-            percentage: 0,
-          },
-        }
+        object: null as T | null,
+        ref,
+        match: {
+          matched: [],
+          mismatched: [],
+          percentage: 0,
+        },
+      }
       : map[0];
   }
 
@@ -186,6 +187,47 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
     }
 
     return null;
+  }
+
+  formatUSPhone(input: string | null | undefined): string {
+    if (input == null) {
+      throw new Error("Phone number must not be null or undefined");
+    }
+
+    let normalized = input.trim();
+
+    // Strip tel: URI scheme — e.g. "tel:+13013571005"
+    normalized = normalized.replace(/^tel:/i, "");
+
+    // Strip trailing extension — e.g. "ext. 4", "x123", "#5"
+    normalized = normalized.replace(/\s*(ext\.?|x|#)\s*\d+$/i, "");
+
+    // Keep only digits
+    const digits = normalized.replace(/\D/g, "");
+
+    // Normalise country-code prefix variants
+    let local: string;
+    if (digits.length === 13 && digits.startsWith("001")) {
+      local = digits.slice(3);         // 001-XXX-XXX-XXXX
+    } else if (digits.length === 11 && digits.startsWith("1")) {
+      local = digits.slice(1);         // 1XXXXXXXXXX  or  +1XXXXXXXXXX
+    } else if (digits.length === 10) {
+      local = digits;                  // bare 10-digit
+    } else {
+      throw new Error(`Invalid US phone number: "${input}"`);
+    }
+
+    // NANP structural rules:
+    //   Area code  — first digit must be 2–9
+    //   Exchange   — first digit must be 2–9
+    if (!/^[2-9]/.test(local)) {
+      throw new Error(`Invalid US area code in: "${input}"`);
+    }
+    if (!/^[2-9]/.test(local.slice(3))) {
+      throw new Error(`Invalid US exchange code in: "${input}"`);
+    }
+
+    return `+1-${local}`;
   }
 
   @Step(1)
@@ -336,12 +378,6 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
               },
               Customer_Type: 'business',
               Email: email,
-              Phone: order.buyer_contact_phone,
-              Shipping_City: order.ship_city,
-              Shipping_State: order.ship_state,
-              Shipping_Country: order.ship_country,
-              Shipping_Code: order.ship_zip,
-              Shipping_Street: `${order.ship_line_one ? (order.ship_line_one ? order.ship_line_two + ', ' : order.ship_line_two) : ''}${order.ship_line_two}`,
             },
           ],
         },
@@ -391,6 +427,8 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         ReturnType<ApexTradingOrderSyncWorkflow['ensureCRMAccount']>
       >('ensureCRMAccount'))!;
 
+    const orders = (await this.getResult<Order[]>('fetchOrders'))!;
+
     const results: {
       orderId: number;
       contact: Record<string, any>;
@@ -401,6 +439,72 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         crmAccount.accountId,
         'account',
       );
+
+      await new Promise((r) => setTimeout(r, 5000));
+
+      if (crmAccount.created) {
+        const {
+          data: { contact },
+        } = await this.zohoService.get(
+          `/inventory/v1/contacts/${inventoryAccount.contact_id}`,
+          {
+            connection: 'hbh',
+            params: {
+              organization_id: '776003162',
+            },
+          },
+        );
+
+        const order = orders.find((o) => o.id === crmAccount.orderId)!;
+
+        const shippingAddress = omitBy(
+          {
+            attention: order.ship_name,
+            city: order.ship_city,
+            country: order.ship_country === 'US' ? 'U.S.A' : order.ship_country === 'CA' ? 'Canada' : order.ship_country,
+            zip: order.ship_zip,
+            state: (order.ship_country === 'US' ? usStates : order.ship_country === 'CA' ? caStates : { [order.ship_state]: order.ship_state })[order.ship_state],
+            address:
+              !order.ship_line_one ||
+                order.ship_line_one === 'null' ||
+                order.ship_line_one.trim() === '' ||
+                order.ship_line_one.trim() === '.'
+                ? undefined
+                : order.ship_line_one,
+            street2:
+              !order.ship_line_two ||
+                order.ship_line_two === 'null' ||
+                order.ship_line_two.trim() === '' ||
+                order.ship_line_two.trim() === '.'
+                ? undefined
+                : order.ship_line_two,
+            phone: this.formatUSPhone(order.buyer_contact_phone),
+          },
+          isUndefined,
+        );
+
+        await this.zohoService.put(
+          `/inventory/v1/contacts/${contact.contact_id}/address/${contact.shipping_address.address_id}`,
+          shippingAddress,
+          {
+            connection: 'hbh',
+            params: {
+              organization_id: '776003162',
+            },
+          },
+        );
+
+        await this.zohoService.put(
+          `/inventory/v1/contacts/${contact.contact_id}/address/${contact.billing_address.address_id}`,
+          shippingAddress,
+          {
+            connection: 'hbh',
+            params: {
+              organization_id: '776003162',
+            },
+          },
+        );
+      }
 
       const {
         data: { contact },
@@ -494,24 +598,24 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         {
           attention: order.ship_name,
           city: order.ship_city,
-          country_code: order.ship_country,
+          country: order.ship_country === 'US' ? 'U.S.A' : order.ship_country === 'CA' ? 'Canada' : order.ship_country,
           zip: order.ship_zip,
-          state: order.ship_state,
+          state: (order.ship_country === 'US' ? usStates : order.ship_country === 'CA' ? caStates : { [order.ship_state]: order.ship_state })[order.ship_state],
           address:
             !order.ship_line_one ||
-            order.ship_line_one === 'null' ||
-            order.ship_line_one.trim() === '' ||
-            order.ship_line_one.trim() === '.'
+              order.ship_line_one === 'null' ||
+              order.ship_line_one.trim() === '' ||
+              order.ship_line_one.trim() === '.'
               ? undefined
               : order.ship_line_one,
           street2:
             !order.ship_line_two ||
-            order.ship_line_two === 'null' ||
-            order.ship_line_two.trim() === '' ||
-            order.ship_line_two.trim() === '.'
+              order.ship_line_two === 'null' ||
+              order.ship_line_two.trim() === '' ||
+              order.ship_line_two.trim() === '.'
               ? undefined
               : order.ship_line_two,
-          phone: order.buyer_contact_phone,
+          phone: this.formatUSPhone(order.buyer_contact_phone),
         },
         isUndefined,
       );
@@ -542,27 +646,10 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
           },
         ];
 
-        const countries = await this.mongo
-          .db('hbh')
-          .collection('inventory_countries')
-          .find({
-            code: {
-              $in: addressesToCreate.map((a) => a.source.country_code),
-            },
-          })
-          .toArray();
-
         for (const address of addressesToCreate) {
-          const country = countries.find(
-            (c) => c.code === address.source.country_code,
-          );
-
           const { data: response } = await this.zohoService.post(
             `/inventory/v1/contacts/${customer.contact_id}/address`,
-            {
-              ...address.source,
-              country: country?.id,
-            },
+            address.source,
             {
               connection: 'hbh',
               params: {
@@ -677,8 +764,8 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
       const billingAddressId = !customer.billing_address
         ? shippingAddressesId
         : !customer.billing_address.address &&
-            !customer.billing_address.country_code &&
-            !customer.billing_address.state_code
+          !customer.billing_address.country_code &&
+          !customer.billing_address.state_code
           ? shippingAddressesId
           : customer.billing_address.address_id;
 
