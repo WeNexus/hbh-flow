@@ -494,9 +494,35 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
           },
         );
 
+        await new Promise((r) => setTimeout(r, 2000));
+
         await this.zohoService.put(
           `/inventory/v1/contacts/${contact.contact_id}/address/${contact.billing_address.address_id}`,
           shippingAddress,
+          {
+            connection: 'hbh',
+            params: {
+              organization_id: '776003162',
+            },
+          },
+        );
+
+        await new Promise((r) => setTimeout(r, 2000));
+
+        await this.zohoService.put(
+          `/inventory/v1/contacts/${contact.contact_id}`,
+          {
+            "contact_name": contact.contact_name,
+            "company_name": contact.company_name,
+            "contact_type": "customer",
+            "payment_terms": 0,
+            "payment_terms_label": "Due on Receipt",
+            "payment_terms_id": "3195387000214997001",
+            "is_taxable": false,
+            "tax_authority_name": "Business Wholesale",
+            "tax_exemption_code": "BUSINESS",
+            "customer_sub_type": "business",
+          },
           {
             connection: 'hbh',
             params: {
