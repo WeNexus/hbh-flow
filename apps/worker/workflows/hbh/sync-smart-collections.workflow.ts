@@ -79,11 +79,11 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
     {
       id: 'smokeand-vape-wholesale',
       provider: 'shopify',
-    },
+    },/* 
     {
       id: 'canna-devices',
       provider: 'shopify2',
-    },
+    }, */
     // 'a13distro',
   ];
 
