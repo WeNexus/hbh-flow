@@ -67,7 +67,7 @@ export class FatAssGlassHBHFulfillmentTrackingWorkflow extends WorkflowBase<
 
     const query = `#graphql 
     query {
-      orders(first: 1, query: "name:${ref}") {
+      orders(first: 1, query: "name:${ref}", sortKey: ID, reverse: true) {
         edges {
           node {
             id
