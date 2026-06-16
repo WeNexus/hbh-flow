@@ -57,6 +57,13 @@ export class FatAssGlassHBHFulfillmentTrackingWorkflow extends WorkflowBase<
       );
     }
 
+
+    const customField = salesOrder.custom_fields.find(cf => cf.api_name === 'cf_shopify_order_id');
+
+    if (customField) {
+      return `gid://shopify/Order/${customField.value}`;
+    }
+
     const ref = this.extractOrderNumber(salesOrder.reference_number);
 
     if (!ref) {
