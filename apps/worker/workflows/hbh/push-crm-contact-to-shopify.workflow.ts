@@ -1,4 +1,5 @@
 import { Shopify2Service } from '#lib/shopify/shopify2.service';
+import { ShopifyService } from '#lib/shopify/shopify.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { ZohoService } from '#lib/zoho/zoho.service';
 import { WorkflowBase } from '#lib/workflow/misc';
@@ -7,10 +8,12 @@ import { Logger } from '@nestjs/common';
 @Workflow({
   webhook: true,
   name: 'HBH - Push CRM Contact to CannaDevices (Shopify)',
+  concurrency: 1,
 })
 export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
   constructor(
-    private readonly shopifyService: Shopify2Service,
+    private readonly shopify2Service: Shopify2Service,
+    private readonly shopifyService: ShopifyService,
     private readonly zohoService: ZohoService,
   ) {
     super();
@@ -36,19 +39,24 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
 
     let customer;
     let company;
+    let market;
 
     if (!customerId) {
-      const customers = await this.shopifyService.gql({
+      const customers = await this.shopify2Service.gql({
         query: `#graphql
         query {
           customers(first: 1, query: "email:${contact.Email}") {
-            edges {
-              node {
-                id
-                companyContactProfiles {
-                  company {
-                    id
-                    name
+            nodes {
+              id
+              companyContactProfiles {
+                company {
+                  id
+                  name
+
+                  locations(first: 100) {
+                    nodes {
+                      id
+                    }
                   }
                 }
               }
@@ -60,13 +68,13 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
         root: 'customers',
       });
 
-      customer = customers.edges[0]?.node;
+      customer = customers.nodes[0];
     } else {
       if (customerId.startsWith('gid://shopify/Customer')) {
         customerId = customerId.split('/').pop();
       }
 
-      customer = await this.shopifyService.gql({
+      customer = await this.shopify2Service.gql({
         query: `#graphql
         query ($id: ID!) {
           customer(id: $id) {
@@ -75,6 +83,12 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
               company {
                 id
                 name
+                
+                locations(first: 100) {
+                  nodes {
+                    id
+                  }
+                }
               }
             }
           }
@@ -89,19 +103,23 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     }
 
     const associatedCompany = customer?.companyContactProfiles?.find(
-      (p) => p.company.name === account.Account_Name.name,
+      (p) => p.company.name === account.Account_Name,
     );
 
     if (associatedCompany) {
       company = associatedCompany.company;
     } else if (!companyId) {
-      const companies = await this.shopifyService.gql({
+      const companies = await this.shopify2Service.gql({
         query: `#graphql
         query {
-          companies(first: 1, query: "name:${account.Account_Name.name}") {
-            edges {
-              node {
-                id
+          companies(first: 1, query: "name:${account.Account_Name}") {
+            nodes {
+              id
+              
+              locations(first: 100) {
+                nodes {
+                  id
+                }
               }
             }
           }
@@ -111,17 +129,23 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
         root: 'companies',
       });
 
-      company = companies.edges[0]?.node;
+      company = companies.nodes[0];
     } else {
       if (companyId.startsWith('gid://shopify/Company')) {
         companyId = companyId.split('/').pop();
       }
 
-      company = await this.shopifyService.gql({
+      company = await this.shopify2Service.gql({
         query: `#graphql
         query ($id: ID!) {
           company(id: $id) {
             id
+            
+            locations(first: 100) {
+              nodes {
+                id
+              }
+            }
           }
         }
         `,
@@ -133,25 +157,47 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       });
     }
 
+    const priceList = (account.Price_List || account.Customer_Group)
+      ?.trim()
+      .replace('Teir', 'Tier');
+
+    if (priceList) {
+      const markets = await this.shopify2Service.gql({
+        query: `#graphql
+        query {
+          markets(first: 1, type: COMPANY_LOCATION, query: "name:${priceList}") {
+            nodes {
+              id
+            }
+          }
+        }
+        `,
+        connection: 'canna-devices',
+        root: 'markets',
+      });
+
+      market = markets.nodes[0];
+    }
+
     return {
       account,
       contact,
       company,
       customer,
+      market,
       companyAssociated: !!associatedCompany,
     };
   }
 
   @Step(2)
   async createCustomer() {
-    const { account, contact, customer, company, companyAssociated } =
+    const { account, contact, customer, company, market, companyAssociated } =
       await this.getResult('fetchData');
 
-    let associationResult: Record<string, any> | undefined = undefined;
+    let contactAssignmentResult: Record<string, any> | undefined = undefined;
     let customerResult: Record<string, any> | undefined = undefined;
     let companyResult: Record<string, any> | undefined = undefined;
-
-    this.logger.log(account, contact, customer, company, companyAssociated);
+    const marketUpdateResults: Record<string, any>[] = [];
 
     if (!company) {
       const mutation = `#graphql
@@ -168,14 +214,14 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       }
       `;
 
-      companyResult = await this.shopifyService.gql({
+      companyResult = await this.shopify2Service.gql({
         query: mutation,
         connection: 'canna-devices',
         root: 'companyCreate',
         variables: {
           input: {
             company: {
-              name: account.Account_Name.name,
+              name: account.Account_Name,
               externalId: account.id,
             },
           },
@@ -184,8 +230,6 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     } else {
       // TODO: Update company if needed
     }
-
-    this.logger.log('companyResult', companyResult);
 
     const companyId = (companyResult?.company?.id ?? company.id)
       .split('/')
@@ -206,7 +250,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       }
       `;
 
-      customerResult = await this.shopifyService.gql({
+      customerResult = await this.shopify2Service.gql({
         query: mutation,
         connection: 'canna-devices',
         root: 'customerCreate',
@@ -222,8 +266,6 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     } else {
       // TODO: Update customer if needed
     }
-
-    this.logger.log('customerResult', customerResult);
 
     const customerId = (customerResult?.customer?.id ?? customer.id)
       .split('/')
@@ -247,7 +289,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       }
       `;
 
-      associationResult = await this.shopifyService.gql({
+      contactAssignmentResult = await this.shopify2Service.gql({
         query: mutation,
         connection: 'canna-devices',
         root: 'companyAssignCustomerAsContact',
@@ -258,9 +300,100 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       });
     }
 
-    this.logger.log('associationResult', associationResult);
+    const lastMarketId = account.Shopify_Market_ID?.toString().trim();
+    const priceListRemoved = lastMarketId && !market;
+    const priceListAdded = !lastMarketId && market;
+    const priceListChanged =
+      lastMarketId && market && lastMarketId !== market.id.toString();
 
-    if (!account.CannaDevices_Shopify_ID) {
+    if (priceListRemoved || priceListChanged) {
+      const marketId = lastMarketId.startsWith('gid://shopify/Market')
+        ? lastMarketId
+        : `gid://shopify/Market/${lastMarketId}`;
+
+      const mutation = `#graphql
+      mutation ($marketId: ID!, $locationIds: [ID!]) {
+        marketUpdate(id: $marketId, input: { conditions: {
+          conditionsToDelete: {
+            companyLocationsCondition: {
+              applicationLevel: SPECIFIED,
+              companyLocationIds: $locationIds
+            }
+          }
+        } }) {
+          market {
+            id
+            name
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+      `;
+
+      const result = await this.shopify2Service.gql({
+        query: mutation,
+        connection: 'canna-devices',
+        root: 'marketUpdate',
+        variables: {
+          marketId,
+          locationIds: company.locations.nodes.map((l) => l.id),
+        },
+      });
+
+      marketUpdateResults.push({
+        action: 'remove',
+        result,
+      });
+    }
+
+    if (priceListAdded || priceListChanged) {
+      const mutation = `#graphql
+      mutation ($marketId: ID!, $locationIds: [ID!]) {
+        marketUpdate(id: $marketId, input: { conditions: {
+          conditionsToAdd: {
+            companyLocationsCondition: {
+              applicationLevel: SPECIFIED,
+              companyLocationIds: $locationIds
+            }
+          }
+        } }) {
+          market {
+            id
+            name
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+      `;
+
+      const result = await this.shopify2Service.gql({
+        query: mutation,
+        connection: 'canna-devices',
+        root: 'marketUpdate',
+        variables: {
+          marketId: market.id,
+          locationIds: company.locations.nodes.map((l) => l.id),
+        },
+      });
+
+      marketUpdateResults.push({
+        action: 'add',
+        result,
+      });
+    }
+
+    if (
+      !account.CannaDevices_Shopify_ID ||
+      priceListChanged ||
+      priceListRemoved ||
+      priceListAdded
+    ) {
       await this.zohoService.put(
         `/crm/v8/Accounts/${account.id}`,
         {
@@ -268,6 +401,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
             {
               id: account.id,
               CannaDevices_Shopify_ID: companyId,
+              Shopify_Market_ID: market?.id.split('/').pop() || null,
             },
           ],
         },
@@ -313,6 +447,11 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       );
     }
 
-    return [companyResult, customerResult, associationResult];
+    return [
+      companyResult,
+      customerResult,
+      contactAssignmentResult,
+      marketUpdateResults,
+    ];
   }
 }
