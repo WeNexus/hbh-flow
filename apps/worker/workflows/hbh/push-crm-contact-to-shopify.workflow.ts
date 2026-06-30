@@ -2,7 +2,7 @@ import { Shopify2Service } from '#lib/shopify/shopify2.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { ZohoService } from '#lib/zoho/zoho.service';
 import { WorkflowBase } from '#lib/workflow/misc';
-import { LoggerService } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 
 @Workflow({
   webhook: true,
@@ -16,7 +16,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     super();
   }
 
-  private logger = new LoggerService(PushCrmContactToShopifyWorkflow.name);
+  private logger = new Logger(PushCrmContactToShopifyWorkflow.name);
 
   @Step(1)
   async fetchData() {
@@ -147,9 +147,9 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     const { account, contact, customer, company, companyAssociated } =
       await this.getResult('fetchData');
 
-    let associationResult: Record<string, any>;
-    let customerResult: Record<string, any>;
-    let companyResult: Record<string, any>;
+    let associationResult: Record<string, any> | undefined = undefined;
+    let customerResult: Record<string, any> | undefined = undefined;
+    let companyResult: Record<string, any> | undefined = undefined;
 
     this.logger.log(account, contact, customer, company, companyAssociated);
 
