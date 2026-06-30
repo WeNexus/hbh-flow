@@ -169,7 +169,10 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
         root: 'companyCreate',
         variables: {
           input: {
-            name: `${account.Account_Name}`,
+            company: {
+              name: account.Account_Name.name,
+              externalId: account.id,
+            },
           },
         },
       });
