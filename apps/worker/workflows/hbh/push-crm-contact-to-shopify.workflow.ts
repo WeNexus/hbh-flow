@@ -2,6 +2,7 @@ import { Shopify2Service } from '#lib/shopify/shopify2.service';
 import { Step, Workflow } from '#lib/workflow/decorators';
 import { ZohoService } from '#lib/zoho/zoho.service';
 import { WorkflowBase } from '#lib/workflow/misc';
+import { LoggerService } from '@nestjs/common';
 
 @Workflow({
   webhook: true,
@@ -14,6 +15,8 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
   ) {
     super();
   }
+
+  private logger = new LoggerService(PushCrmContactToShopifyWorkflow.name);
 
   @Step(1)
   async fetchData() {
@@ -148,6 +151,8 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     let customerResult: Record<string, any>;
     let companyResult: Record<string, any>;
 
+    this.logger.log(account, contact, customer, company, companyAssociated);
+
     if (!company) {
       const mutation = `#graphql
       mutation ($input: CompanyCreateInput!) {
@@ -179,6 +184,8 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     } else {
       // TODO: Update company if needed
     }
+
+    this.logger.log('companyResult', companyResult);
 
     const companyId = (companyResult?.company?.id ?? company.id)
       .split('/')
@@ -216,6 +223,8 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       // TODO: Update customer if needed
     }
 
+    this.logger.log('customerResult', customerResult);
+
     const customerId = (customerResult?.customer?.id ?? customer.id)
       .split('/')
       .pop();
@@ -248,6 +257,8 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
         },
       });
     }
+
+    this.logger.log('associationResult', associationResult);
 
     if (!account.CannaDevices_Shopify_ID) {
       await this.zohoService.put(
