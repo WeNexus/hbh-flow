@@ -53,6 +53,8 @@
       "#lib/duoplane/*": ["libs/duoplane/*"],
       "#lib/leaftrade": ["libs/leaftrade"],
       "#lib/leaftrade/*": ["libs/leaftrade/*"],
+      "#lib/leaflink": ["libs/leaflink"],
+      "#lib/leaflink/*": ["libs/leaflink/*"],
       "#lib/orderdesk": ["libs/orderdesk"],
       "#lib/orderdesk/*": ["libs/orderdesk/*"],
       "#lib/apex-trading": ["libs/apex-trading"],

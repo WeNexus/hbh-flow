@@ -9,6 +9,7 @@ import { PrismaExtensionRedis } from '#lib/core/misc/prisma-cache';
 import { OrderDeskModule } from '#lib/orderdesk/order-desk.module';
 import { FujimausaModule } from '#lib/fujimausa/fujimausa.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { LeafLinkModule } from '#lib/leaflink/leaf-link.module';
 import { DuoplaneModule } from '#lib/duoplane/duoplane.module';
 import { FlodeskModule } from '#lib/flodesk/flodesk.module';
 import { ShopifyModule } from '#lib/shopify/shopify.module';
@@ -119,6 +120,7 @@ export async function bootstrap(
       FujimausaModule,
       BigCommerceModule,
       LeafTradeModule,
+      LeafLinkModule,
       OrderDeskModule,
       LlmModule,
       FlodeskModule,
@@ -202,6 +204,7 @@ export async function bootstrap(
       HubModule,
       ZohoModule,
       LeafTradeModule,
+      LeafLinkModule,
       OrderDeskModule,
       GlobalEventService,
       ActivityService,
