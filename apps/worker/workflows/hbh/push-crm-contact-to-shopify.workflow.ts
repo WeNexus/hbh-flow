@@ -85,7 +85,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       });
     }
 
-    const associatedCompany = customer.companyContactProfiles?.find(
+    const associatedCompany = customer?.companyContactProfiles?.find(
       (p) => p.company.name === account.Account_Name.name,
     );
 
