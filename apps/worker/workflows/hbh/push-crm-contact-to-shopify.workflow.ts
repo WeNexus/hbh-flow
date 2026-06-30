@@ -161,11 +161,18 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       ?.trim()
       .replace('Teir', 'Tier');
 
-    if (priceList) {
+    this.logger.log(priceList);
+
+    if (
+      priceList &&
+      priceList !== 'NA' &&
+      priceList !== 'N/A' &&
+      priceList !== 'None'
+    ) {
       const markets = await this.shopify2Service.gql({
         query: `#graphql
         query {
-          markets(first: 1, type: COMPANY_LOCATION, query: "name:${priceList}") {
+          markets(first: 1, query: "name:'${priceList}'") {
             nodes {
               id
             }
