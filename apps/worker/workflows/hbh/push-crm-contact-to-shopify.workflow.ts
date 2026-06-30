@@ -313,21 +313,23 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     const priceListChanged =
       lastMarketId && market && lastMarketId !== market.id.toString();
 
-    if (priceListRemoved || priceListChanged) {
+    /*if (priceListRemoved || priceListChanged) {
       const marketId = lastMarketId.startsWith('gid://shopify/Market')
         ? lastMarketId
         : `gid://shopify/Market/${lastMarketId}`;
 
       const mutation = `#graphql
       mutation ($marketId: ID!, $locationIds: [ID!]) {
-        marketUpdate(id: $marketId, input: { conditions: {
-          conditionsToDelete: {
-            companyLocationsCondition: {
-              applicationLevel: SPECIFIED,
-              companyLocationIds: $locationIds
+        marketUpdate(id: $marketId, input: {
+          conditions: {
+            conditionsToDelete: {
+              companyLocationsCondition: {
+                applicationLevel: SPECIFIED,
+                companyLocationIds: $locationIds
+              }
             }
           }
-        } }) {
+        }) {
           market {
             id
             name
@@ -359,14 +361,16 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     if (priceListAdded || priceListChanged) {
       const mutation = `#graphql
       mutation ($marketId: ID!, $locationIds: [ID!]) {
-        marketUpdate(id: $marketId, input: { conditions: {
-          conditionsToAdd: {
-            companyLocationsCondition: {
-              applicationLevel: SPECIFIED,
-              companyLocationIds: $locationIds
+        marketUpdate(id: $marketId, input: {
+          conditions: {
+            conditionsToAdd: {
+              companyLocationsCondition: {
+                applicationLevel: SPECIFIED,
+                companyLocationIds: $locationIds
+              }
             }
           }
-        } }) {
+        }) {
           market {
             id
             name
@@ -393,7 +397,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
         action: 'add',
         result,
       });
-    }
+    }*/
 
     if (
       !account.CannaDevices_Shopify_ID ||
