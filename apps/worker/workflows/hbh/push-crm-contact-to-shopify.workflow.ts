@@ -183,9 +183,6 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     const companyId = (companyResult?.company?.id ?? company.id)
       .split('/')
       .pop();
-    const customerId = (customerResult?.customer?.id ?? customer.id)
-      .split('/')
-      .pop();
 
     if (!customer) {
       const mutation = `#graphql
@@ -218,6 +215,10 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     } else {
       // TODO: Update customer if needed
     }
+
+    const customerId = (customerResult?.customer?.id ?? customer.id)
+      .split('/')
+      .pop();
 
     if (!companyAssociated) {
       const mutation = `#graphql
