@@ -8,6 +8,7 @@ import { Logger } from '@nestjs/common';
 import * as readline from 'node:readline';
 import axios from 'axios';
 import {
+  BulkOp,
   CANNA_NEW_CONNECTION,
   CANNA_OLD_CONNECTION,
   LOCATION_EXTERNAL_ID_PREFIX,
@@ -16,12 +17,15 @@ import {
   MF_KEY_MARKET_ID,
   MF_NAMESPACE,
   MarketRef,
-  TIER_MARKET_NAMES,
-  fetchMarketsByName,
+  fetchMarketsByTierKey,
   gidNumericId,
+  marketUpdateCompanyLocations,
+  pollBulkOperation,
   resolveTierName,
   setMetafields,
-  syncMarketCompanyLocations,
+  startBulkQuery,
+  streamBulkJsonl,
+  tierKey,
   toCompanyAddressInput,
 } from './cannadevices-b2b.util';
 
@@ -166,7 +170,9 @@ interface TaskDoc {
  *   7. processTasks            — reconcile company + locations + customer +
  *                                metafields, write Shopify ids back to CRM
  *                                (batched, resumable)
- *   8. syncMarketConditions    — rebuild each tier market's company-location set
+ *   8-10. startMarketExport / pollMarketExport / applyMarketConditions —
+ *         bulk-export every company location's market_id, group by market, and
+ *         replace each market's company-location condition
  *
  * Runnable manually (no automatic trigger). Idempotent / re-runnable.
  */
@@ -548,17 +554,11 @@ export class MigrateOldCannaDevicesCustomersToNewWorkflow extends WorkflowBase<M
   }
 
   // ---------------------------------------------------------------------------
-  // Step 6 — resolve tier names to Shopify markets
+  // Step 6 — resolve markets keyed by canonical tier key (Teir/Tier tolerant)
   // ---------------------------------------------------------------------------
   @Step(6)
   async resolveMarkets(): Promise<Record<string, MarketRef>> {
-    const byName = await fetchMarketsByName(this.shopify2Service);
-    const tiers: Record<string, MarketRef> = {};
-    for (const name of TIER_MARKET_NAMES) {
-      if (byName[name]) tiers[name] = byName[name];
-      else this.logger.warn(`No Shopify market found for tier "${name}"`);
-    }
-    return tiers;
+    return fetchMarketsByTierKey(this.shopify2Service);
   }
 
   // ---------------------------------------------------------------------------
@@ -656,33 +656,105 @@ export class MigrateOldCannaDevicesCustomersToNewWorkflow extends WorkflowBase<M
   }
 
   // ---------------------------------------------------------------------------
-  // Step 8 — rebuild each tier market's company-location membership
+  // Step 8 — start a bulk export of every company location's market_id metafield
   // ---------------------------------------------------------------------------
   @Step(8)
-  async syncMarketConditions() {
-    if (this.payload?.dryRun) return { skipped: 'dryRun' };
+  async startMarketExport(): Promise<BulkOp | null> {
+    if (this.payload?.dryRun) return null;
 
-    const markets =
-      (await this.getResult<Record<string, MarketRef>>('resolveMarkets')) ?? {};
+    // One bulk query for the whole store; each location carries its market_id
+    // metafield value so we can group by market and replace each market's set.
+    const op = await startBulkQuery(
+      this.shopify2Service,
+      `{
+        companyLocations {
+          edges {
+            node {
+              id
+              metafield(namespace: "${MF_NAMESPACE}", key: "${MF_KEY_MARKET_ID}") {
+                value
+              }
+            }
+          }
+        }
+      }`,
+    );
+    this.delay(5000);
+    return op;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Step 9 — poll the market export, re-running until it completes
+  // ---------------------------------------------------------------------------
+  @Step(9)
+  async pollMarketExport(): Promise<BulkOp | null> {
+    const op = await this.getResult<BulkOp | null>('startMarketExport');
+    if (!op?.id) return null;
+
+    const node = await pollBulkOperation(this.shopify2Service, op.id);
+    if (!node) throw new Error('Bulk operation not found');
+
+    if (['CREATED', 'RUNNING', 'CANCELING'].includes(node.status)) {
+      this.rerun(5000);
+      return node;
+    }
+    if (['FAILED', 'CANCELED', 'EXPIRED'].includes(node.status)) {
+      throw new Error(
+        `Market export ${node.status} (errorCode: ${node.errorCode})`,
+      );
+    }
+
+    this.logger.log(
+      `Market export completed: ${node.objectCount ?? '?'} objects.`,
+    );
+    return node;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Step 10 — group locations by market_id and replace each market's condition
+  // ---------------------------------------------------------------------------
+  @Step(10)
+  async applyMarketConditions() {
+    const node = await this.getResult<BulkOp | null>('pollMarketExport');
+    if (!node?.url) {
+      this.logger.log('No market export data.');
+      return { markets: 0 };
+    }
+
+    // marketNumericId -> [company location gids]
+    const byMarket = new Map<string, string[]>();
+    await streamBulkJsonl(node.url, (obj) => {
+      const id: unknown = obj.id;
+      const marketId: unknown = obj.metafield?.value;
+      if (
+        typeof id === 'string' &&
+        id.startsWith('gid://shopify/CompanyLocation/') &&
+        typeof marketId === 'string' &&
+        marketId
+      ) {
+        const list = byMarket.get(marketId) ?? [];
+        list.push(id);
+        byMarket.set(marketId, list);
+      }
+    });
+
     const results: Array<{
-      name: string;
       marketId: string;
       count: number;
       skipped: boolean;
     }> = [];
-
-    for (const name of TIER_MARKET_NAMES) {
-      const market = markets[name];
-      if (!market) continue;
-      const r = await syncMarketCompanyLocations(this.shopify2Service, market);
-      this.logger.log(
-        `Market "${name}": ${r.skipped ? 'no tagged locations (skipped)' : `${r.count} locations`}`,
+    for (const [marketNumericId, ids] of byMarket) {
+      const result = await marketUpdateCompanyLocations(
+        this.shopify2Service,
+        `gid://shopify/Market/${marketNumericId}`,
+        ids,
       );
-      results.push({ name, ...r });
+      this.logger.log(`Market ${marketNumericId}: ${result.count} locations`);
+      results.push(result);
       await sleep(300);
     }
 
-    return results;
+    return { markets: results.length, results };
   }
 
   // ===========================================================================
@@ -696,7 +768,8 @@ export class MigrateOldCannaDevicesCustomersToNewWorkflow extends WorkflowBase<M
       Price_List: account.priceList,
       Customer_Group: account.customerGroup,
     });
-    const market = tierName ? (markets[tierName] ?? null) : null;
+    const key = tierKey(account.priceList || account.customerGroup);
+    const market = key ? (markets[key] ?? null) : null;
     if (tierName && !market) {
       this.logger.warn(
         `Task ${task._id}: tier "${tierName}" has no market; company will not be added to any market.`,

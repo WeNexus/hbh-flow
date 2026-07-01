@@ -4,8 +4,6 @@ import * as readline from 'node:readline';
 import { chunk } from 'lodash-es';
 import axios from 'axios';
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 /**
  * Shared helpers for the CannaDevices B2B (new Shopify store) integration.
  *
@@ -15,6 +13,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  *
  * Kept as standalone functions (not a Nest provider) so both workflows can
  * share the exact same Shopify B2B behaviour without duplication.
+ *
+ * NOTE: the Shopify bulk-operation flow (start -> poll -> download) is exposed
+ * as low-level building blocks here; the polling is driven by each workflow's
+ * steps via `this.rerun()` (same pattern as EastWestInventorySync), not by a
+ * blocking loop.
  */
 
 /** OAuth2 connection id for the NEW CannaDevices Shopify store (Shopify2Service). */
@@ -30,22 +33,6 @@ export const MF_KEY_CRM_CONTACT_ID = 'crm_contact_id';
 
 /** externalId prefix used on company locations migrated from the old store. */
 export const LOCATION_EXTERNAL_ID_PREFIX = 'old-addr:';
-
-/**
- * Canonical B2B price-list / market tier names. These must match the market
- * names created by SyncPriceListsToShopifyB2BCatalogsWorkflow.
- */
-export const TIER_MARKET_NAMES = [
-  'Master Distro Tier 1',
-  'Master Distro Tier 2',
-  'Master Distro Tier 3',
-  'Wholesale Tier 1',
-  'Wholesale Tier 2',
-  'Wholesale Tier 3',
-  'Wholesale Tier 4',
-  'Wholesale Tier 5',
-  'Wholesale Tier 6',
-];
 
 const logger = new Logger('CannaDevicesB2B');
 
@@ -65,6 +52,14 @@ export interface MetafieldInput {
   value: string;
 }
 
+export interface BulkOp {
+  id: string;
+  status: string;
+  url?: string | null;
+  errorCode?: string | null;
+  objectCount?: string | null;
+}
+
 /** Extract the numeric id from a Shopify GID (e.g. gid://shopify/Market/123 -> "123"). */
 export function gidNumericId(gid?: string | null): string | null {
   if (gid === null || gid === undefined) return null;
@@ -74,18 +69,27 @@ export function gidNumericId(gid?: string | null): string | null {
 }
 
 /**
- * Normalise a CRM account's price-list / customer-group value into a market
- * tier name, or null if the account has no B2B tier.
+ * Canonical tier key used to match a CRM tier to a Shopify market. Tolerant of
+ * the "Teir"/"Tier" typo (which exists in the CRM data and can't be fixed at
+ * the source), case, and extra whitespace. Returns null for no B2B tier.
  */
+export function tierKey(value?: string | null): string | null {
+  if (value === null || value === undefined) return null;
+  const raw = value.toString().trim();
+  if (!raw || ['NA', 'N/A', 'None', 'null', 'undefined'].includes(raw)) {
+    return null;
+  }
+  return raw.toLowerCase().replace(/teir/g, 'tier').replace(/\s+/g, ' ');
+}
+
+/** The account's tier display value (Price_List, falling back to Customer_Group). */
 export function resolveTierName(account: {
   Price_List?: string | null;
   Customer_Group?: string | null;
 }): string | null {
   const raw = (account?.Price_List || account?.Customer_Group)
     ?.toString()
-    .trim()
-    .replace('Teir', 'Tier');
-
+    .trim();
   if (!raw || ['NA', 'N/A', 'None', 'null', 'undefined'].includes(raw)) {
     return null;
   }
@@ -134,15 +138,21 @@ export async function fetchAllMarkets(
   return markets;
 }
 
-/** Build a name -> MarketRef map for quick tier lookups. */
-export async function fetchMarketsByName(
+/**
+ * Build a tierKey -> MarketRef map so a CRM tier can be matched to a market
+ * regardless of the "Teir"/"Tier" typo or casing on either side.
+ */
+export async function fetchMarketsByTierKey(
   shopify2: Shopify2Service,
   connection = CANNA_NEW_CONNECTION,
 ): Promise<Record<string, MarketRef>> {
   const markets = await fetchAllMarkets(shopify2, connection);
-  const byName: Record<string, MarketRef> = {};
-  for (const m of markets) byName[m.name] = m;
-  return byName;
+  const map: Record<string, MarketRef> = {};
+  for (const m of markets) {
+    const key = tierKey(m.name);
+    if (key) map[key] = m;
+  }
+  return map;
 }
 
 /** Set (create/update) metafields in batches of 25. Logs userErrors, never throws. */
@@ -178,41 +188,6 @@ export async function setMetafields(
     if (res?.userErrors?.length) {
       logger.warn(
         `metafieldsSet: ${res.userErrors.map((e) => e.message).join(', ')}`,
-      );
-    }
-  }
-}
-
-/** Delete metafields (used to untag a location's market_id). Never throws. */
-export async function deleteMetafields(
-  shopify2: Shopify2Service,
-  identifiers: { ownerId: string; namespace: string; key: string }[],
-  connection = CANNA_NEW_CONNECTION,
-): Promise<void> {
-  const clean = identifiers.filter((m) => m.ownerId);
-  if (!clean.length) return;
-
-  for (const batch of chunk(clean, 25)) {
-    const res = await shopify2.gql<{
-      deletedMetafields: { key: string }[] | null;
-      userErrors: { field: string[]; message: string }[];
-    }>({
-      connection,
-      root: 'metafieldsDelete',
-      variables: { metafields: batch },
-      query: `#graphql
-        mutation ($metafields: [MetafieldIdentifierInput!]!) {
-          metafieldsDelete(metafields: $metafields) {
-            deletedMetafields { key namespace ownerId }
-            userErrors { field message }
-          }
-        }
-      `,
-    });
-
-    if (res?.userErrors?.length) {
-      logger.warn(
-        `metafieldsDelete: ${res.userErrors.map((e) => e.message).join(', ')}`,
       );
     }
   }
@@ -258,90 +233,18 @@ export async function fetchCompanyLocationIds(
   return ids;
 }
 
-/**
- * Fetch every company location currently tagged with
- * `custom.market_id = <marketNumericId>`.
- */
-export async function fetchCompanyLocationIdsByMarketId(
+// ---------------------------------------------------------------------------
+// Bulk operations (start -> poll via rerun -> stream), same pattern as
+// EastWestInventorySync.
+// ---------------------------------------------------------------------------
+
+/** Start a bulk query. Returns the BulkOperation; throws on userErrors. */
+export async function startBulkQuery(
   shopify2: Shopify2Service,
-  marketNumericId: string,
-  connection = CANNA_NEW_CONNECTION,
-): Promise<string[]> {
-  const ids: string[] = [];
-  let after: string | null = null;
-
-  for (;;) {
-    const res = await shopify2.gql<{
-      nodes: Array<{ id: string }>;
-      pageInfo: { hasNextPage: boolean; endCursor?: string | null };
-    }>({
-      connection,
-      root: 'companyLocations',
-      variables: {
-        first: 250,
-        after,
-        query: `metafields.${MF_NAMESPACE}.${MF_KEY_MARKET_ID}:${marketNumericId}`,
-      },
-      query: `#graphql
-        query ($first: Int!, $after: String, $query: String!) {
-          companyLocations(first: $first, after: $after, query: $query) {
-            nodes { id }
-            pageInfo { hasNextPage endCursor }
-          }
-        }
-      `,
-    });
-
-    for (const node of res?.nodes ?? []) ids.push(node.id);
-
-    if (!res?.pageInfo?.hasNextPage) break;
-    after = res.pageInfo.endCursor ?? null;
-    if (!after) break;
-  }
-
-  return ids;
-}
-
-interface BulkOp {
-  id: string;
-  status: string;
-  url?: string | null;
-  errorCode?: string | null;
-}
-
-/** Wait until no bulk QUERY operation is in flight on the shop (one-at-a-time). */
-async function waitForBulkQuerySlot(
-  shopify2: Shopify2Service,
-  connection: string,
-): Promise<void> {
-  for (let i = 0; i < 300; i++) {
-    const cur = await shopify2.gql<BulkOp | null>({
-      connection,
-      root: 'currentBulkOperation',
-      query: `#graphql
-        query { currentBulkOperation(type: QUERY) { id status } }
-      `,
-    });
-    if (
-      !cur ||
-      ['COMPLETED', 'FAILED', 'CANCELED', 'EXPIRED'].includes(cur.status)
-    ) {
-      return;
-    }
-    await sleep(2000);
-  }
-  throw new Error('Timed out waiting for a free bulk-operation slot');
-}
-
-/** Run a bulk query to completion and return the JSONL result URL (null if empty). */
-async function runBulkQueryToUrl(
-  shopify2: Shopify2Service,
-  connection: string,
   query: string,
-): Promise<string | null> {
-  await waitForBulkQuerySlot(shopify2, connection);
-
-  const start = await shopify2.gql<{
+  connection = CANNA_NEW_CONNECTION,
+): Promise<BulkOp> {
+  const res = await shopify2.gql<{
     bulkOperation: BulkOp | null;
     userErrors: { code?: string; field: string[]; message: string }[];
   }>({
@@ -351,120 +254,77 @@ async function runBulkQueryToUrl(
     query: `#graphql
       mutation ($query: String!) {
         bulkOperationRunQuery(query: $query) {
-          bulkOperation { id status url }
+          bulkOperation { id status url errorCode objectCount }
           userErrors { code field message }
         }
       }
     `,
   });
 
-  if (start.userErrors?.length) {
+  if (res.userErrors?.length) {
     throw new Error(
-      `bulkOperationRunQuery: ${start.userErrors.map((e) => e.message).join(', ')}`,
+      `bulkOperationRunQuery: ${res.userErrors.map((e) => e.message).join(', ')}`,
     );
   }
-  let op = start.bulkOperation;
-  if (!op?.id) throw new Error('bulkOperationRunQuery: missing bulk operation');
-
-  for (let i = 0; i < 600; i++) {
-    if (op.status === 'COMPLETED') return op.url ?? null;
-    if (['FAILED', 'CANCELED', 'EXPIRED'].includes(op.status)) {
-      throw new Error(`bulk query ${op.status} (errorCode: ${op.errorCode})`);
-    }
-    await sleep(2000);
-    op = await shopify2.gql<BulkOp | null>({
-      connection,
-      root: 'node',
-      variables: { id: op.id },
-      query: `#graphql
-        query ($id: ID!) {
-          node(id: $id) {
-            ... on BulkOperation { id status url errorCode }
-          }
-        }
-      `,
-    });
-    if (!op) throw new Error('bulk query operation vanished');
+  if (!res.bulkOperation?.id) {
+    throw new Error('bulkOperationRunQuery: missing bulk operation');
   }
-  throw new Error('bulk query timed out');
+  return res.bulkOperation;
 }
 
-/**
- * Bulk-export every company location tagged with
- * `custom.market_id = <marketNumericId>`. Much faster than paginating for
- * markets with many members.
- */
-export async function bulkFetchCompanyLocationIdsByMarketId(
+/** Poll a bulk operation by id. Returns the node (or null if not found). */
+export async function pollBulkOperation(
   shopify2: Shopify2Service,
-  marketNumericId: string,
+  id: string,
   connection = CANNA_NEW_CONNECTION,
-): Promise<string[]> {
-  const url = await runBulkQueryToUrl(
-    shopify2,
+): Promise<BulkOp | null> {
+  return shopify2.gql<BulkOp | null>({
     connection,
-    `{
-      companyLocations(query: "metafields.${MF_NAMESPACE}.${MF_KEY_MARKET_ID}:${marketNumericId}") {
-        edges { node { id } }
+    root: 'node',
+    variables: { id },
+    query: `#graphql
+      query ($id: ID!) {
+        node(id: $id) {
+          ... on BulkOperation { id status url errorCode objectCount }
+        }
       }
-    }`,
-  );
-  if (!url) return [];
+    `,
+  });
+}
 
+/** Stream a bulk JSONL result URL, invoking `onObject` for each parsed line. */
+export async function streamBulkJsonl(
+  url: string,
+  onObject: (obj: any) => void,
+): Promise<void> {
   const res = await axios.get<NodeJS.ReadableStream>(url, {
     responseType: 'stream',
   });
-  const rl = readline.createInterface({
-    input: res.data,
-    crlfDelay: Infinity,
-  });
-
-  const ids: string[] = [];
+  const rl = readline.createInterface({ input: res.data, crlfDelay: Infinity });
   for await (const line of rl) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    const obj = JSON.parse(trimmed) as { id?: string };
-    if (
-      typeof obj.id === 'string' &&
-      obj.id.startsWith('gid://shopify/CompanyLocation/')
-    ) {
-      ids.push(obj.id);
-    }
+    onObject(JSON.parse(trimmed));
   }
-  return ids;
 }
 
 /**
- * Re-derive a market's company-location membership from the `market_id`
- * metafield (via a bulk query) and push the full replacement list to the
- * market's conditions.
+ * Replace a market's company-location condition with the given full list.
  *
  * Shopify does not allow adding/removing a single company location from a
- * market condition — the whole array must be supplied — so we always fetch the
- * complete tagged set and replace. `opts.include` / `opts.exclude` let a caller
- * force-add / force-remove specific locations regardless of metafield search
- * indexing lag (the just-tagged location may not be searchable immediately).
- * Skips the update when the resulting set is empty to avoid wiping a market.
+ * market condition — the whole array must be supplied. `marketUpdate` takes a
+ * `MarketConditionsUpdateInput` ({ conditionsToAdd, conditionsToDelete }), so
+ * the condition is nested under `conditionsToAdd`; passing the whole array
+ * there replaces the set. Skips when the list is empty (never wipes a market).
  */
-export async function syncMarketCompanyLocations(
+export async function marketUpdateCompanyLocations(
   shopify2: Shopify2Service,
-  market: { id: string; numericId: string },
-  opts: { include?: string[]; exclude?: string[] } = {},
+  marketId: string,
+  companyLocationIds: string[],
   connection = CANNA_NEW_CONNECTION,
 ): Promise<{ marketId: string; count: number; skipped: boolean }> {
-  const set = new Set(
-    await bulkFetchCompanyLocationIdsByMarketId(
-      shopify2,
-      market.numericId,
-      connection,
-    ),
-  );
-  for (const id of opts.include ?? []) set.add(id);
-  for (const id of opts.exclude ?? []) set.delete(id);
-  const companyLocationIds = [...set];
-
-  if (!companyLocationIds.length) {
-    return { marketId: market.id, count: 0, skipped: true };
-  }
+  const ids = [...new Set(companyLocationIds.filter(Boolean))];
+  if (!ids.length) return { marketId, count: 0, skipped: true };
 
   const res = await shopify2.gql<{
     market: { id: string } | null;
@@ -473,17 +333,13 @@ export async function syncMarketCompanyLocations(
     connection,
     root: 'marketUpdate',
     variables: {
-      id: market.id,
+      id: marketId,
       input: {
-        // marketUpdate's `conditions` is MarketConditionsUpdateInput
-        // ({ conditionsToAdd, conditionsToDelete }); the companyLocations
-        // condition lives inside conditionsToAdd. Passing the full array here
-        // replaces the market's company-location set.
         conditions: {
           conditionsToAdd: {
             companyLocationsCondition: {
               applicationLevel: 'SPECIFIED',
-              companyLocationIds,
+              companyLocationIds: ids,
             },
           },
         },
@@ -501,15 +357,11 @@ export async function syncMarketCompanyLocations(
 
   if (res?.userErrors?.length) {
     logger.warn(
-      `marketUpdate(${market.id}): ${res.userErrors.map((e) => e.message).join(', ')}`,
+      `marketUpdate(${marketId}): ${res.userErrors.map((e) => e.message).join(', ')}`,
     );
   }
 
-  return {
-    marketId: market.id,
-    count: companyLocationIds.length,
-    skipped: false,
-  };
+  return { marketId, count: ids.length, skipped: false };
 }
 
 /** Map a Shopify mailing address (old store) to a Shopify CompanyAddressInput. */

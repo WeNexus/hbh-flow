@@ -5,14 +5,20 @@ import { ZohoService } from '#lib/zoho/zoho.service';
 import { WorkflowBase } from '#lib/workflow/misc';
 import { Logger } from '@nestjs/common';
 import {
+  BulkOp,
   MF_KEY_CRM_ACCOUNT_ID,
   MF_KEY_CRM_CONTACT_ID,
   MF_KEY_MARKET_ID,
   MF_NAMESPACE,
   fetchCompanyLocationIds,
+  fetchMarketsByTierKey,
   gidNumericId,
+  marketUpdateCompanyLocations,
+  pollBulkOperation,
   setMetafields,
-  syncMarketCompanyLocations,
+  startBulkQuery,
+  streamBulkJsonl,
+  tierKey,
 } from './cannadevices-b2b.util';
 
 @Workflow({
@@ -167,33 +173,19 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       });
     }
 
-    const priceList = (account.Price_List || account.Customer_Group)
-      ?.trim()
-      .replace('Teir', 'Tier');
+    // Match the CRM tier to a Shopify market by a canonical key that tolerates
+    // the "Teir"/"Tier" typo (present in CRM data) and casing.
+    const key = tierKey(account.Price_List || account.Customer_Group);
+    this.logger.log(
+      `tier "${account.Price_List || account.Customer_Group}" -> key "${key}"`,
+    );
 
-    this.logger.log(priceList);
-
-    if (
-      priceList &&
-      priceList !== 'NA' &&
-      priceList !== 'N/A' &&
-      priceList !== 'None'
-    ) {
-      const markets = await this.shopify2Service.gql({
-        query: `#graphql
-        query {
-          markets(first: 1, query: "name:'${priceList}'") {
-            nodes {
-              id
-            }
-          }
-        }
-        `,
-        connection: 'canna-devices',
-        root: 'markets',
-      });
-
-      market = markets.nodes[0];
+    if (key) {
+      const marketsByKey = await fetchMarketsByTierKey(this.shopify2Service);
+      market = marketsByKey[key];
+      if (!market) {
+        this.logger.warn(`No Shopify market matches tier key "${key}"`);
+      }
     }
 
     return {
@@ -346,7 +338,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     const lastMarketId = account.Shopify_Market_ID?.toString().trim();
     const newMarketId = market ? gidNumericId(market.id) : null;
 
-    const marketsToSync: MarketSync[] = [];
+    let marketToSync: MarketSync | null = null;
     if (companyCreated && market && newMarketId) {
       const locationGids = await fetchCompanyLocationIds(
         this.shopify2Service,
@@ -364,14 +356,13 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
             value: newMarketId,
           })),
         );
-        // The actual rebuild (bulk query + marketUpdate) is deferred to the
-        // next step so the webhook caller isn't blocked on it.
-        marketsToSync.push({
-          id: market.id,
+        // The actual market rebuild (bulk query + marketUpdate) runs in the
+        // following steps so the webhook caller isn't blocked on it.
+        marketToSync = {
+          marketId: market.id,
           numericId: newMarketId,
-          mode: 'add',
           companyLocationIds: locationGids,
-        });
+        };
       }
     }
 
@@ -435,38 +426,92 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       companyResult,
       customerResult,
       contactAssignmentResult,
-      marketsToSync,
+      marketToSync,
     };
   }
 
+  // Step 3 — start a bulk export of the market's current company locations.
   @Step(3)
-  async syncMarkets() {
-    const data = await this.getResult<{ marketsToSync?: MarketSync[] }>(
-      'createCustomer',
-    );
-    const marketsToSync = data?.marketsToSync ?? [];
+  async startMarketExport(): Promise<BulkOp | null> {
+    const m = (
+      await this.getResult<{ marketToSync?: MarketSync | null }>(
+        'createCustomer',
+      )
+    )?.marketToSync;
+    if (!m) return null;
 
-    const results: Record<string, any>[] = [];
-    for (const m of marketsToSync) {
-      const result = await syncMarketCompanyLocations(
-        this.shopify2Service,
-        { id: m.id, numericId: m.numericId },
-        m.mode === 'add'
-          ? { include: m.companyLocationIds }
-          : { exclude: m.companyLocationIds },
-      );
-      this.logger.log(
-        `Market ${m.numericId} (${m.mode}): ${result.skipped ? 'skipped (empty)' : `${result.count} locations`}`,
-      );
-      results.push({ market: m.numericId, mode: m.mode, ...result });
+    const op = await startBulkQuery(
+      this.shopify2Service,
+      `{
+        companyLocations(query: "metafields.${MF_NAMESPACE}.${MF_KEY_MARKET_ID}:${m.numericId}") {
+          edges { node { id } }
+        }
+      }`,
+    );
+    this.delay(5000);
+    return op;
+  }
+
+  // Step 4 — poll the bulk export, re-running until it completes.
+  @Step(4)
+  async pollMarketExport(): Promise<BulkOp | null> {
+    const op = await this.getResult<BulkOp | null>('startMarketExport');
+    if (!op?.id) return null;
+
+    const node = await pollBulkOperation(this.shopify2Service, op.id);
+    if (!node) throw new Error('Bulk operation not found');
+
+    if (['CREATED', 'RUNNING', 'CANCELING'].includes(node.status)) {
+      this.rerun(5000);
+      return node;
     }
-    return results;
+    if (['FAILED', 'CANCELED', 'EXPIRED'].includes(node.status)) {
+      throw new Error(
+        `Market export ${node.status} (errorCode: ${node.errorCode})`,
+      );
+    }
+    return node;
+  }
+
+  // Step 5 — union the export with the new company's locations, then replace
+  // the market's company-location condition in one marketUpdate.
+  @Step(5)
+  async applyMarketConditions() {
+    const m = (
+      await this.getResult<{ marketToSync?: MarketSync | null }>(
+        'createCustomer',
+      )
+    )?.marketToSync;
+    if (!m) return { skipped: true };
+
+    const node = await this.getResult<BulkOp | null>('pollMarketExport');
+
+    // Start from this company's locations (guards against metafield-search
+    // indexing lag) and union in everything else already tagged for the market.
+    const ids = new Set<string>(m.companyLocationIds);
+    if (node?.url) {
+      await streamBulkJsonl(node.url, (obj) => {
+        if (
+          typeof obj.id === 'string' &&
+          obj.id.startsWith('gid://shopify/CompanyLocation/')
+        ) {
+          ids.add(obj.id);
+        }
+      });
+    }
+
+    const result = await marketUpdateCompanyLocations(
+      this.shopify2Service,
+      m.marketId,
+      [...ids],
+    );
+    this.logger.log(`Market ${m.numericId}: ${result.count} locations`);
+    return result;
   }
 }
 
 interface MarketSync {
-  id: string;
+  marketId: string;
   numericId: string;
-  mode: 'add' | 'remove';
   companyLocationIds: string[];
 }
