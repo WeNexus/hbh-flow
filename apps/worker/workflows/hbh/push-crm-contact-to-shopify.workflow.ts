@@ -9,7 +9,6 @@ import {
   MF_KEY_CRM_CONTACT_ID,
   MF_KEY_MARKET_ID,
   MF_NAMESPACE,
-  deleteMetafields,
   fetchCompanyLocationIds,
   gidNumericId,
   setMetafields,
@@ -215,7 +214,6 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     let contactAssignmentResult: Record<string, any> | undefined = undefined;
     let customerResult: Record<string, any> | undefined = undefined;
     let companyResult: Record<string, any> | undefined = undefined;
-    const marketUpdateResults: Record<string, any>[] = [];
 
     if (!company) {
       const mutation = `#graphql
@@ -339,24 +337,23 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       },
     ]);
 
-    // --- Market membership via company-location `market_id` metafield ---
+    // --- Market conditions ---
+    // Only (re)build market conditions when the company was newly created in
+    // this run. An existing company is assumed to already be a member of its
+    // market, and rebuilding conditions (a bulk query over every company
+    // location in the market) is the slow part we want to avoid on re-syncs.
+    const companyCreated = !company;
     const lastMarketId = account.Shopify_Market_ID?.toString().trim();
     const newMarketId = market ? gidNumericId(market.id) : null;
-    const priceListRemoved = !!lastMarketId && !newMarketId;
-    const priceListAdded = !lastMarketId && !!newMarketId;
-    const priceListChanged =
-      !!lastMarketId && !!newMarketId && lastMarketId !== newMarketId;
 
-    const locationGids = await fetchCompanyLocationIds(
-      this.shopify2Service,
-      companyGid,
-    );
-
-    if (locationGids.length) {
-      if (market && newMarketId) {
-        // Tag (or re-tag) this company's locations with the new market.
-        // Overwriting the value also drops them out of any previous market's
-        // metafield query, so no explicit delete is needed on a change.
+    const marketsToSync: MarketSync[] = [];
+    if (companyCreated && market && newMarketId) {
+      const locationGids = await fetchCompanyLocationIds(
+        this.shopify2Service,
+        companyGid,
+      );
+      if (locationGids.length) {
+        // Tag the new company's locations so the market query includes them.
         await setMetafields(
           this.shopify2Service,
           locationGids.map((ownerId) => ({
@@ -367,41 +364,20 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
             value: newMarketId,
           })),
         );
-      } else if (priceListRemoved) {
-        // No new market — untag so they leave the old market's set.
-        await deleteMetafields(
-          this.shopify2Service,
-          locationGids.map((ownerId) => ({
-            ownerId,
-            namespace: MF_NAMESPACE,
-            key: MF_KEY_MARKET_ID,
-          })),
-        );
+        // The actual rebuild (bulk query + marketUpdate) is deferred to the
+        // next step so the webhook caller isn't blocked on it.
+        marketsToSync.push({
+          id: market.id,
+          numericId: newMarketId,
+          mode: 'add',
+          companyLocationIds: locationGids,
+        });
       }
     }
 
-    // Rebuild the affected markets' company-location conditions (full replace).
-    if ((priceListRemoved || priceListChanged) && lastMarketId) {
-      const result = await syncMarketCompanyLocations(this.shopify2Service, {
-        id: `gid://shopify/Market/${lastMarketId}`,
-        numericId: lastMarketId,
-      });
-      marketUpdateResults.push({ action: 'remove', result });
-    }
-    if (market && newMarketId) {
-      const result = await syncMarketCompanyLocations(this.shopify2Service, {
-        id: market.id,
-        numericId: newMarketId,
-      });
-      marketUpdateResults.push({ action: 'add', result });
-    }
-
-    if (
-      !account.CannaDevices_Shopify_ID ||
-      priceListChanged ||
-      priceListRemoved ||
-      priceListAdded
-    ) {
+    // Keep the CRM's cached Shopify ids / market in sync regardless.
+    const marketChanged = (lastMarketId || '') !== (newMarketId || '');
+    if (!account.CannaDevices_Shopify_ID || marketChanged) {
       await this.zohoService.put(
         `/crm/v8/Accounts/${account.id}`,
         {
@@ -455,11 +431,42 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       );
     }
 
-    return [
+    return {
       companyResult,
       customerResult,
       contactAssignmentResult,
-      marketUpdateResults,
-    ];
+      marketsToSync,
+    };
   }
+
+  @Step(3)
+  async syncMarkets() {
+    const data = await this.getResult<{ marketsToSync?: MarketSync[] }>(
+      'createCustomer',
+    );
+    const marketsToSync = data?.marketsToSync ?? [];
+
+    const results: Record<string, any>[] = [];
+    for (const m of marketsToSync) {
+      const result = await syncMarketCompanyLocations(
+        this.shopify2Service,
+        { id: m.id, numericId: m.numericId },
+        m.mode === 'add'
+          ? { include: m.companyLocationIds }
+          : { exclude: m.companyLocationIds },
+      );
+      this.logger.log(
+        `Market ${m.numericId} (${m.mode}): ${result.skipped ? 'skipped (empty)' : `${result.count} locations`}`,
+      );
+      results.push({ market: m.numericId, mode: m.mode, ...result });
+    }
+    return results;
+  }
+}
+
+interface MarketSync {
+  id: string;
+  numericId: string;
+  mode: 'add' | 'remove';
+  companyLocationIds: string[];
 }
