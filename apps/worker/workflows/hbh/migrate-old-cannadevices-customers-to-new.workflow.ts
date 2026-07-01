@@ -173,7 +173,6 @@ interface TaskDoc {
 @Workflow({
   name: 'HBH - Migrate Old CannaDevices Customers to New',
   concurrency: 1,
-  internal: true,
 })
 export class MigrateOldCannaDevicesCustomersToNewWorkflow extends WorkflowBase<MigratePayload> {
   constructor(
