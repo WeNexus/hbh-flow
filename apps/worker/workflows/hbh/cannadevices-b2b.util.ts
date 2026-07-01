@@ -316,6 +316,11 @@ export async function streamBulkJsonl(
  * `MarketConditionsUpdateInput` ({ conditionsToAdd, conditionsToDelete }), so
  * the condition is nested under `conditionsToAdd`; passing the whole array
  * there replaces the set. Skips when the list is empty (never wipes a market).
+ *
+ * `companyLocationsCondition` (MarketConditionsCompanyLocationsInput) is a
+ * oneOf input: pass EITHER `applicationLevel` (e.g. ALL) OR `companyLocationIds`
+ * — never both, or Shopify rejects it ("requires exactly one argument").
+ * We always target specific locations, so we pass only `companyLocationIds`.
  */
 export async function marketUpdateCompanyLocations(
   shopify2: Shopify2Service,
@@ -338,7 +343,6 @@ export async function marketUpdateCompanyLocations(
         conditions: {
           conditionsToAdd: {
             companyLocationsCondition: {
-              applicationLevel: 'SPECIFIED',
               companyLocationIds: ids,
             },
           },
