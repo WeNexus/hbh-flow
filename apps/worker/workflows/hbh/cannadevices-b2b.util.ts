@@ -1,0 +1,395 @@
+import { Shopify2Service } from '#lib/shopify/shopify2.service';
+import { Logger } from '@nestjs/common';
+import { chunk } from 'lodash-es';
+
+/**
+ * Shared helpers for the CannaDevices B2B (new Shopify store) integration.
+ *
+ * These are used by both:
+ *  - PushCrmContactToShopifyWorkflow (single contact, webhook driven)
+ *  - MigrateOldCannaDevicesCustomersToNewWorkflow (bulk one-off migration)
+ *
+ * Kept as standalone functions (not a Nest provider) so both workflows can
+ * share the exact same Shopify B2B behaviour without duplication.
+ */
+
+/** OAuth2 connection id for the NEW CannaDevices Shopify store (Shopify2Service). */
+export const CANNA_NEW_CONNECTION = 'canna-devices';
+/** Token connection id for the OLD CannaDevices Shopify store (ShopifyService). */
+export const CANNA_OLD_CONNECTION = 'cannadevices';
+
+/** Metafield namespace used across companies / company locations / customers. */
+export const MF_NAMESPACE = 'custom';
+export const MF_KEY_MARKET_ID = 'market_id';
+export const MF_KEY_CRM_ACCOUNT_ID = 'crm_account_id';
+export const MF_KEY_CRM_CONTACT_ID = 'crm_contact_id';
+
+/** externalId prefix used on company locations migrated from the old store. */
+export const LOCATION_EXTERNAL_ID_PREFIX = 'old-addr:';
+
+/**
+ * Canonical B2B price-list / market tier names. These must match the market
+ * names created by SyncPriceListsToShopifyB2BCatalogsWorkflow.
+ */
+export const TIER_MARKET_NAMES = [
+  'Master Distro Tier 1',
+  'Master Distro Tier 2',
+  'Master Distro Tier 3',
+  'Wholesale Tier 1',
+  'Wholesale Tier 2',
+  'Wholesale Tier 3',
+  'Wholesale Tier 4',
+  'Wholesale Tier 5',
+  'Wholesale Tier 6',
+];
+
+const logger = new Logger('CannaDevicesB2B');
+
+export interface MarketRef {
+  /** Full Shopify Market GID. */
+  id: string;
+  /** Numeric portion of the GID (what we store in the market_id metafield). */
+  numericId: string;
+  name: string;
+}
+
+export interface MetafieldInput {
+  ownerId: string;
+  namespace: string;
+  key: string;
+  type: string;
+  value: string;
+}
+
+/** Extract the numeric id from a Shopify GID (e.g. gid://shopify/Market/123 -> "123"). */
+export function gidNumericId(gid?: string | null): string | null {
+  if (gid === null || gid === undefined) return null;
+  const s = gid.toString().trim();
+  if (!s) return null;
+  return s.includes('/') ? (s.split('/').pop() ?? null) : s;
+}
+
+/**
+ * Normalise a CRM account's price-list / customer-group value into a market
+ * tier name, or null if the account has no B2B tier.
+ */
+export function resolveTierName(account: {
+  Price_List?: string | null;
+  Customer_Group?: string | null;
+}): string | null {
+  const raw = (account?.Price_List || account?.Customer_Group)
+    ?.toString()
+    .trim()
+    .replace('Teir', 'Tier');
+
+  if (!raw || ['NA', 'N/A', 'None', 'null', 'undefined'].includes(raw)) {
+    return null;
+  }
+  return raw;
+}
+
+/** Fetch every market on the store as { id, numericId, name }. */
+export async function fetchAllMarkets(
+  shopify2: Shopify2Service,
+  connection = CANNA_NEW_CONNECTION,
+): Promise<MarketRef[]> {
+  const markets: MarketRef[] = [];
+  let after: string | null = null;
+
+  for (;;) {
+    const res = await shopify2.gql<{
+      nodes: Array<{ id: string; name: string }>;
+      pageInfo: { hasNextPage: boolean; endCursor?: string | null };
+    }>({
+      connection,
+      root: 'markets',
+      variables: { first: 250, after },
+      query: `#graphql
+        query ($first: Int!, $after: String) {
+          markets(first: $first, after: $after) {
+            nodes { id name }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      `,
+    });
+
+    for (const node of res?.nodes ?? []) {
+      markets.push({
+        id: node.id,
+        numericId: gidNumericId(node.id)!,
+        name: node.name,
+      });
+    }
+
+    if (!res?.pageInfo?.hasNextPage) break;
+    after = res.pageInfo.endCursor ?? null;
+    if (!after) break;
+  }
+
+  return markets;
+}
+
+/** Build a name -> MarketRef map for quick tier lookups. */
+export async function fetchMarketsByName(
+  shopify2: Shopify2Service,
+  connection = CANNA_NEW_CONNECTION,
+): Promise<Record<string, MarketRef>> {
+  const markets = await fetchAllMarkets(shopify2, connection);
+  const byName: Record<string, MarketRef> = {};
+  for (const m of markets) byName[m.name] = m;
+  return byName;
+}
+
+/** Set (create/update) metafields in batches of 25. Logs userErrors, never throws. */
+export async function setMetafields(
+  shopify2: Shopify2Service,
+  metafields: MetafieldInput[],
+  connection = CANNA_NEW_CONNECTION,
+): Promise<void> {
+  const clean = metafields.filter(
+    (m) =>
+      m.ownerId && m.value !== null && m.value !== undefined && m.value !== '',
+  );
+  if (!clean.length) return;
+
+  for (const batch of chunk(clean, 25)) {
+    const res = await shopify2.gql<{
+      metafields: { id: string }[] | null;
+      userErrors: { field: string[]; message: string }[];
+    }>({
+      connection,
+      root: 'metafieldsSet',
+      variables: { metafields: batch },
+      query: `#graphql
+        mutation ($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id }
+            userErrors { field message }
+          }
+        }
+      `,
+    });
+
+    if (res?.userErrors?.length) {
+      logger.warn(
+        `metafieldsSet: ${res.userErrors.map((e) => e.message).join(', ')}`,
+      );
+    }
+  }
+}
+
+/** Delete metafields (used to untag a location's market_id). Never throws. */
+export async function deleteMetafields(
+  shopify2: Shopify2Service,
+  identifiers: { ownerId: string; namespace: string; key: string }[],
+  connection = CANNA_NEW_CONNECTION,
+): Promise<void> {
+  const clean = identifiers.filter((m) => m.ownerId);
+  if (!clean.length) return;
+
+  for (const batch of chunk(clean, 25)) {
+    const res = await shopify2.gql<{
+      deletedMetafields: { key: string }[] | null;
+      userErrors: { field: string[]; message: string }[];
+    }>({
+      connection,
+      root: 'metafieldsDelete',
+      variables: { metafields: batch },
+      query: `#graphql
+        mutation ($metafields: [MetafieldIdentifierInput!]!) {
+          metafieldsDelete(metafields: $metafields) {
+            deletedMetafields { key namespace ownerId }
+            userErrors { field message }
+          }
+        }
+      `,
+    });
+
+    if (res?.userErrors?.length) {
+      logger.warn(
+        `metafieldsDelete: ${res.userErrors.map((e) => e.message).join(', ')}`,
+      );
+    }
+  }
+}
+
+/** Fetch the GIDs of every location on a company. */
+export async function fetchCompanyLocationIds(
+  shopify2: Shopify2Service,
+  companyGid: string,
+  connection = CANNA_NEW_CONNECTION,
+): Promise<string[]> {
+  const ids: string[] = [];
+  let after: string | null = null;
+
+  for (;;) {
+    const res = await shopify2.gql<{
+      locations: {
+        nodes: { id: string }[];
+        pageInfo: { hasNextPage: boolean; endCursor?: string | null };
+      };
+    } | null>({
+      connection,
+      root: 'company',
+      variables: { id: companyGid, first: 100, after },
+      query: `#graphql
+        query ($id: ID!, $first: Int!, $after: String) {
+          company(id: $id) {
+            locations(first: $first, after: $after) {
+              nodes { id }
+              pageInfo { hasNextPage endCursor }
+            }
+          }
+        }
+      `,
+    });
+
+    for (const node of res?.locations?.nodes ?? []) ids.push(node.id);
+    if (!res?.locations?.pageInfo?.hasNextPage) break;
+    after = res.locations.pageInfo.endCursor ?? null;
+    if (!after) break;
+  }
+
+  return ids;
+}
+
+/**
+ * Fetch every company location currently tagged with
+ * `custom.market_id = <marketNumericId>`.
+ */
+export async function fetchCompanyLocationIdsByMarketId(
+  shopify2: Shopify2Service,
+  marketNumericId: string,
+  connection = CANNA_NEW_CONNECTION,
+): Promise<string[]> {
+  const ids: string[] = [];
+  let after: string | null = null;
+
+  for (;;) {
+    const res = await shopify2.gql<{
+      nodes: Array<{ id: string }>;
+      pageInfo: { hasNextPage: boolean; endCursor?: string | null };
+    }>({
+      connection,
+      root: 'companyLocations',
+      variables: {
+        first: 250,
+        after,
+        query: `metafields.${MF_NAMESPACE}.${MF_KEY_MARKET_ID}:${marketNumericId}`,
+      },
+      query: `#graphql
+        query ($first: Int!, $after: String, $query: String!) {
+          companyLocations(first: $first, after: $after, query: $query) {
+            nodes { id }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      `,
+    });
+
+    for (const node of res?.nodes ?? []) ids.push(node.id);
+
+    if (!res?.pageInfo?.hasNextPage) break;
+    after = res.pageInfo.endCursor ?? null;
+    if (!after) break;
+  }
+
+  return ids;
+}
+
+/**
+ * Re-derive a market's company-location membership from the `market_id`
+ * metafield and push the full replacement list to the market's conditions.
+ *
+ * Shopify does not allow adding/removing a single company location from a
+ * market condition — the whole array must be supplied — so we always query the
+ * complete tagged set and replace. Skips the update when the tagged set is
+ * empty to avoid wiping a market that shouldn't be emptied.
+ */
+export async function syncMarketCompanyLocations(
+  shopify2: Shopify2Service,
+  market: { id: string; numericId: string },
+  connection = CANNA_NEW_CONNECTION,
+): Promise<{ marketId: string; count: number; skipped: boolean }> {
+  const companyLocationIds = await fetchCompanyLocationIdsByMarketId(
+    shopify2,
+    market.numericId,
+    connection,
+  );
+
+  if (!companyLocationIds.length) {
+    return { marketId: market.id, count: 0, skipped: true };
+  }
+
+  const res = await shopify2.gql<{
+    market: { id: string } | null;
+    userErrors: { field: string[]; message: string }[];
+  }>({
+    connection,
+    root: 'marketUpdate',
+    variables: {
+      id: market.id,
+      input: {
+        conditions: {
+          companyLocationsCondition: {
+            applicationLevel: 'SPECIFIED',
+            companyLocationIds,
+          },
+        },
+      },
+    },
+    query: `#graphql
+      mutation ($id: ID!, $input: MarketUpdateInput!) {
+        marketUpdate(id: $id, input: $input) {
+          market { id }
+          userErrors { field message }
+        }
+      }
+    `,
+  });
+
+  if (res?.userErrors?.length) {
+    logger.warn(
+      `marketUpdate(${market.id}): ${res.userErrors.map((e) => e.message).join(', ')}`,
+    );
+  }
+
+  return {
+    marketId: market.id,
+    count: companyLocationIds.length,
+    skipped: false,
+  };
+}
+
+/** Map a Shopify mailing address (old store) to a Shopify CompanyAddressInput. */
+export function toCompanyAddressInput(addr: {
+  firstName?: string | null;
+  lastName?: string | null;
+  company?: string | null;
+  address1?: string | null;
+  address2?: string | null;
+  city?: string | null;
+  provinceCode?: string | null;
+  zip?: string | null;
+  countryCodeV2?: string | null;
+  phone?: string | null;
+}): Record<string, string> | null {
+  if (!addr) return null;
+
+  const input: Record<string, string> = {};
+  if (addr.firstName) input.firstName = addr.firstName;
+  if (addr.lastName) input.lastName = addr.lastName;
+  if (addr.company) input.recipient = addr.company;
+  if (addr.address1) input.address1 = addr.address1;
+  if (addr.address2) input.address2 = addr.address2;
+  if (addr.city) input.city = addr.city;
+  if (addr.provinceCode) input.zoneCode = addr.provinceCode;
+  if (addr.zip) input.zip = addr.zip;
+  if (addr.countryCodeV2) input.countryCode = addr.countryCodeV2;
+  if (addr.phone) input.phone = addr.phone;
+
+  // Shopify requires at least a country for a company address to be usable.
+  if (!input.countryCode || !input.address1) return null;
+  return input;
+}

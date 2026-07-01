@@ -4,6 +4,17 @@ import { Step, Workflow } from '#lib/workflow/decorators';
 import { ZohoService } from '#lib/zoho/zoho.service';
 import { WorkflowBase } from '#lib/workflow/misc';
 import { Logger } from '@nestjs/common';
+import {
+  MF_KEY_CRM_ACCOUNT_ID,
+  MF_KEY_CRM_CONTACT_ID,
+  MF_KEY_MARKET_ID,
+  MF_NAMESPACE,
+  deleteMetafields,
+  fetchCompanyLocationIds,
+  gidNumericId,
+  setMetafields,
+  syncMarketCompanyLocations,
+} from './cannadevices-b2b.util';
 
 @Workflow({
   webhook: true,
@@ -45,7 +56,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       const customers = await this.shopify2Service.gql({
         query: `#graphql
         query {
-          customers(first: 1, query: "email:${contact.Email}") {
+          customers(first: 1, query: "email:${contact.Email} OR metafields.custom.crm_contact_id:'${contact.id}'") {
             nodes {
               id
               companyContactProfiles {
@@ -112,7 +123,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       const companies = await this.shopify2Service.gql({
         query: `#graphql
         query {
-          companies(first: 1, query: "name:${account.Account_Name}") {
+          companies(first: 1, query: "name:${account.Account_Name} OR metafields.custom.crm_account_id:'${account.id}'") {
             nodes {
               id
               
@@ -150,7 +161,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
         }
         `,
         variables: {
-          id: `gid://shopify/Customer/${companyId}`,
+          id: `gid://shopify/Company/${companyId}`,
         },
         connection: 'canna-devices',
         root: 'company',
@@ -307,97 +318,83 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       });
     }
 
+    // --- CRM id metafields (used for future lookups + market membership) ---
+    const companyGid = `gid://shopify/Company/${companyId}`;
+    const customerGid = `gid://shopify/Customer/${customerId}`;
+
+    await setMetafields(this.shopify2Service, [
+      {
+        ownerId: companyGid,
+        namespace: MF_NAMESPACE,
+        key: MF_KEY_CRM_ACCOUNT_ID,
+        type: 'single_line_text_field',
+        value: String(account.id),
+      },
+      {
+        ownerId: customerGid,
+        namespace: MF_NAMESPACE,
+        key: MF_KEY_CRM_CONTACT_ID,
+        type: 'single_line_text_field',
+        value: String(contact.id),
+      },
+    ]);
+
+    // --- Market membership via company-location `market_id` metafield ---
     const lastMarketId = account.Shopify_Market_ID?.toString().trim();
-    const priceListRemoved = lastMarketId && !market;
-    const priceListAdded = !lastMarketId && market;
+    const newMarketId = market ? gidNumericId(market.id) : null;
+    const priceListRemoved = !!lastMarketId && !newMarketId;
+    const priceListAdded = !lastMarketId && !!newMarketId;
     const priceListChanged =
-      lastMarketId && market && lastMarketId !== market.id.toString();
+      !!lastMarketId && !!newMarketId && lastMarketId !== newMarketId;
 
-    /*if (priceListRemoved || priceListChanged) {
-      const marketId = lastMarketId.startsWith('gid://shopify/Market')
-        ? lastMarketId
-        : `gid://shopify/Market/${lastMarketId}`;
+    const locationGids = await fetchCompanyLocationIds(
+      this.shopify2Service,
+      companyGid,
+    );
 
-      const mutation = `#graphql
-      mutation ($marketId: ID!, $locationIds: [ID!]) {
-        marketUpdate(id: $marketId, input: {
-          conditions: {
-            conditionsToDelete: {
-              companyLocationsCondition: {
-                applicationLevel: SPECIFIED,
-                companyLocationIds: $locationIds
-              }
-            }
-          }
-        }) {
-          market {
-            id
-            name
-          }
-          userErrors {
-            field
-            message
-          }
-        }
+    if (locationGids.length) {
+      if (market && newMarketId) {
+        // Tag (or re-tag) this company's locations with the new market.
+        // Overwriting the value also drops them out of any previous market's
+        // metafield query, so no explicit delete is needed on a change.
+        await setMetafields(
+          this.shopify2Service,
+          locationGids.map((ownerId) => ({
+            ownerId,
+            namespace: MF_NAMESPACE,
+            key: MF_KEY_MARKET_ID,
+            type: 'single_line_text_field',
+            value: newMarketId,
+          })),
+        );
+      } else if (priceListRemoved) {
+        // No new market — untag so they leave the old market's set.
+        await deleteMetafields(
+          this.shopify2Service,
+          locationGids.map((ownerId) => ({
+            ownerId,
+            namespace: MF_NAMESPACE,
+            key: MF_KEY_MARKET_ID,
+          })),
+        );
       }
-      `;
-
-      const result = await this.shopify2Service.gql({
-        query: mutation,
-        connection: 'canna-devices',
-        root: 'marketUpdate',
-        variables: {
-          marketId,
-          locationIds: company.locations.nodes.map((l) => l.id),
-        },
-      });
-
-      marketUpdateResults.push({
-        action: 'remove',
-        result,
-      });
     }
 
-    if (priceListAdded || priceListChanged) {
-      const mutation = `#graphql
-      mutation ($marketId: ID!, $locationIds: [ID!]) {
-        marketUpdate(id: $marketId, input: {
-          conditions: {
-            conditionsToAdd: {
-              companyLocationsCondition: {
-                applicationLevel: SPECIFIED,
-                companyLocationIds: $locationIds
-              }
-            }
-          }
-        }) {
-          market {
-            id
-            name
-          }
-          userErrors {
-            field
-            message
-          }
-        }
-      }
-      `;
-
-      const result = await this.shopify2Service.gql({
-        query: mutation,
-        connection: 'canna-devices',
-        root: 'marketUpdate',
-        variables: {
-          marketId: market.id,
-          locationIds: company.locations.nodes.map((l) => l.id),
-        },
+    // Rebuild the affected markets' company-location conditions (full replace).
+    if ((priceListRemoved || priceListChanged) && lastMarketId) {
+      const result = await syncMarketCompanyLocations(this.shopify2Service, {
+        id: `gid://shopify/Market/${lastMarketId}`,
+        numericId: lastMarketId,
       });
-
-      marketUpdateResults.push({
-        action: 'add',
-        result,
+      marketUpdateResults.push({ action: 'remove', result });
+    }
+    if (market && newMarketId) {
+      const result = await syncMarketCompanyLocations(this.shopify2Service, {
+        id: market.id,
+        numericId: newMarketId,
       });
-    }*/
+      marketUpdateResults.push({ action: 'add', result });
+    }
 
     if (
       !account.CannaDevices_Shopify_ID ||
