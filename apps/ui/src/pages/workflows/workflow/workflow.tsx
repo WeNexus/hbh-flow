@@ -8,6 +8,7 @@ import {
   Card,
 } from '@mui/material';
 import type { WorkflowDetailSchema, JobDetailSchema } from '@/types/schema.ts';
+import { WorkflowHeader } from '@/pages/workflows/workflow/workflow-header.tsx';
 import { JobSteps } from '@/pages/workflows/workflow/job-steps.tsx';
 import { Jobs } from '@/pages/workflows/workflow/jobs.tsx';
 import { useHeader } from '@/hooks/use-header.ts';
@@ -25,6 +26,7 @@ export function Workflow({ workflowId }: WorkflowProps) {
   const [selectedStep, setSelectedStep] = useState<string | null>(null);
   const [job, setJob] = useState<JobDetailSchema | null>(null);
   const [jobLoading, setJobLoading] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const { UI: updateHeaderUI } = useHeader();
   const { api } = useApi();
 
@@ -95,16 +97,19 @@ export function Workflow({ workflowId }: WorkflowProps) {
 
   return (
     <Box sx={{ width: '100%', maxWidth: { sm: '100%', md: '1700px' } }}>
-      <Box sx={{ p: 2, mb: 2 }}>
+      <Box sx={{ mb: 2 }}>
         {!workflow ? (
           <Skeleton
             variant="rectangular"
             width="100%"
             height={250}
-            sx={{ mt: 1 }}
+            sx={{ mt: 1, borderRadius: 1 }}
           />
         ) : (
-          JSON.stringify(workflow)
+          <WorkflowHeader
+            workflow={workflow}
+            onRan={() => setReloadToken((t) => t + 1)}
+          />
         )}
       </Box>
 
@@ -119,6 +124,8 @@ export function Workflow({ workflowId }: WorkflowProps) {
           <Jobs
             workflowId={workflowId}
             selectedJobId={selectedJobId}
+            steps={workflow?.steps ?? []}
+            reloadToken={reloadToken}
             onSelect={(jobId) => setSelectedJobId(jobId)}
           />
         </Grid>

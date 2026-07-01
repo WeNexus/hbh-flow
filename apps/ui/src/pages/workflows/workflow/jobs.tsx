@@ -1,6 +1,11 @@
-import type { JobListOutputSchema } from '@/types/schema.ts';
+import type {
+  WorkflowDetailSchema,
+  JobListOutputSchema,
+} from '@/types/schema.ts';
+import { ReplayDialog } from '@/pages/workflows/workflow/replay-dialog.tsx';
 import OptionsMenu from '@/components/options-menu.tsx';
 import { useCallback, useEffect, useState } from 'react';
+import { useDialog } from '@/hooks/use-dialog.ts';
 import { useApi } from '@/hooks/use-api.ts';
 import { AxiosError } from 'axios';
 
@@ -36,15 +41,21 @@ export interface JobsProps {
   workflowId: number;
   onSelect?: (jobId: number) => void;
   selectedJobId?: number | null;
+  steps?: WorkflowDetailSchema['steps'];
+  /** Bump this value to force an immediate reload of the jobs list. */
+  reloadToken?: number;
 }
 
 export function Jobs({
   workflowId,
   onSelect,
   selectedJobId = null,
+  steps = [],
+  reloadToken = 0,
 }: JobsProps) {
   const [res, setRes] = useState<JobListOutputSchema | null>(null);
   const [page, setPage] = useState(1);
+  const { showDialog } = useDialog();
   const { api } = useApi();
 
   const limit = 15;
@@ -85,11 +96,21 @@ export function Jobs({
   );
 
   const replay = useCallback(
-    async (id: string) => {
-      await api.post(`/jobs/${id}/replay`);
-      setTimeout(() => load(new AbortController(), false), 1000);
+    (id: number) => {
+      showDialog({
+        props: { maxWidth: 'sm', fullWidth: true },
+        render: () => (
+          <ReplayDialog
+            jobId={id}
+            steps={steps}
+            onReplayed={() =>
+              setTimeout(() => load(new AbortController(), false), 1000)
+            }
+          />
+        ),
+      });
     },
-    [api, load],
+    [load, showDialog, steps],
   );
 
   const execute = useCallback(
@@ -122,6 +143,25 @@ export function Jobs({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
+
+  // Reload the list on demand (e.g. after a manual run) without waiting for
+  // the polling interval.
+  useEffect(() => {
+    if (!reloadToken) {
+      return;
+    }
+
+    const ac = new AbortController();
+
+    if (page !== 1) {
+      setPage(1);
+    } else {
+      void load(ac, false);
+    }
+
+    return () => ac.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloadToken]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

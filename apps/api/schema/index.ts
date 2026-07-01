@@ -17,6 +17,7 @@ export * from './folder/folder-update-input.schema';
 export * from './folder/folder-list-output.schema';
 export * from './revision/revision-detail.schema';
 export * from './workflow/workflow-detail.schema';
+export * from './workflow/workflow-run-input.schema';
 export * from './hub/provider-list-output.schema';
 export * from './event/event-update-input.schema';
 export * from './workflow/workflow-basic.schema';

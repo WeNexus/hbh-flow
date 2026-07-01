@@ -7,6 +7,7 @@ import { Auth, Protected } from '#lib/auth/decorators';
 import type { AuthContext } from '#lib/auth/types';
 import { ListInputSchema } from '#lib/core/schema';
 import { Prisma } from '@prisma/client';
+import * as Sentry from '@sentry/nestjs';
 import { omit } from 'lodash-es';
 import express from 'express';
 
@@ -17,6 +18,7 @@ import {
   Param,
   Query,
   Patch,
+  Post,
   Body,
   Get,
   Req,
@@ -25,9 +27,11 @@ import {
 import {
   WorkflowUpdateInputSchema,
   WorkflowListOutputSchema,
+  WorkflowRunInputSchema,
   WorkflowDetailSchema,
   WorkflowBasicSchema,
   WorkflowSchema,
+  JobSchema,
 } from '../schema';
 
 @Controller('api/workflows')
@@ -266,6 +270,71 @@ export class WorkflowController {
       createdAt: workflow.createdAt,
       updatedAt: workflow.updatedAt,
     };
+  }
+
+  @Post('/:idOrKey/run')
+  @Protected('DATA_ENTRY')
+  @ApiOperation({
+    summary: 'Manually trigger a workflow',
+    description:
+      'Manually starts a new job for the workflow with an optional custom payload and context. The job is created with a MANUAL trigger.',
+  })
+  @ApiParam({
+    name: 'idOrKey',
+    description: 'The numeric ID or string key of the workflow to run.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Workflow run started successfully.',
+    type: JobSchema,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Workflow or class not found.',
+  })
+  async run(
+    @Param('idOrKey') idOrKey: number | string,
+    @Body() input: WorkflowRunInputSchema,
+    @Auth() auth: AuthContext,
+    @Req() req: express.Request,
+  ): Promise<JobSchema> {
+    const workflow = await this.getWorkflowByIdOrKey(idOrKey);
+    const flow = await this.workflowService.resolveClass(workflow.key);
+
+    if (!flow) {
+      throw new NotFoundException(
+        `Workflow class for "${workflow.key}" could not be resolved.`,
+      );
+    }
+
+    const span = Sentry.getActiveSpan();
+    const trace = Sentry.getTraceData({ span });
+
+    const { job } = await this.workflowService.run(flow, {
+      userId: auth.user.id,
+      trigger: 'MANUAL',
+      payload: input.payload
+        ? (JSON.parse(input.payload) as Record<string, any>)
+        : {},
+      context: input.context
+        ? (JSON.parse(input.context) as Record<string, any>)
+        : undefined,
+      sentry: {
+        trace: trace?.['sentry-trace'],
+        baggage: trace?.baggage,
+      },
+    });
+
+    await this.activityService.recordActivity({
+      req,
+      action: 'OTHER',
+      resource: 'WORKFLOW',
+      resourceId: workflow.id,
+      subAction: 'RUN',
+      userId: auth.user.id,
+    });
+
+    return omit(job, 'sentryTrace', 'sentryBaggage', 'options', 'payload');
   }
 
   @Get('/:idOrKey/triggers')
