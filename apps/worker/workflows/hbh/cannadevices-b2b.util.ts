@@ -475,10 +475,16 @@ export async function syncMarketCompanyLocations(
     variables: {
       id: market.id,
       input: {
+        // marketUpdate's `conditions` is MarketConditionsUpdateInput
+        // ({ conditionsToAdd, conditionsToDelete }); the companyLocations
+        // condition lives inside conditionsToAdd. Passing the full array here
+        // replaces the market's company-location set.
         conditions: {
-          companyLocationsCondition: {
-            applicationLevel: 'SPECIFIED',
-            companyLocationIds,
+          conditionsToAdd: {
+            companyLocationsCondition: {
+              applicationLevel: 'SPECIFIED',
+              companyLocationIds,
+            },
           },
         },
       },
