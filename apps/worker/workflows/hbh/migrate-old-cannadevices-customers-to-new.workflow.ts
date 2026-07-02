@@ -428,7 +428,23 @@ export class MigrateOldCannaDevicesCustomersToNewWorkflow extends WorkflowBase<M
     let count = 0;
 
     for (;;) {
-      const selectQuery = `select id, First_Name, Last_Name, Email, Phone, CannaDevices_Shopify_ID, Account_Name.id, Account_Name.Account_Name, Account_Name.Price_List, Account_Name.Customer_Group, Account_Name.CannaDevices_Shopify_ID, Account_Name.Shopify_Market_ID from Contacts where Email is not null and Account_Name is not null and id > ${lastId} order by id asc limit 200`;
+      const selectQuery = `select id,
+                                  First_Name,
+                                  Last_Name,
+                                  Email,
+                                  Phone,
+                                  CannaDevices_Shopify_ID,
+                                  Account_Name.id,
+                                  Account_Name.Account_Name,
+                                  Account_Name.Price_List,
+                                  Account_Name.Customer_Group,
+                                  Account_Name.CannaDevices_Shopify_ID,
+                                  Account_Name.Shopify_Market_ID
+                           from Contacts
+                           where (Email is not null and Account_Name is not null)
+                             and id > ${lastId}
+                           order by id asc
+                           limit 500`;
 
       const { data } = await this.zohoService.post(
         `/crm/v8/coql`,
