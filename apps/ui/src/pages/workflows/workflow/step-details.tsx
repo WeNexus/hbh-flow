@@ -1,3 +1,4 @@
+import { TRIGGER_STEP } from '@/pages/workflows/workflow/job-steps.tsx';
 import { StepDuration } from '@/pages/workflows/workflow/step-duration.tsx';
 import type { JobDetailSchema } from '@/types/schema.ts';
 import ReactJsonView from '@microlink/react-json-view';
@@ -77,6 +78,36 @@ export function StepDetails(props: Props) {
   const step = useMemo(() => {
     return props.job.Steps.find((s) => s.name === props.step) || null;
   }, [props.job.Steps, props.step]);
+
+  if (props.step === TRIGGER_STEP) {
+    return (
+      <Stack spacing={1.5} sx={{ p: 0.5 }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 1 }}
+        >
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, mr: 1 }}>
+            Trigger
+          </Typography>
+          <Chip size="small" color="info" label={props.job.trigger} />
+        </Stack>
+
+        <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
+          {props.job.triggerId && (
+            <Meta label="Trigger ID">{props.job.triggerId}</Meta>
+          )}
+          <Meta label="Created">
+            {new Date(props.job.createdAt).toLocaleString()}
+          </Meta>
+        </Stack>
+
+        <Divider />
+
+        <JsonBlock title="Payload" data={props.job.payload} dark={dark} />
+      </Stack>
+    );
+  }
 
   if (!step) {
     return (

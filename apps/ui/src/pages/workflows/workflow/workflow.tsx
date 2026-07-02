@@ -9,7 +9,7 @@ import {
 } from '@mui/material';
 import type { WorkflowDetailSchema, JobDetailSchema } from '@/types/schema.ts';
 import { WorkflowHeader } from '@/pages/workflows/workflow/workflow-header.tsx';
-import { JobSteps } from '@/pages/workflows/workflow/job-steps.tsx';
+import { JobSteps, TRIGGER_STEP } from '@/pages/workflows/workflow/job-steps.tsx';
 import { Jobs } from '@/pages/workflows/workflow/jobs.tsx';
 import { useHeader } from '@/hooks/use-header.ts';
 import { useEffect, useState } from 'react';
@@ -73,9 +73,8 @@ export function Workflow({ workflowId }: WorkflowProps) {
 
         setJob(res.data);
 
-        if (res.data.Steps.length > 0) {
-          setSelectedStep(res.data.Steps[0].name);
-        }
+        // Default to the synthetic trigger node so the payload is shown first.
+        setSelectedStep(TRIGGER_STEP);
       } catch (e) {
         console.error(`Error fetching job ${selectedJobId}:`, e);
 
