@@ -92,9 +92,9 @@ export class SyncSmartCollectionsWorkflow extends WorkflowBase {
 
   @Step(1)
   async fetchSnapshot(): Promise<string[]> {
-    // if (!this.env.isProd) {
-    //   return this.cancel('Not running in production environment.');
-    // }
+    if (!this.env.isProd) {
+      return this.cancel('Not running in production environment.');
+    }
 
     const doc = await this.mongo
       .db(this.snapshotDbName)
