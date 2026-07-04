@@ -38,11 +38,11 @@ export class ApexTradingInventorySyncWorkflow extends WorkflowBase {
   private beginning = '2000-01-01T00:00:00Z';
 
   async getPrevTimestamp(): Promise<Date> {
-    // const job = await this.getPrevJob();
-    //
-    // if (job) {
-    //   return job.createdAt;
-    // }
+    const job = await this.getPrevJob();
+
+    if (job) {
+      return job.createdAt;
+    }
 
     return Promise.resolve(new Date(this.beginning));
   }

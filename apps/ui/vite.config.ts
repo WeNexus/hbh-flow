@@ -6,6 +6,9 @@ import * as path from 'node:path';
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  server: {
+    allowedHosts: true,
+  },
   build: {
     outDir: '../../dist',
     sourcemap: true,
