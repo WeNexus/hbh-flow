@@ -5,19 +5,16 @@ import { ZohoService } from '#lib/zoho/zoho.service';
 import { WorkflowBase } from '#lib/workflow/misc';
 import { Logger } from '@nestjs/common';
 import {
-  BulkOp,
   MF_KEY_CRM_ACCOUNT_ID,
   MF_KEY_CRM_CONTACT_ID,
   MF_KEY_MARKET_ID,
   MF_NAMESPACE,
+  escapeSearch,
   fetchCompanyLocationIds,
   fetchMarketsByTierKey,
   gidNumericId,
   marketUpdateCompanyLocations,
-  pollBulkOperation,
   setMetafields,
-  startBulkQuery,
-  streamBulkJsonl,
   tierKey,
 } from './cannadevices-b2b.util';
 
@@ -53,33 +50,23 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     let customerId = contact.CannaDevices_Shopify_ID?.toString().trim();
     let companyId = account.CannaDevices_Shopify_ID?.toString().trim();
 
-    let customer;
-    let company;
-    let market;
+    let customer: any;
+    let company: any;
+    let market: any;
 
+    // --- Resolve the customer (by stored id, else crm_contact_id / email) ---
     if (!customerId) {
       const customers = await this.shopify2Service.gql({
         query: `#graphql
-        query {
-          customers(first: 1, query: "email:${contact.Email} OR metafields.custom.crm_contact_id:'${contact.id}'") {
-            nodes {
-              id
-              companyContactProfiles {
-                company {
-                  id
-                  name
-
-                  locations(first: 100) {
-                    nodes {
-                      id
-                    }
-                  }
-                }
-              }
-            }
+        query ($query: String!) {
+          customers(first: 1, query: $query) {
+            nodes { id companyContactProfiles { company { id } } }
           }
         }
         `,
+        variables: {
+          query: `email:'${escapeSearch(contact.Email)}' OR metafields.custom.crm_contact_id:'${escapeSearch(contact.id)}'`,
+        },
         connection: 'canna-devices',
         root: 'customers',
       });
@@ -95,18 +82,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
         query ($id: ID!) {
           customer(id: $id) {
             id
-            companyContactProfiles {
-              company {
-                id
-                name
-                
-                locations(first: 100) {
-                  nodes {
-                    id
-                  }
-                }
-              }
-            }
+            companyContactProfiles { company { id } }
           }
         }
         `,
@@ -118,60 +94,46 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       });
     }
 
-    const associatedCompany = customer?.companyContactProfiles?.find(
-      (p) => p.company.name === account.Account_Name,
-    );
-
-    if (associatedCompany) {
-      company = associatedCompany.company;
-    } else if (!companyId) {
-      const companies = await this.shopify2Service.gql({
-        query: `#graphql
-        query {
-          companies(first: 1, query: "name:${account.Account_Name} OR metafields.custom.crm_account_id:'${account.id}'") {
-            nodes {
-              id
-              
-              locations(first: 100) {
-                nodes {
-                  id
-                }
-              }
-            }
-          }
-        }
-        `,
-        connection: 'canna-devices',
-        root: 'companies',
-      });
-
-      company = companies.nodes[0];
-    } else {
+    // --- Resolve the company by RELIABLE keys ONLY (never fuzzy name) ---
+    // A CRM account maps 1:1 to a Shopify company via externalId = account.id
+    // and the custom.crm_account_id metafield. Matching by name previously
+    // linked several accounts to one company, which then wrote a duplicate
+    // CannaDevices_Shopify_ID back to CRM (a unique field) and failed.
+    if (companyId) {
       if (companyId.startsWith('gid://shopify/Company')) {
         companyId = companyId.split('/').pop();
       }
-
       company = await this.shopify2Service.gql({
         query: `#graphql
-        query ($id: ID!) {
-          company(id: $id) {
-            id
-            
-            locations(first: 100) {
-              nodes {
-                id
-              }
-            }
-          }
-        }
+        query ($id: ID!) { company(id: $id) { id } }
         `,
-        variables: {
-          id: `gid://shopify/Company/${companyId}`,
-        },
+        variables: { id: `gid://shopify/Company/${companyId}` },
         connection: 'canna-devices',
         root: 'company',
       });
+    } else {
+      const companies = await this.shopify2Service.gql({
+        query: `#graphql
+        query ($query: String!) {
+          companies(first: 1, query: $query) { nodes { id } }
+        }
+        `,
+        variables: {
+          query: `metafields.custom.crm_account_id:'${escapeSearch(account.id)}'`,
+        },
+        connection: 'canna-devices',
+        root: 'companies',
+      });
+      company = companies.nodes[0];
     }
+
+    // Is the customer already a contact of THIS company (by id, not name)?
+    const companyAssociated = !!(
+      company &&
+      customer?.companyContactProfiles?.some(
+        (p: any) => p.company.id === company.id,
+      )
+    );
 
     // Match the CRM tier to a Shopify market by a canonical key that tolerates
     // the "Teir"/"Tier" typo (present in CRM data) and casing.
@@ -194,7 +156,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       company,
       customer,
       market,
-      companyAssociated: !!associatedCompany,
+      companyAssociated,
     };
   }
 
@@ -235,11 +197,39 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
           },
         },
       });
+
+      // Idempotency: a company with this externalId may already exist (a prior
+      // run created it) -> Shopify returns "External id has already been taken".
+      // Recover the existing company by its crm_account_id metafield.
+      if (!companyResult?.company?.id) {
+        const message = (companyResult?.userErrors ?? [])
+          .map((e: any) => e.message)
+          .join(', ');
+        const existing = await this.shopify2Service.gql({
+          query: `#graphql
+          query ($query: String!) {
+            companies(first: 1, query: $query) { nodes { id } }
+          }
+          `,
+          variables: {
+            query: `metafields.custom.crm_account_id:'${escapeSearch(account.id)}'`,
+          },
+          connection: 'canna-devices',
+          root: 'companies',
+        });
+        if (existing?.nodes?.[0]?.id) {
+          companyResult = { company: existing.nodes[0] };
+        } else {
+          throw new Error(
+            `companyCreate failed for account ${account.id}: ${message}`,
+          );
+        }
+      }
     } else {
       // TODO: Update company if needed
     }
 
-    const companyId = (companyResult?.company?.id ?? company.id)
+    const companyId = (companyResult?.company?.id ?? company?.id)
       .split('/')
       .pop();
 
@@ -366,41 +356,46 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       }
     }
 
-    // Keep the CRM's cached Shopify ids / market in sync regardless.
+    // Keep the CRM's cached Shopify ids / market in sync regardless. The Shopify
+    // work above already succeeded, so a CRM write failure must not fail the
+    // whole webhook (it would just be retried and is idempotent) — log and move on.
     const marketChanged = (lastMarketId || '') !== (newMarketId || '');
     if (!account.CannaDevices_Shopify_ID || marketChanged) {
-      await this.zohoService.put(
-        `/crm/v8/Accounts/${account.id}`,
-        {
-          data: [
-            {
-              id: account.id,
-              CannaDevices_Shopify_ID: companyId,
-              Shopify_Market_ID: market?.id.split('/').pop() || null,
-            },
-          ],
-        },
-        {
-          connection: 'hbh',
-        },
-      );
+      try {
+        await this.zohoService.put(
+          `/crm/v8/Accounts/${account.id}`,
+          {
+            data: [
+              {
+                id: account.id,
+                CannaDevices_Shopify_ID: companyId,
+                Shopify_Market_ID: gidNumericId(market?.id) || null,
+              },
+            ],
+          },
+          { connection: 'hbh' },
+        );
+      } catch (e: any) {
+        this.logger.error(
+          `CRM Account ${account.id} write failed: ${e?.message ?? e}`,
+        );
+      }
     }
 
     if (!contact.CannaDevices_Shopify_ID) {
-      await this.zohoService.put(
-        `/crm/v8/Contacts/${contact.id}`,
-        {
-          data: [
-            {
-              id: contact.id,
-              CannaDevices_Shopify_ID: customerId,
-            },
-          ],
-        },
-        {
-          connection: 'hbh',
-        },
-      );
+      try {
+        await this.zohoService.put(
+          `/crm/v8/Contacts/${contact.id}`,
+          {
+            data: [{ id: contact.id, CannaDevices_Shopify_ID: customerId }],
+          },
+          { connection: 'hbh' },
+        );
+      } catch (e: any) {
+        this.logger.error(
+          `CRM Contact ${contact.id} write failed: ${e?.message ?? e}`,
+        );
+      }
     }
 
     if (!this.responseMetaSent) {
@@ -430,52 +425,13 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     };
   }
 
-  // Step 3 — start a bulk export of the market's current company locations.
+  // Step 3 — add the new company's locations to its market's condition.
+  //
+  // `marketUpdate`'s `conditionsToAdd` APPENDS to the market's existing member
+  // set (it does not replace), so we only send this company's location ids — no
+  // need to bulk-export and re-send the whole market. This runs after the
+  // webhook response is streamed in step 2, so the caller isn't blocked on it.
   @Step(3)
-  async startMarketExport(): Promise<BulkOp | null> {
-    const m = (
-      await this.getResult<{ marketToSync?: MarketSync | null }>(
-        'createCustomer',
-      )
-    )?.marketToSync;
-    if (!m) return null;
-
-    const op = await startBulkQuery(
-      this.shopify2Service,
-      `{
-        companyLocations(query: "metafields.${MF_NAMESPACE}.${MF_KEY_MARKET_ID}:${m.numericId}") {
-          edges { node { id } }
-        }
-      }`,
-    );
-    this.delay(5000);
-    return op;
-  }
-
-  // Step 4 — poll the bulk export, re-running until it completes.
-  @Step(4)
-  async pollMarketExport(): Promise<BulkOp | null> {
-    const op = await this.getResult<BulkOp | null>('startMarketExport');
-    if (!op?.id) return null;
-
-    const node = await pollBulkOperation(this.shopify2Service, op.id);
-    if (!node) throw new Error('Bulk operation not found');
-
-    if (['CREATED', 'RUNNING', 'CANCELING'].includes(node.status)) {
-      this.rerun(5000);
-      return node;
-    }
-    if (['FAILED', 'CANCELED', 'EXPIRED'].includes(node.status)) {
-      throw new Error(
-        `Market export ${node.status} (errorCode: ${node.errorCode})`,
-      );
-    }
-    return node;
-  }
-
-  // Step 5 — union the export with the new company's locations, then replace
-  // the market's company-location condition in one marketUpdate.
-  @Step(5)
   async applyMarketConditions() {
     const m = (
       await this.getResult<{ marketToSync?: MarketSync | null }>(
@@ -484,28 +440,12 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     )?.marketToSync;
     if (!m) return { skipped: true };
 
-    const node = await this.getResult<BulkOp | null>('pollMarketExport');
-
-    // Start from this company's locations (guards against metafield-search
-    // indexing lag) and union in everything else already tagged for the market.
-    const ids = new Set<string>(m.companyLocationIds);
-    if (node?.url) {
-      await streamBulkJsonl(node.url, (obj) => {
-        if (
-          typeof obj.id === 'string' &&
-          obj.id.startsWith('gid://shopify/CompanyLocation/')
-        ) {
-          ids.add(obj.id);
-        }
-      });
-    }
-
     const result = await marketUpdateCompanyLocations(
       this.shopify2Service,
       m.marketId,
-      [...ids],
+      m.companyLocationIds,
     );
-    this.logger.log(`Market ${m.numericId}: ${result.count} locations`);
+    this.logger.log(`Market ${m.numericId}: added ${result.count} locations`);
     return result;
   }
 }

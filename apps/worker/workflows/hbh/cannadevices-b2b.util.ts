@@ -1,38 +1,23 @@
 import { Shopify2Service } from '#lib/shopify/shopify2.service';
 import { Logger } from '@nestjs/common';
-import * as readline from 'node:readline';
 import { chunk } from 'lodash-es';
-import axios from 'axios';
 
 /**
- * Shared helpers for the CannaDevices B2B (new Shopify store) integration.
+ * Shared helpers for the CannaDevices B2B (new Shopify store) integration,
+ * used by PushCrmContactToShopifyWorkflow.
  *
- * These are used by both:
- *  - PushCrmContactToShopifyWorkflow (single contact, webhook driven)
- *  - MigrateOldCannaDevicesCustomersToNewWorkflow (bulk one-off migration)
- *
- * Kept as standalone functions (not a Nest provider) so both workflows can
- * share the exact same Shopify B2B behaviour without duplication.
- *
- * NOTE: the Shopify bulk-operation flow (start -> poll -> download) is exposed
- * as low-level building blocks here; the polling is driven by each workflow's
- * steps via `this.rerun()` (same pattern as EastWestInventorySync), not by a
- * blocking loop.
+ * Kept as standalone functions (not a Nest provider) so the workflow can use
+ * the Shopify B2B behaviour without duplication.
  */
 
 /** OAuth2 connection id for the NEW CannaDevices Shopify store (Shopify2Service). */
 export const CANNA_NEW_CONNECTION = 'canna-devices';
-/** Token connection id for the OLD CannaDevices Shopify store (ShopifyService). */
-export const CANNA_OLD_CONNECTION = 'cannadevices';
 
 /** Metafield namespace used across companies / company locations / customers. */
 export const MF_NAMESPACE = 'custom';
 export const MF_KEY_MARKET_ID = 'market_id';
 export const MF_KEY_CRM_ACCOUNT_ID = 'crm_account_id';
 export const MF_KEY_CRM_CONTACT_ID = 'crm_contact_id';
-
-/** externalId prefix used on company locations migrated from the old store. */
-export const LOCATION_EXTERNAL_ID_PREFIX = 'old-addr:';
 
 const logger = new Logger('CannaDevicesB2B');
 
@@ -52,12 +37,14 @@ export interface MetafieldInput {
   value: string;
 }
 
-export interface BulkOp {
-  id: string;
-  status: string;
-  url?: string | null;
-  errorCode?: string | null;
-  objectCount?: string | null;
+/**
+ * Escape a value for interpolation into a Shopify search `query:` string.
+ * Backslashes and double quotes are the only characters that can break the
+ * (single- or double-quoted) search literal, so escape those. Prevents a stray
+ * quote/character in a CRM name/email from corrupting the query.
+ */
+export function escapeSearch(value: unknown): string {
+  return String(value ?? '').replace(/["\\]/g, '\\$&');
 }
 
 /** Extract the numeric id from a Shopify GID (e.g. gid://shopify/Market/123 -> "123"). */
@@ -82,19 +69,6 @@ export function tierKey(value?: string | null): string | null {
   return raw.toLowerCase().replace(/teir/g, 'tier').replace(/\s+/g, ' ');
 }
 
-/** The account's tier display value (Price_List, falling back to Customer_Group). */
-export function resolveTierName(account: {
-  Price_List?: string | null;
-  Customer_Group?: string | null;
-}): string | null {
-  const raw = (account?.Price_List || account?.Customer_Group)
-    ?.toString()
-    .trim();
-  if (!raw || ['NA', 'N/A', 'None', 'null', 'undefined'].includes(raw)) {
-    return null;
-  }
-  return raw;
-}
 
 /** Fetch every market on the store as { id, numericId, name }. */
 export async function fetchAllMarkets(
@@ -233,94 +207,22 @@ export async function fetchCompanyLocationIds(
   return ids;
 }
 
-// ---------------------------------------------------------------------------
-// Bulk operations (start -> poll via rerun -> stream), same pattern as
-// EastWestInventorySync.
-// ---------------------------------------------------------------------------
-
-/** Start a bulk query. Returns the BulkOperation; throws on userErrors. */
-export async function startBulkQuery(
-  shopify2: Shopify2Service,
-  query: string,
-  connection = CANNA_NEW_CONNECTION,
-): Promise<BulkOp> {
-  const res = await shopify2.gql<{
-    bulkOperation: BulkOp | null;
-    userErrors: { code?: string; field: string[]; message: string }[];
-  }>({
-    connection,
-    root: 'bulkOperationRunQuery',
-    variables: { query },
-    query: `#graphql
-      mutation ($query: String!) {
-        bulkOperationRunQuery(query: $query) {
-          bulkOperation { id status url errorCode objectCount }
-          userErrors { code field message }
-        }
-      }
-    `,
-  });
-
-  if (res.userErrors?.length) {
-    throw new Error(
-      `bulkOperationRunQuery: ${res.userErrors.map((e) => e.message).join(', ')}`,
-    );
-  }
-  if (!res.bulkOperation?.id) {
-    throw new Error('bulkOperationRunQuery: missing bulk operation');
-  }
-  return res.bulkOperation;
-}
-
-/** Poll a bulk operation by id. Returns the node (or null if not found). */
-export async function pollBulkOperation(
-  shopify2: Shopify2Service,
-  id: string,
-  connection = CANNA_NEW_CONNECTION,
-): Promise<BulkOp | null> {
-  return shopify2.gql<BulkOp | null>({
-    connection,
-    root: 'node',
-    variables: { id },
-    query: `#graphql
-      query ($id: ID!) {
-        node(id: $id) {
-          ... on BulkOperation { id status url errorCode objectCount }
-        }
-      }
-    `,
-  });
-}
-
-/** Stream a bulk JSONL result URL, invoking `onObject` for each parsed line. */
-export async function streamBulkJsonl(
-  url: string,
-  onObject: (obj: any) => void,
-): Promise<void> {
-  const res = await axios.get<NodeJS.ReadableStream>(url, {
-    responseType: 'stream',
-  });
-  const rl = readline.createInterface({ input: res.data, crlfDelay: Infinity });
-  for await (const line of rl) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    onObject(JSON.parse(trimmed));
-  }
-}
-
 /**
- * Replace a market's company-location condition with the given full list.
+ * Add the given company locations to a market's company-location condition.
  *
- * Shopify does not allow adding/removing a single company location from a
- * market condition — the whole array must be supplied. `marketUpdate` takes a
- * `MarketConditionsUpdateInput` ({ conditionsToAdd, conditionsToDelete }), so
- * the condition is nested under `conditionsToAdd`; passing the whole array
- * there replaces the set. Skips when the list is empty (never wipes a market).
+ * `marketUpdate.input.conditions` is a `MarketConditionsUpdateInput`
+ * ({ conditionsToAdd, conditionsToDelete }). `conditionsToAdd` **appends/unions**
+ * into the market's existing member set (it does NOT replace it), so you only
+ * need to pass the locations you want to add — never the full list. To remove
+ * members, use `conditionsToDelete` instead.
  *
  * `companyLocationsCondition` (MarketConditionsCompanyLocationsInput) is a
  * oneOf input: pass EITHER `applicationLevel` (e.g. ALL) OR `companyLocationIds`
  * — never both, or Shopify rejects it ("requires exactly one argument").
  * We always target specific locations, so we pass only `companyLocationIds`.
+ *
+ * `companyLocationIds` is capped at 250 per call, so we chunk (each chunk
+ * appends). Skips when the list is empty.
  */
 export async function marketUpdateCompanyLocations(
   shopify2: Shopify2Service,
@@ -331,71 +233,43 @@ export async function marketUpdateCompanyLocations(
   const ids = [...new Set(companyLocationIds.filter(Boolean))];
   if (!ids.length) return { marketId, count: 0, skipped: true };
 
-  const res = await shopify2.gql<{
-    market: { id: string } | null;
-    userErrors: { field: string[]; message: string }[];
-  }>({
-    connection,
-    root: 'marketUpdate',
-    variables: {
-      id: marketId,
-      input: {
-        conditions: {
-          conditionsToAdd: {
-            companyLocationsCondition: {
-              companyLocationIds: ids,
+  const CHUNK = 250;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunkIds = ids.slice(i, i + CHUNK);
+    const res = await shopify2.gql<{
+      market: { id: string } | null;
+      userErrors: { field: string[]; message: string }[];
+    }>({
+      connection,
+      root: 'marketUpdate',
+      variables: {
+        id: marketId,
+        input: {
+          conditions: {
+            conditionsToAdd: {
+              companyLocationsCondition: {
+                companyLocationIds: chunkIds,
+              },
             },
           },
         },
       },
-    },
-    query: `#graphql
-      mutation ($id: ID!, $input: MarketUpdateInput!) {
-        marketUpdate(id: $id, input: $input) {
-          market { id }
-          userErrors { field message }
+      query: `#graphql
+        mutation ($id: ID!, $input: MarketUpdateInput!) {
+          marketUpdate(id: $id, input: $input) {
+            market { id }
+            userErrors { field message }
+          }
         }
-      }
-    `,
-  });
+      `,
+    });
 
-  if (res?.userErrors?.length) {
-    logger.warn(
-      `marketUpdate(${marketId}): ${res.userErrors.map((e) => e.message).join(', ')}`,
-    );
+    if (res?.userErrors?.length) {
+      logger.warn(
+        `marketUpdate(${marketId}): ${res.userErrors.map((e) => e.message).join(', ')}`,
+      );
+    }
   }
 
   return { marketId, count: ids.length, skipped: false };
-}
-
-/** Map a Shopify mailing address (old store) to a Shopify CompanyAddressInput. */
-export function toCompanyAddressInput(addr: {
-  firstName?: string | null;
-  lastName?: string | null;
-  company?: string | null;
-  address1?: string | null;
-  address2?: string | null;
-  city?: string | null;
-  provinceCode?: string | null;
-  zip?: string | null;
-  countryCodeV2?: string | null;
-  phone?: string | null;
-}): Record<string, string> | null {
-  if (!addr) return null;
-
-  const input: Record<string, string> = {};
-  if (addr.firstName) input.firstName = addr.firstName;
-  if (addr.lastName) input.lastName = addr.lastName;
-  if (addr.company) input.recipient = addr.company;
-  if (addr.address1) input.address1 = addr.address1;
-  if (addr.address2) input.address2 = addr.address2;
-  if (addr.city) input.city = addr.city;
-  if (addr.provinceCode) input.zoneCode = addr.provinceCode;
-  if (addr.zip) input.zip = addr.zip;
-  if (addr.countryCodeV2) input.countryCode = addr.countryCodeV2;
-  if (addr.phone) input.phone = addr.phone;
-
-  // Shopify requires at least a country for a company address to be usable.
-  if (!input.countryCode || !input.address1) return null;
-  return input;
 }
