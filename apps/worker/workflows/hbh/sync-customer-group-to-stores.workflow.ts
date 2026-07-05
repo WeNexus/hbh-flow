@@ -10,8 +10,9 @@ import {
   MF_KEY_CRM_ACCOUNT_ID,
   MF_KEY_MARKET_ID,
   MF_NAMESPACE,
+  deleteMetafields,
   escapeSearch,
-  fetchCompanyLocationIds,
+  fetchCompanyLocationsWithMarket,
   fetchMarketsByTierKey,
   gidNumericId,
   marketRemoveCompanyLocations,
@@ -296,27 +297,53 @@ export class SyncCustomerGroupToStoresWorkflow extends WorkflowBase<Payload> {
       return { skipped: true };
     }
 
-    // Resolve the target market from the tier (Teir/Tier tolerant).
+    // Resolve the target market from the tier (Teir/Tier tolerant). "Supported"
+    // simply means a market exists for that tier — only the live markets qualify
+    // (CannaDevices supports 3), so an unsupported/removed tier resolves to none.
     const key = tierKey(account.Price_List || account.Customer_Group);
     const market = key
       ? (await fetchMarketsByTierKey(this.shopify2Service))[key]
       : undefined;
     const newMarketNumId = market ? market.numericId : null;
-    const oldMarketNumId = account.Shopify_Market_ID?.toString().trim() || null;
 
-    if (newMarketNumId && oldMarketNumId === newMarketNumId) {
-      this.logger.log('Market unchanged; nothing to move');
-      return { unchanged: true, marketId: newMarketNumId };
-    }
-
-    const locationGids = await fetchCompanyLocationIds(
+    // Reconcile from the store's own state: each location's current market_id
+    // metafield (plus the CRM-cached market), minus the target market.
+    const locations = await fetchCompanyLocationsWithMarket(
       this.shopify2Service,
       companyGid,
     );
-    if (!locationGids.length) return { skipped: true, reason: 'no locations' };
+    if (!locations.length) return { skipped: true, reason: 'no locations' };
+    const locationGids = locations.map((l) => l.id);
 
-    // Re-tag the market_id metafield and add the locations to the new market.
+    const currentMarkets = new Set<string>(
+      locations.map((l) => l.marketId).filter((m): m is string => !!m),
+    );
+    const cachedMarket = account.Shopify_Market_ID?.toString().trim();
+    if (cachedMarket) currentMarkets.add(cachedMarket);
+    if (newMarketNumId) currentMarkets.delete(newMarketNumId);
+
+    // Already correct (assigned to the target market only) — nothing to do.
+    if (
+      newMarketNumId &&
+      currentMarkets.size === 0 &&
+      locations.every((l) => l.marketId === newMarketNumId)
+    ) {
+      this.logger.log('Market membership already correct; nothing to do');
+      return { unchanged: true, marketId: newMarketNumId };
+    }
+
+    // Remove the locations from every non-target market it is assigned to (a tier
+    // change, or an unsupported tier). Only touches markets it is actually in.
+    for (const stale of currentMarkets) {
+      await marketRemoveCompanyLocations(
+        this.shopify2Service,
+        `gid://shopify/Market/${stale}`,
+        locationGids,
+      );
+    }
+
     if (market && newMarketNumId) {
+      // Supported tier: (re)tag the market_id metafield and add to the market.
       await setMetafields(
         this.shopify2Service,
         locationGids.map((ownerId) => ({
@@ -332,18 +359,22 @@ export class SyncCustomerGroupToStoresWorkflow extends WorkflowBase<Payload> {
         market.id,
         locationGids,
       );
-    }
-
-    // Remove the locations from the previous market (tier changed).
-    if (oldMarketNumId && oldMarketNumId !== newMarketNumId) {
-      await marketRemoveCompanyLocations(
+    } else if (currentMarkets.size) {
+      // Unsupported tier: it belongs to no CannaDevices market. Clear the stale
+      // market_id tag so nothing re-adds it. Customer_Group / Price_List are left
+      // untouched — BigCommerce depends on them and supports all tiers.
+      await deleteMetafields(
         this.shopify2Service,
-        `gid://shopify/Market/${oldMarketNumId}`,
-        locationGids,
+        locationGids.map((ownerId) => ({
+          ownerId,
+          namespace: MF_NAMESPACE,
+          key: MF_KEY_MARKET_ID,
+        })),
       );
     }
 
-    // Persist the new market on the CRM account (best-effort).
+    // Sync only the Shopify market pointer on the CRM account (null when the
+    // company was removed from the market). Never touches Customer_Group / Price_List.
     try {
       await this.zohoService.put(
         `/crm/v8/Accounts/${account.id}`,
@@ -356,8 +387,11 @@ export class SyncCustomerGroupToStoresWorkflow extends WorkflowBase<Payload> {
       );
     }
 
+    const removedFrom = [...currentMarkets];
     this.logger.log(
-      `Moved company ${gidNumericId(companyGid)} to market ${newMarketNumId ?? '(none)'} (from ${oldMarketNumId ?? '(none)'})`,
+      newMarketNumId
+        ? `Company ${gidNumericId(companyGid)} -> market ${newMarketNumId} (removed from ${removedFrom.join(', ') || 'none'})`
+        : `Company ${gidNumericId(companyGid)} removed from markets ${removedFrom.join(', ') || 'none'}; tier "${account.Price_List || account.Customer_Group}" is not supported by CannaDevices`,
     );
 
     if (!this.responseMetaSent) {
@@ -366,14 +400,18 @@ export class SyncCustomerGroupToStoresWorkflow extends WorkflowBase<Payload> {
         headers: { 'Content-Type': 'application/json' },
       });
       await this.sendResponse(
-        JSON.stringify({ success: true, marketId: newMarketNumId }),
+        JSON.stringify({
+          success: true,
+          marketId: newMarketNumId,
+          removedFrom,
+        }),
       );
     }
 
     return {
       companyId: gidNumericId(companyGid),
       newMarketId: newMarketNumId,
-      oldMarketId: oldMarketNumId,
+      removedFrom,
       locations: locationGids.length,
     };
   }

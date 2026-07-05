@@ -166,6 +166,41 @@ export async function setMetafields(
   }
 }
 
+/** Delete metafields by identifier ({ownerId, namespace, key}) in batches of 25. */
+export async function deleteMetafields(
+  shopify2: Shopify2Service,
+  identifiers: { ownerId: string; namespace: string; key: string }[],
+  connection = CANNA_NEW_CONNECTION,
+): Promise<void> {
+  const clean = identifiers.filter((m) => m.ownerId);
+  if (!clean.length) return;
+
+  for (const batch of chunk(clean, 25)) {
+    const res = await shopify2.gql<{
+      deletedMetafields: { key: string }[] | null;
+      userErrors: { field: string[]; message: string }[];
+    }>({
+      connection,
+      root: 'metafieldsDelete',
+      variables: { metafields: batch },
+      query: `#graphql
+        mutation ($metafields: [MetafieldIdentifierInput!]!) {
+          metafieldsDelete(metafields: $metafields) {
+            deletedMetafields { key }
+            userErrors { field message }
+          }
+        }
+      `,
+    });
+
+    if (res?.userErrors?.length) {
+      logger.warn(
+        `metafieldsDelete: ${res.userErrors.map((e) => e.message).join(', ')}`,
+      );
+    }
+  }
+}
+
 /** Fetch the GIDs of every location on a company. */
 export async function fetchCompanyLocationIds(
   shopify2: Shopify2Service,
@@ -204,6 +239,55 @@ export async function fetchCompanyLocationIds(
   }
 
   return ids;
+}
+
+/**
+ * Fetch a company's locations along with the numeric market id each is currently
+ * tagged with (the `custom.market_id` metafield). Lets a caller reconcile market
+ * membership from the store's own state rather than a cached CRM value.
+ */
+export async function fetchCompanyLocationsWithMarket(
+  shopify2: Shopify2Service,
+  companyGid: string,
+  connection = CANNA_NEW_CONNECTION,
+): Promise<{ id: string; marketId: string | null }[]> {
+  const out: { id: string; marketId: string | null }[] = [];
+  let after: string | null = null;
+
+  for (;;) {
+    const res = await shopify2.gql<{
+      locations: {
+        nodes: { id: string; mkt?: { value?: string | null } | null }[];
+        pageInfo: { hasNextPage: boolean; endCursor?: string | null };
+      };
+    } | null>({
+      connection,
+      root: 'company',
+      variables: { id: companyGid, first: 100, after },
+      query: `#graphql
+        query ($id: ID!, $first: Int!, $after: String) {
+          company(id: $id) {
+            locations(first: $first, after: $after) {
+              nodes {
+                id
+                mkt: metafield(namespace: "${MF_NAMESPACE}", key: "${MF_KEY_MARKET_ID}") { value }
+              }
+              pageInfo { hasNextPage endCursor }
+            }
+          }
+        }
+      `,
+    });
+
+    for (const node of res?.locations?.nodes ?? []) {
+      out.push({ id: node.id, marketId: node.mkt?.value ?? null });
+    }
+    if (!res?.locations?.pageInfo?.hasNextPage) break;
+    after = res.locations.pageInfo.endCursor ?? null;
+    if (!after) break;
+  }
+
+  return out;
 }
 
 /**
