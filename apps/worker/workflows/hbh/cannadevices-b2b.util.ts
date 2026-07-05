@@ -69,7 +69,6 @@ export function tierKey(value?: string | null): string | null {
   return raw.toLowerCase().replace(/teir/g, 'tier').replace(/\s+/g, ' ');
 }
 
-
 /** Fetch every market on the store as { id, numericId, name }. */
 export async function fetchAllMarkets(
   shopify2: Shopify2Service,
@@ -267,6 +266,62 @@ export async function marketUpdateCompanyLocations(
     if (res?.userErrors?.length) {
       logger.warn(
         `marketUpdate(${marketId}): ${res.userErrors.map((e) => e.message).join(', ')}`,
+      );
+    }
+  }
+
+  return { marketId, count: ids.length, skipped: false };
+}
+
+/**
+ * Remove the given company locations from a market's company-location condition
+ * via `conditionsToDelete` (the inverse of {@link marketUpdateCompanyLocations}).
+ * Used when a company's tier changes and it must leave its previous market.
+ * Chunks at 250 ids per call. Skips when the list is empty.
+ */
+export async function marketRemoveCompanyLocations(
+  shopify2: Shopify2Service,
+  marketId: string,
+  companyLocationIds: string[],
+  connection = CANNA_NEW_CONNECTION,
+): Promise<{ marketId: string; count: number; skipped: boolean }> {
+  const ids = [...new Set(companyLocationIds.filter(Boolean))];
+  if (!ids.length) return { marketId, count: 0, skipped: true };
+
+  const CHUNK = 250;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunkIds = ids.slice(i, i + CHUNK);
+    const res = await shopify2.gql<{
+      market: { id: string } | null;
+      userErrors: { field: string[]; message: string }[];
+    }>({
+      connection,
+      root: 'marketUpdate',
+      variables: {
+        id: marketId,
+        input: {
+          conditions: {
+            conditionsToDelete: {
+              companyLocationsCondition: {
+                companyLocationIds: chunkIds,
+              },
+            },
+          },
+        },
+      },
+      query: `#graphql
+        mutation ($id: ID!, $input: MarketUpdateInput!) {
+          marketUpdate(id: $id, input: $input) {
+            market { id }
+            userErrors { field message }
+          }
+        }
+      `,
+    });
+
+    if (res?.userErrors?.length) {
+      logger.warn(
+        `marketUpdate delete (${marketId}): ${res.userErrors.map((e) => e.message).join(', ')}`,
       );
     }
   }
