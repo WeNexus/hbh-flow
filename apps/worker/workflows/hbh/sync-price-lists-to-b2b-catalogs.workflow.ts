@@ -59,15 +59,9 @@ export class SyncPriceListsToShopifyB2BCatalogsWorkflow extends WorkflowBase {
   private readonly snapshotCollectionName = 'hbh_shopify_b2b_catalogs_snapshot';
 
   private readonly priceLists = [
-    { zohoId: '3195387000084237271', name: 'Master Distro Tier 1' },
     { zohoId: '3195387000084244429', name: 'Master Distro Tier 2' },
     { zohoId: '3195387000084246587', name: 'Master Distro Tier 3' },
     { zohoId: '3195387000084248745', name: 'Wholesale Tier 1' },
-    { zohoId: '3195387000084251903', name: 'Wholesale Tier 2' },
-    { zohoId: '3195387000084255061', name: 'Wholesale Tier 3' },
-    { zohoId: '3195387000084257219', name: 'Wholesale Tier 4' },
-    { zohoId: '3195387000084259383', name: 'Wholesale Tier 5' },
-    { zohoId: '3195387000096563127', name: 'Wholesale Tier 6' }
   ];
 
   @Step(1)
