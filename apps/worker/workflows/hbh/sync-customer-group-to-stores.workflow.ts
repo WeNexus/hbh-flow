@@ -238,6 +238,26 @@ export class SyncCustomerGroupToStoresWorkflow extends WorkflowBase<Payload> {
     // Resolve the company on the new store (by stored id, else crm_account_id).
     let companyGid: string | null = null;
     const storedId = account.CannaDevices_Shopify_ID?.toString().trim();
+
+    if (!storedId) {
+      if (!this.responseMetaSent) {
+        await this.sendResponseMeta({
+          statusCode: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+        await this.sendResponse(
+          JSON.stringify({
+            skipped: true,
+            reason: 'no CannaDevices_Shopify_ID',
+          }),
+        );
+      }
+
+      this.exit(
+        `Account ${account.id} has no CannaDevices_Shopify_ID; skipping market move`,
+      );
+    }
+
     if (storedId) {
       companyGid = storedId.startsWith('gid://')
         ? storedId
