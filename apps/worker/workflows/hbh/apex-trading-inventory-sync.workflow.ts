@@ -17,8 +17,10 @@ import readline from 'node:readline';
   webhook: true,
   concurrency: 1,
   triggers: [
-    cron('*/30 * * * *', {
-      timezone: 'America/New_York', // Every 30 minutes
+    // Every 5 hours
+    cron('0 */5 * * *', {
+      oldPattern: '*/30 * * * *',
+      timezone: 'America/New_York',
     }),
   ],
 })

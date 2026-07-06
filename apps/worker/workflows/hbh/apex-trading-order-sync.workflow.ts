@@ -20,9 +20,10 @@ import axios from 'axios';
   concurrency: 1,
   webhookPayloadType: WebhookPayloadType.Full,
   triggers: [
-    cron('*/30 * * * *', {
-      oldPattern: '*/60 * * * *',
-      timezone: 'America/New_York', // Every 30 minutes, on the hour and half hour
+    cron('0 */6 * * *', {
+      // Every 6 hours
+      oldPattern: '*/30 * * * *',
+      timezone: 'America/New_York',
     }),
   ],
 })
@@ -73,14 +74,14 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
     return objects.length === 0
       ? {
-        object: null as T | null,
-        ref,
-        match: {
-          matched: [],
-          mismatched: [],
-          percentage: 0,
-        },
-      }
+          object: null as T | null,
+          ref,
+          match: {
+            matched: [],
+            mismatched: [],
+            percentage: 0,
+          },
+        }
       : map[0];
   }
 
@@ -191,28 +192,28 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
 
   formatUSPhone(input: string | null | undefined): string {
     if (input == null) {
-      throw new Error("Phone number must not be null or undefined");
+      throw new Error('Phone number must not be null or undefined');
     }
 
     let normalized = input.trim();
 
     // Strip tel: URI scheme — e.g. "tel:+13013571005"
-    normalized = normalized.replace(/^tel:/i, "");
+    normalized = normalized.replace(/^tel:/i, '');
 
     // Strip trailing extension — e.g. "ext. 4", "x123", "#5"
-    normalized = normalized.replace(/\s*(ext\.?|x|#)\s*\d+$/i, "");
+    normalized = normalized.replace(/\s*(ext\.?|x|#)\s*\d+$/i, '');
 
     // Keep only digits
-    const digits = normalized.replace(/\D/g, "");
+    const digits = normalized.replace(/\D/g, '');
 
     // Normalise country-code prefix variants
     let local: string;
-    if (digits.length === 13 && digits.startsWith("001")) {
-      local = digits.slice(3);         // 001-XXX-XXX-XXXX
-    } else if (digits.length === 11 && digits.startsWith("1")) {
-      local = digits.slice(1);         // 1XXXXXXXXXX  or  +1XXXXXXXXXX
+    if (digits.length === 13 && digits.startsWith('001')) {
+      local = digits.slice(3); // 001-XXX-XXX-XXXX
+    } else if (digits.length === 11 && digits.startsWith('1')) {
+      local = digits.slice(1); // 1XXXXXXXXXX  or  +1XXXXXXXXXX
     } else if (digits.length === 10) {
-      local = digits;                  // bare 10-digit
+      local = digits; // bare 10-digit
     } else {
       throw new Error(`Invalid US phone number: "${input}"`);
     }
@@ -461,21 +462,30 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
           {
             attention: order.ship_name,
             city: order.ship_city,
-            country: order.ship_country === 'US' ? 'U.S.A' : order.ship_country === 'CA' ? 'Canada' : order.ship_country,
+            country:
+              order.ship_country === 'US'
+                ? 'U.S.A'
+                : order.ship_country === 'CA'
+                  ? 'Canada'
+                  : order.ship_country,
             zip: order.ship_zip,
-            state: (order.ship_country === 'US' ? usStates : order.ship_country === 'CA' ? caStates : { [order.ship_state]: order.ship_state })[order.ship_state],
+            state: (order.ship_country === 'US'
+              ? usStates
+              : order.ship_country === 'CA'
+                ? caStates
+                : { [order.ship_state]: order.ship_state })[order.ship_state],
             address:
               !order.ship_line_one ||
-                order.ship_line_one === 'null' ||
-                order.ship_line_one.trim() === '' ||
-                order.ship_line_one.trim() === '.'
+              order.ship_line_one === 'null' ||
+              order.ship_line_one.trim() === '' ||
+              order.ship_line_one.trim() === '.'
                 ? undefined
                 : order.ship_line_one,
             street2:
               !order.ship_line_two ||
-                order.ship_line_two === 'null' ||
-                order.ship_line_two.trim() === '' ||
-                order.ship_line_two.trim() === '.'
+              order.ship_line_two === 'null' ||
+              order.ship_line_two.trim() === '' ||
+              order.ship_line_two.trim() === '.'
                 ? undefined
                 : order.ship_line_two,
             phone: this.formatUSPhone(order.buyer_contact_phone),
@@ -512,16 +522,16 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         await this.zohoService.put(
           `/inventory/v1/contacts/${contact.contact_id}`,
           {
-            "contact_name": contact.contact_name,
-            "company_name": contact.company_name,
-            "contact_type": "customer",
-            "payment_terms": 0,
-            "payment_terms_label": "Due on Receipt",
-            "payment_terms_id": "3195387000214997001",
-            "is_taxable": false,
-            "tax_authority_name": "Business Wholesale",
-            "tax_exemption_code": "BUSINESS",
-            "customer_sub_type": "business",
+            contact_name: contact.contact_name,
+            company_name: contact.company_name,
+            contact_type: 'customer',
+            payment_terms: 0,
+            payment_terms_label: 'Due on Receipt',
+            payment_terms_id: '3195387000214997001',
+            is_taxable: false,
+            tax_authority_name: 'Business Wholesale',
+            tax_exemption_code: 'BUSINESS',
+            customer_sub_type: 'business',
           },
           {
             connection: 'hbh',
@@ -624,21 +634,30 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
         {
           attention: order.ship_name,
           city: order.ship_city,
-          country: order.ship_country === 'US' ? 'U.S.A' : order.ship_country === 'CA' ? 'Canada' : order.ship_country,
+          country:
+            order.ship_country === 'US'
+              ? 'U.S.A'
+              : order.ship_country === 'CA'
+                ? 'Canada'
+                : order.ship_country,
           zip: order.ship_zip,
-          state: (order.ship_country === 'US' ? usStates : order.ship_country === 'CA' ? caStates : { [order.ship_state]: order.ship_state })[order.ship_state],
+          state: (order.ship_country === 'US'
+            ? usStates
+            : order.ship_country === 'CA'
+              ? caStates
+              : { [order.ship_state]: order.ship_state })[order.ship_state],
           address:
             !order.ship_line_one ||
-              order.ship_line_one === 'null' ||
-              order.ship_line_one.trim() === '' ||
-              order.ship_line_one.trim() === '.'
+            order.ship_line_one === 'null' ||
+            order.ship_line_one.trim() === '' ||
+            order.ship_line_one.trim() === '.'
               ? undefined
               : order.ship_line_one,
           street2:
             !order.ship_line_two ||
-              order.ship_line_two === 'null' ||
-              order.ship_line_two.trim() === '' ||
-              order.ship_line_two.trim() === '.'
+            order.ship_line_two === 'null' ||
+            order.ship_line_two.trim() === '' ||
+            order.ship_line_two.trim() === '.'
               ? undefined
               : order.ship_line_two,
           phone: this.formatUSPhone(order.buyer_contact_phone),
@@ -790,8 +809,8 @@ export class ApexTradingOrderSyncWorkflow extends WorkflowBase {
       const billingAddressId = !customer.billing_address
         ? shippingAddressesId
         : !customer.billing_address.address &&
-          !customer.billing_address.country_code &&
-          !customer.billing_address.state_code
+            !customer.billing_address.country_code &&
+            !customer.billing_address.state_code
           ? shippingAddressesId
           : customer.billing_address.address_id;
 
