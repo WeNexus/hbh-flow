@@ -26,6 +26,7 @@ import {
     'ZohoCRM.org.ALL',
     'ZohoCRM.bulk.ALL',
     'ZohoCRM.coql.READ',
+    'ZohoCRM.signals.ALL',
     'ZohoInventory.fullaccess.ALL',
     'ZohoBooks.fullaccess.ALL',
     'Desk.tickets.ALL',

@@ -9,14 +9,23 @@ import {
   MF_KEY_CRM_CONTACT_ID,
   MF_KEY_MARKET_ID,
   MF_NAMESPACE,
+  SIGNAL_NAMESPACE_ACCOUNT_CREATED,
   escapeSearch,
   fetchCompanyLocationIds,
   fetchMarketsByTierKey,
   gidNumericId,
   marketUpdateCompanyLocations,
+  sendCrmSignal,
   setMetafields,
   tierKey,
 } from './cannadevices-b2b.util';
+
+/** Only these Price_List tiers are onboarded onto CannaDevices (Shopify). */
+const ALLOWED_PRICE_LISTS = [
+  'Master Distro Tier 2',
+  'Master Distro Tier 3',
+  'Wholesale Tier 1',
+];
 
 @Workflow({
   webhook: true,
@@ -46,6 +55,26 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       typeof event.contact === 'string'
         ? JSON.parse(event.contact)
         : event.contact;
+
+    // Only onboard the supported wholesale tiers onto CannaDevices. Everything
+    // else (retail, unsupported/legacy tiers) must not get a company/customer
+    // created at all.
+    const priceList = (account.Price_List || '').toString().trim();
+    const allowedKeys = new Set(ALLOWED_PRICE_LISTS.map((t) => tierKey(t)));
+    if (!allowedKeys.has(tierKey(priceList))) {
+      const message = `PriceList "${priceList}" is not supported for CannaDevices (must be one of: ${ALLOWED_PRICE_LISTS.join(', ')})`;
+      this.logger.warn(message);
+
+      if (!this.responseMetaSent) {
+        await this.sendResponseMeta({
+          statusCode: 422,
+          headers: { 'Content-Type': 'application/json' },
+        });
+        await this.sendResponse(JSON.stringify({ success: false, message }));
+      }
+
+      return this.cancel(message);
+    }
 
     let customerId = contact.CannaDevices_Shopify_ID?.toString().trim();
     let companyId = account.CannaDevices_Shopify_ID?.toString().trim();
@@ -415,6 +444,73 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
             : `The contact has been created in the website successfully.`,
         }),
       );
+    }
+
+    // --- New customer notifications (signal + CRM comment) ---
+    // Fire whenever a *customer* is newly created on CannaDevices (not on a
+    // re-sync of an existing customer). The note's content differs depending
+    // on whether the company was created alongside it. Runs after the webhook
+    // response above so the caller isn't blocked on it.
+    const customerCreated = !customer;
+    if (customerCreated) {
+      const customerUrl = `https://admin.shopify.com/store/canna-devices/customers/${customerId}`;
+      const companyUrl = `https://admin.shopify.com/store/canna-devices/companies/${companyId}`;
+
+      try {
+        await sendCrmSignal(this.zohoService, {
+          namespace: SIGNAL_NAMESPACE_ACCOUNT_CREATED,
+          contactId: contact.id,
+          subject: 'CannaDevices customer created',
+          message: `*${contact.First_Name} ${contact.Last_Name}* was created on CannaDevices (Shopify).`,
+          actions: [
+            {
+              type: 'link',
+              open_in: 'tab',
+              display_name: 'View customer in Shopify',
+              url: customerUrl,
+            },
+          ],
+        });
+      } catch (e: any) {
+        this.logger.error(
+          `Zoho signal failed for contact ${contact.id}: ${e?.message ?? e}`,
+        );
+      }
+
+      try {
+        // Company was also created in this run: mention it plus the market.
+        // Otherwise the customer was added to an already-existing company —
+        // only the customer link is relevant.
+        const noteContent = companyCreated
+          ? `A CannaDevices account was created.\n` +
+            `Company: ${account.Account_Name}\n` +
+            `Customer: ${contact.First_Name} ${contact.Last_Name} (${contact.Email})\n` +
+            `Market: ${market?.name ?? 'N/A'}\n` +
+            `Link: ${companyUrl}`
+          : `A CannaDevices customer was created.\n` +
+            `Customer: ${contact.First_Name} ${contact.Last_Name} (${contact.Email})\n` +
+            `Link: ${customerUrl}`;
+
+        await this.zohoService.post(
+          `/crm/v8/Accounts/${account.id}/Notes`,
+          {
+            data: [
+              {
+                Parent_Id: {
+                  id: account.id,
+                  module: { api_name: 'Accounts' },
+                },
+                Note_Content: noteContent,
+              },
+            ],
+          },
+          { connection: 'hbh' },
+        );
+      } catch (e: any) {
+        this.logger.error(
+          `CRM Account note failed for ${account.id}: ${e?.message ?? e}`,
+        );
+      }
     }
 
     return {

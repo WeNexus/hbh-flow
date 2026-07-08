@@ -1,10 +1,11 @@
 import { Shopify2Service } from '#lib/shopify/shopify2.service';
+import { ZohoService } from '#lib/zoho/zoho.service';
 import { Logger } from '@nestjs/common';
 import { chunk } from 'lodash-es';
 
 /**
  * Shared helpers for the CannaDevices B2B (new Shopify store) integration,
- * used by PushCrmContactToShopifyWorkflow.
+ * used by PushCrmContactToShopifyWorkflow and SyncCustomerGroupToStoresWorkflow.
  *
  * Kept as standalone functions (not a Nest provider) so the workflow can use
  * the Shopify B2B behaviour without duplication.
@@ -18,6 +19,12 @@ export const MF_NAMESPACE = 'custom';
 export const MF_KEY_MARKET_ID = 'market_id';
 export const MF_KEY_CRM_ACCOUNT_ID = 'crm_account_id';
 export const MF_KEY_CRM_CONTACT_ID = 'crm_contact_id';
+
+/** Zoho CRM signal namespaces used by the CannaDevices integration. */
+export const SIGNAL_NAMESPACE_ACCOUNT_CREATED =
+  'accounts_cannadevices2accountcreated';
+export const SIGNAL_NAMESPACE_WRONG_PRICE_LIST =
+  'accounts_cannadevices2wrongpricelist';
 
 const logger = new Logger('CannaDevicesB2B');
 
@@ -45,6 +52,48 @@ export interface MetafieldInput {
  */
 export function escapeSearch(value: unknown): string {
   return String(value ?? '').replace(/["\\]/g, '\\$&');
+}
+
+export interface CrmSignalAction {
+  type: 'link';
+  open_in: 'tab' | 'popup';
+  display_name: string;
+  url: string;
+}
+
+/**
+ * Fire a Zoho CRM signal:
+ * https://www.zoho.com/crm/developer/docs/signals/invoke-signal-via-API.html
+ *
+ * The signal's `email`/`id` attribute is only supported for the Contact and
+ * Lead modules (not Accounts), so `contactId` must be a Contacts/Leads record id.
+ */
+export async function sendCrmSignal(
+  zohoService: ZohoService,
+  params: {
+    namespace: string;
+    contactId: string | number;
+    subject: string;
+    message: string;
+    actions?: CrmSignalAction[];
+  },
+  connection = 'hbh',
+): Promise<void> {
+  await zohoService.post(
+    '/crm/v2/signals/notifications',
+    {
+      signals: [
+        {
+          signal_namespace: params.namespace,
+          id: params.contactId,
+          subject: params.subject,
+          message: params.message,
+          actions: params.actions ?? [],
+        },
+      ],
+    },
+    { connection },
+  );
 }
 
 /** Extract the numeric id from a Shopify GID (e.g. gid://shopify/Market/123 -> "123"). */

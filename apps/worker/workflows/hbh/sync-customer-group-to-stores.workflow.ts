@@ -10,6 +10,7 @@ import {
   MF_KEY_CRM_ACCOUNT_ID,
   MF_KEY_MARKET_ID,
   MF_NAMESPACE,
+  SIGNAL_NAMESPACE_WRONG_PRICE_LIST,
   deleteMetafields,
   escapeSearch,
   fetchCompanyLocationsWithMarket,
@@ -17,6 +18,7 @@ import {
   gidNumericId,
   marketRemoveCompanyLocations,
   marketUpdateCompanyLocations,
+  sendCrmSignal,
   setMetafields,
   tierKey,
 } from './cannadevices-b2b.util';
@@ -232,9 +234,10 @@ export class SyncCustomerGroupToStoresWorkflow extends WorkflowBase<Payload> {
   // ---------------------------------------------------------------------------
   @Step(4)
   async syncCannaDevices() {
-    const { account } = (await this.getResult<{ account: CrmAccount }>(
-      'fetchData',
-    ))!;
+    const { account, contacts } = (await this.getResult<{
+      account: CrmAccount;
+      contacts: CrmContact[];
+    }>('fetchData'))!;
 
     // Resolve the company on the new store (by stored id, else crm_account_id).
     let companyGid: string | null = null;
@@ -371,6 +374,39 @@ export class SyncCustomerGroupToStoresWorkflow extends WorkflowBase<Payload> {
           key: MF_KEY_MARKET_ID,
         })),
       );
+
+      // Notify CRM: the account was just moved off its CannaDevices market(s)
+      // because its tier is unsupported. Only fires on this transition (not on
+      // every run) since currentMarkets is only non-empty when there was
+      // something to remove. The signal must attach to a Contact, so use the
+      // account's first contact.
+      const contactId = contacts[0]?.id;
+      if (contactId) {
+        try {
+          await sendCrmSignal(this.zohoService, {
+            namespace: SIGNAL_NAMESPACE_WRONG_PRICE_LIST,
+            contactId,
+            subject: 'Unsupported CannaDevices PriceList',
+            message: `*${account.Account_Name}* has an unsupported PriceList ("${account.Price_List || account.Customer_Group}") for CannaDevices and was removed from its market.`,
+            actions: [
+              {
+                type: 'link',
+                open_in: 'tab',
+                display_name: 'View company in Shopify',
+                url: `https://admin.shopify.com/store/canna-devices/companies/${gidNumericId(companyGid)}`,
+              },
+            ],
+          });
+        } catch (e: any) {
+          this.logger.error(
+            `Zoho signal failed for account ${account.id}: ${e?.message ?? e}`,
+          );
+        }
+      } else {
+        this.logger.warn(
+          `Account ${account.id} has no contacts; skipping wrong-price-list signal`,
+        );
+      }
     }
 
     // Sync only the Shopify market pointer on the CRM account (null when the
