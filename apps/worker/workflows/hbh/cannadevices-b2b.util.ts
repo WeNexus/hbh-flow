@@ -407,6 +407,47 @@ export async function marketUpdateCompanyLocations(
 }
 
 /**
+ * Allow a company location's buyer to place orders directly instead of every
+ * order becoming a draft order pending merchant review. `companyLocationUpdate`
+ * only takes a single location id, so this loops (no bulk variant exists).
+ */
+export async function allowDirectOrdering(
+  shopify2: Shopify2Service,
+  companyLocationIds: string[],
+  connection = CANNA_NEW_CONNECTION,
+): Promise<void> {
+  const ids = [...new Set(companyLocationIds.filter(Boolean))];
+
+  for (const companyLocationId of ids) {
+    const res = await shopify2.gql<{
+      companyLocation: { id: string } | null;
+      userErrors: { field: string[]; message: string }[];
+    }>({
+      connection,
+      root: 'companyLocationUpdate',
+      variables: {
+        companyLocationId,
+        input: { buyerExperienceConfiguration: { checkoutToDraft: false } },
+      },
+      query: `#graphql
+        mutation ($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {
+          companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {
+            companyLocation { id }
+            userErrors { field message }
+          }
+        }
+      `,
+    });
+
+    if (res?.userErrors?.length) {
+      logger.warn(
+        `companyLocationUpdate(${companyLocationId}): ${res.userErrors.map((e) => e.message).join(', ')}`,
+      );
+    }
+  }
+}
+
+/**
  * Remove the given company locations from a market's company-location condition
  * via `conditionsToDelete` (the inverse of {@link marketUpdateCompanyLocations}).
  * Used when a company's tier changes and it must leave its previous market.

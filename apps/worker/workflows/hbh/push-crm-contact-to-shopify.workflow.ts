@@ -10,6 +10,7 @@ import {
   MF_KEY_MARKET_ID,
   MF_NAMESPACE,
   SIGNAL_NAMESPACE_ACCOUNT_CREATED,
+  allowDirectOrdering,
   escapeSearch,
   fetchCompanyLocationIds,
   fetchMarketsByTierKey,
@@ -89,7 +90,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
         query: `#graphql
         query ($query: String!) {
           customers(first: 1, query: $query) {
-            nodes { id companyContactProfiles { company { id } } }
+            nodes { id companyContactProfiles { company { id contactRoles(first: 10) { nodes { id name } } } } }
           }
         }
         `,
@@ -111,7 +112,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
         query ($id: ID!) {
           customer(id: $id) {
             id
-            companyContactProfiles { company { id } }
+            companyContactProfiles { company { id contactRoles(first: 10) { nodes { id name } } } }
           }
         }
         `,
@@ -134,7 +135,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       }
       company = await this.shopify2Service.gql({
         query: `#graphql
-        query ($id: ID!) { company(id: $id) { id } }
+        query ($id: ID!) { company(id: $id) { id contactRoles(first: 10) { nodes { id name } } } }
         `,
         variables: { id: `gid://shopify/Company/${companyId}` },
         connection: 'canna-devices',
@@ -144,7 +145,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       const companies = await this.shopify2Service.gql({
         query: `#graphql
         query ($query: String!) {
-          companies(first: 1, query: $query) { nodes { id } }
+          companies(first: 1, query: $query) { nodes { id contactRoles(first: 10) { nodes { id name } } } }
         }
         `,
         variables: {
@@ -204,6 +205,12 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
         companyCreate(input: $input) {
           company {
             id
+            contactRoles(first: 10) {
+              nodes {
+                id
+                name
+              }
+            }
           }
           userErrors {
             field
@@ -237,7 +244,7 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
         const existing = await this.shopify2Service.gql({
           query: `#graphql
           query ($query: String!) {
-            companies(first: 1, query: $query) { nodes { id } }
+            companies(first: 1, query: $query) { nodes { id contactRoles(first: 10) { nodes { id name } } } }
           }
           `,
           variables: {
@@ -348,41 +355,115 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
       },
     ]);
 
+    const companyCreated = !company;
+    const customerCreated = !customer;
+    const companyContactId = contactAssignmentResult?.companyContact?.id;
+    const locationGids = await fetchCompanyLocationIds(
+      this.shopify2Service,
+      companyGid,
+    );
+
+    // --- Newly created customer: give it the "Ordering only" role on every
+    // location the company currently has. ---
+    if (customerCreated && companyContactId && locationGids.length) {
+      const contactRoles =
+        companyResult?.company?.contactRoles?.nodes ??
+        company?.contactRoles?.nodes ??
+        [];
+      const orderingRole = contactRoles.find(
+        (r: any) => r.name?.trim().toLowerCase() === 'ordering only',
+      );
+
+      if (orderingRole) {
+        const roleResult = await this.shopify2Service.gql({
+          query: `#graphql
+          mutation ($companyContactId: ID!, $rolesToAssign: [CompanyContactRoleAssign!]!) {
+            companyContactAssignRoles(companyContactId: $companyContactId, rolesToAssign: $rolesToAssign) {
+              roleAssignments { id }
+              userErrors { field message }
+            }
+          }
+          `,
+          variables: {
+            companyContactId,
+            rolesToAssign: locationGids.map((companyLocationId) => ({
+              companyContactRoleId: orderingRole.id,
+              companyLocationId,
+            })),
+          },
+          connection: 'canna-devices',
+          root: 'companyContactAssignRoles',
+        });
+
+        if (roleResult?.userErrors?.length) {
+          this.logger.warn(
+            `companyContactAssignRoles: ${roleResult.userErrors.map((e: any) => e.message).join(', ')}`,
+          );
+        }
+      } else {
+        this.logger.warn(
+          `No "Ordering only" contact role found on company ${companyId}`,
+        );
+      }
+    }
+
+    // --- Newly created company: its first customer becomes the main contact. ---
+    if (companyCreated && companyContactId) {
+      const mainContactResult = await this.shopify2Service.gql({
+        query: `#graphql
+        mutation ($companyId: ID!, $companyContactId: ID!) {
+          companyAssignMainContact(companyId: $companyId, companyContactId: $companyContactId) {
+            company { id }
+            userErrors { field message }
+          }
+        }
+        `,
+        variables: { companyId: companyGid, companyContactId },
+        connection: 'canna-devices',
+        root: 'companyAssignMainContact',
+      });
+
+      if (mainContactResult?.userErrors?.length) {
+        this.logger.warn(
+          `companyAssignMainContact: ${mainContactResult.userErrors.map((e: any) => e.message).join(', ')}`,
+        );
+      }
+    }
+
+    // --- Let this company's locations place orders directly instead of every
+    // order becoming a draft order pending merchant review. ---
+    if (locationGids.length) {
+      await allowDirectOrdering(this.shopify2Service, locationGids);
+    }
+
     // --- Market conditions ---
     // Only (re)build market conditions when the company was newly created in
     // this run. An existing company is assumed to already be a member of its
     // market, and rebuilding conditions (a bulk query over every company
     // location in the market) is the slow part we want to avoid on re-syncs.
-    const companyCreated = !company;
     const lastMarketId = account.Shopify_Market_ID?.toString().trim();
     const newMarketId = market ? gidNumericId(market.id) : null;
 
     let marketToSync: MarketSync | null = null;
-    if (companyCreated && market && newMarketId) {
-      const locationGids = await fetchCompanyLocationIds(
+    if (companyCreated && market && newMarketId && locationGids.length) {
+      // Tag the new company's locations so the market query includes them.
+      await setMetafields(
         this.shopify2Service,
-        companyGid,
+        locationGids.map((ownerId) => ({
+          ownerId,
+          namespace: MF_NAMESPACE,
+          key: MF_KEY_MARKET_ID,
+          type: 'single_line_text_field',
+          value: newMarketId,
+        })),
       );
-      if (locationGids.length) {
-        // Tag the new company's locations so the market query includes them.
-        await setMetafields(
-          this.shopify2Service,
-          locationGids.map((ownerId) => ({
-            ownerId,
-            namespace: MF_NAMESPACE,
-            key: MF_KEY_MARKET_ID,
-            type: 'single_line_text_field',
-            value: newMarketId,
-          })),
-        );
-        // The actual market rebuild (bulk query + marketUpdate) runs in the
-        // following steps so the webhook caller isn't blocked on it.
-        marketToSync = {
-          marketId: market.id,
-          numericId: newMarketId,
-          companyLocationIds: locationGids,
-        };
-      }
+      // The actual market rebuild (bulk query + marketUpdate) runs in the
+      // following steps so the webhook caller isn't blocked on it.
+      marketToSync = {
+        marketId: market.id,
+        numericId: newMarketId,
+        companyLocationIds: locationGids,
+      };
     }
 
     // Keep the CRM's cached Shopify ids / market in sync regardless. The Shopify
@@ -451,7 +532,6 @@ export class PushCrmContactToShopifyWorkflow extends WorkflowBase {
     // re-sync of an existing customer). The note's content differs depending
     // on whether the company was created alongside it. Runs after the webhook
     // response above so the caller isn't blocked on it.
-    const customerCreated = !customer;
     if (customerCreated) {
       const customerUrl = `https://admin.shopify.com/store/canna-devices/customers/${customerId}`;
       const companyUrl = `https://admin.shopify.com/store/canna-devices/companies/${companyId}`;
