@@ -20,9 +20,9 @@ import axios from 'axios';
   concurrency: 1,
   webhookPayloadType: WebhookPayloadType.Full,
   triggers: [
-    cron('0 */6 * * *', {
-      // Every 6 hours
-      oldPattern: '*/30 * * * *',
+    cron('0 0 * * *', {
+      // Every day at midnight
+      oldPattern: '0 */6 * * *',
       timezone: 'America/New_York',
     }),
   ],

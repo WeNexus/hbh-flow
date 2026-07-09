@@ -17,9 +17,9 @@ import readline from 'node:readline';
   webhook: true,
   concurrency: 1,
   triggers: [
-    // Every 24 hours
-    cron('0 0 * * *', {
-      oldPattern: '0 */5 * * *',
+    // Every 6 hours
+    cron('0 */6 * * *', {
+      oldPattern: '0 0 * * *',
       timezone: 'America/New_York',
     }),
   ],
