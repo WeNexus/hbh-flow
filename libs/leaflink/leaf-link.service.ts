@@ -62,7 +62,7 @@ export class LeafLinkService extends TokenHttpClient {
   }
 
   async testConnection(connection: string): Promise<boolean> {
-    const res = await this.get('/v2/companies', {
+    const res = await this.get('/v2/companies/', {
       connection,
     });
 
